@@ -1,0 +1,34 @@
+name: Publish create-volt to npm
+
+# Publishes whenever a version tag (e.g. v0.3.1) is pushed. The release script
+# (`npm run release`) creates and pushes those tags.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # required for npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # Trusted Publishing (OIDC) requires a recent npm (>= 11.5).
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      # No NODE_AUTH_TOKEN: npm exchanges the GitHub OIDC token automatically,
+      # and attaches build provenance. The trusted publisher must be configured
+      # for this repo + workflow on npmjs.com first.
+      - name: Publish
+        run: npm publish -w create-volt --provenance --access public
