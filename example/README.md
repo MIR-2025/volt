@@ -8,7 +8,7 @@ Not React: no JSX, no virtual DOM, no re-render-the-world. State lives in
 
 ```bash
 npm install        # if you scaffolded with --skip-install
-npm run dev        # → http://localhost:3000   (PORT env to override)
+npm run dev        # → http://localhost:26628   (PORT env to override)
 ```
 
 Edit anything in `public/` or `views/` and save — the dev server pushes a

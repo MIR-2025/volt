@@ -12,7 +12,7 @@ and writing it touches only the precise text node / attribute that changed.
 ```bash
 npm create volt@latest my-app
 cd my-app
-npm run dev          # → http://localhost:3000
+npm run dev          # → http://localhost:26628
 ```
 
 Edit `public/app.js` and save — the page reloads itself.
@@ -30,7 +30,7 @@ Run the bundled example straight from the repo:
 
 ```bash
 npm install            # installs workspace deps (hoisted to ./node_modules)
-npm run example        # → http://localhost:3000
+npm run example        # → http://localhost:26628
 ```
 
 Scaffold a throwaway app using the local (unpublished) CLI:

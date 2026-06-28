@@ -150,4 +150,4 @@ console.log(`\n${green("✔")} ${bold("Done!")} Next steps:\n`);
 console.log(`  ${cyan("cd")} ${projectName}`);
 if (!installed) console.log(`  ${cyan(installCmd)}`);
 console.log(`  ${cyan(runCmd)}`);
-console.log(`\nThen open ${cyan("http://localhost:3000")} and edit ${bold("public/app.js")}.\n`);
+console.log(`\nThen open ${cyan("http://localhost:26628")} and edit ${bold("public/app.js")}.\n`);

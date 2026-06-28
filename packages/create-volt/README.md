@@ -20,7 +20,7 @@ Then:
 
 ```bash
 cd my-app
-npm run dev        # → http://localhost:3000
+npm run dev        # → http://localhost:26628
 ```
 
 Edit `public/app.js` and save — the page hot-reloads itself.
