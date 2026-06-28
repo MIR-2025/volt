@@ -1,0 +1,26 @@
+{
+  "name": "create-volt",
+  "version": "0.1.0",
+  "description": "Scaffold a new Volt app — no-build, signals-based UI with Socket.io hot reload.",
+  "type": "module",
+  "bin": {
+    "create-volt": "index.js"
+  },
+  "files": [
+    "index.js",
+    "template"
+  ],
+  "engines": {
+    "node": ">=16.7.0"
+  },
+  "keywords": [
+    "volt",
+    "create-volt",
+    "scaffold",
+    "signals",
+    "no-build",
+    "hot-reload",
+    "ui"
+  ],
+  "license": "MIT"
+}

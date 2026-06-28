@@ -1,0 +1,16 @@
+{
+  "name": "volt-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Volt — a tiny no-build, signals-based UI library, and create-volt, its create-react-app-style scaffolder.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "example"
+  ],
+  "scripts": {
+    "example": "node example/server.js",
+    "create-volt": "node packages/create-volt/index.js"
+  },
+  "license": "MIT"
+}
