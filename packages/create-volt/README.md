@@ -14,6 +14,9 @@ npx create-volt my-app
 pnpm create volt my-app
 yarn create volt my-app
 bun create volt my-app
+
+# choose the dev port (default: derived from today's date)
+npm create volt@latest my-app -- --port 26630
 ```
 
 Then:
