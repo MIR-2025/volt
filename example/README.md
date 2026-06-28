@@ -14,6 +14,22 @@ npm run dev        # → http://localhost:26628   (PORT env to override)
 Edit anything in `public/` or `views/` and save — the dev server pushes a
 reload over Socket.io and the page refreshes itself.
 
+## Dev port
+
+This app's dev port is set in `server.js` (chosen when the project was
+scaffolded). Override it at launch with the `PORT` env var:
+
+```bash
+PORT=4000 npm run dev
+```
+
+Scaffolding more apps? `create-volt` defaults each one's port to its creation
+date and takes `--port <number>` to avoid collisions on the same day:
+
+```bash
+npm create volt@latest api-app -- --port 26630
+```
+
 ## Project layout
 
 ```
