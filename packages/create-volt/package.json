@@ -8,7 +8,8 @@
   },
   "files": [
     "index.js",
-    "template"
+    "template",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=16.7.0"

@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to `create-volt` are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/), and this project adheres to
+[Semantic Versioning](https://semver.org/).
+
+## [0.3.2] - 2026-06-28
+
+### Changed
+- Scaffolded apps' `README.md` now has a **Dev port** section explaining the
+  date-derived port and how to override it (`PORT` env / `--port`).
+- Package README shows `--port` directly in the Usage block.
+
+## [0.3.1] - 2026-06-28
+
+### Changed
+- Internal: releases now publish from GitHub Actions via npm **Trusted
+  Publishing** (OIDC, with provenance) — no functional changes to scaffolded apps.
+
+## [0.3.0] - 2026-06-28
+
+### Added
+- `--port <number>` flag to set the new app's dev port.
+- The dev port now **defaults to the creation date** (two-digit year + month +
+  two-digit day, e.g. `2026-06-28` → `26628`), so apps scaffolded on different
+  days don't collide. The chosen port is stamped into the generated `server.js`.
+
+## [0.2.0] - 2026-06-28
+
+### Added
+- Git auto-init: scaffolded apps start as a git repository with an initial
+  commit (`--no-git` to skip).
+- `--dry-run` flag: preview the files and actions without writing anything.
+
+## [0.1.0] - 2026-06-28
+
+### Added
+- Initial release. Scaffolds a no-build, signals-based Volt app: the `volt.js`
+  library, a Counter + Todos demo, an Express + Socket.io dev server with file
+  watching and full-page hot reload. Supports `--skip-install` and `--force`,
+  and auto-detects npm / pnpm / yarn / bun for the install step.
+
+[0.3.2]: https://github.com/MIR-2025/volt/releases/tag/v0.3.2
+[0.3.1]: https://github.com/MIR-2025/volt/releases/tag/v0.3.1
+[0.3.0]: https://github.com/MIR-2025/volt/releases/tag/v0.3.0
+[0.2.0]: https://github.com/MIR-2025/volt/releases/tag/v0.2.0
+[0.1.0]: https://github.com/MIR-2025/volt/releases/tag/v0.1.0
