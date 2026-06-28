@@ -13,6 +13,16 @@
   "engines": {
     "node": ">=16.7.0"
   },
+  "author": "Richard Whitney",
+  "homepage": "https://github.com/MIR-2025/volt#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MIR-2025/volt.git",
+    "directory": "packages/create-volt"
+  },
+  "bugs": {
+    "url": "https://github.com/MIR-2025/volt/issues"
+  },
   "keywords": [
     "volt",
     "create-volt",
