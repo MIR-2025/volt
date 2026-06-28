@@ -4,6 +4,8 @@ A tiny, **no-build**, signals-based UI app with **Socket.io hot reload**.
 Not React: no JSX, no virtual DOM, no re-render-the-world. State lives in
 *signals*; only the exact text/attribute that changed updates.
 
+📖 **[How to build a Volt app →](https://github.com/MIR-2025/volt#readme)**
+
 ## Run
 
 ```bash
