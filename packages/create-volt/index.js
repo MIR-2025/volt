@@ -36,6 +36,7 @@ ${bold("Usage")}
   npx create-volt <project-directory> [options]
 
 ${bold("Options")}
+  --port <number>  Dev port for the app (default: derived from today's date)
   --skip-install   Don't run the package manager install step
   --no-git         Don't initialize a git repository
   --dry-run        Show what would be created without writing anything
@@ -48,10 +49,18 @@ ${bold("Example")}
   cd my-app && npm run dev
 `;
 
-// --- arg parsing ---
+// --- arg parsing (supports `--port <n>` and `--port=<n>`) ---
 const argv = process.argv.slice(2);
-const flags = new Set(argv.filter((a) => a.startsWith("-")));
-const positionals = argv.filter((a) => !a.startsWith("-"));
+const flags = new Set();
+const positionals = [];
+let portArg = null;
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === "--port") portArg = argv[++i];
+  else if (a.startsWith("--port=")) portArg = a.slice("--port=".length);
+  else if (a.startsWith("-")) flags.add(a);
+  else positionals.push(a);
+}
 
 if (flags.has("-h") || flags.has("--help")) {
   console.log(HELP);
@@ -66,6 +75,28 @@ const skipInstall = flags.has("--skip-install");
 const force = flags.has("--force");
 const dryRun = flags.has("--dry-run");
 const noGit = flags.has("--no-git");
+
+// Resolve the dev port: --port wins, else derive it from today's date as
+// two-digit-year + month (no leading zero) + two-digit-day (house convention),
+// so apps scaffolded on different days don't collide on the same port.
+function datePort(d) {
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1);
+  const dd = String(d.getDate()).padStart(2, "0");
+  return Number(`${yy}${mm}${dd}`);
+}
+let port;
+if (portArg != null) {
+  port = Number(portArg);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    die(`Invalid --port "${portArg}" — use a whole number between 1 and 65535.`);
+  }
+} else {
+  port = datePort(new Date());
+  if (port > 65535) {
+    die(`The date-derived port (${port}) is above 65535 — pass --port <1-65535>.`);
+  }
+}
 
 const rawName = positionals[0];
 if (!rawName) die(`Please specify a project directory:\n    ${cyan("npm create volt@latest")} ${green("<project-directory>")}`);
@@ -113,6 +144,7 @@ if (dryRun) {
   console.log("");
   console.log(dim(`Would ${skipInstall ? "skip dependency install" : "install dependencies"}.`));
   console.log(dim(`Would ${noGit ? "skip git init" : "initialize a git repository with an initial commit"}.`));
+  console.log(dim(`Would set the dev port to ${port}.`));
   console.log(`\n${green("✔")} Dry run complete — nothing was written.\n`);
   process.exit(0);
 }
@@ -136,6 +168,17 @@ const appPkgPath = path.join(targetDir, "package.json");
 const appPkg = JSON.parse(fs.readFileSync(appPkgPath, "utf8"));
 appPkg.name = appName;
 fs.writeFileSync(appPkgPath, JSON.stringify(appPkg, null, 2) + "\n");
+
+// --- stamp the chosen dev port into server.js + README ---
+const serverPath = path.join(targetDir, "server.js");
+fs.writeFileSync(
+  serverPath,
+  fs.readFileSync(serverPath, "utf8").replace(/(Number\(process\.env\.PORT\)\s*\|\|\s*)\d+/, `$1${port}`),
+);
+const appReadme = path.join(targetDir, "README.md");
+if (fs.existsSync(appReadme)) {
+  fs.writeFileSync(appReadme, fs.readFileSync(appReadme, "utf8").replace(/localhost:\d+/g, `localhost:${port}`));
+}
 
 const created = [
   "public/volt.js   — the Volt library (no build step)",
@@ -205,4 +248,4 @@ console.log(`\n${green("✔")} ${bold("Done!")} Next steps:\n`);
 console.log(`  ${cyan("cd")} ${projectName}`);
 if (!installed) console.log(`  ${cyan(installCmd)}`);
 console.log(`  ${cyan(runCmd)}`);
-console.log(`\nThen open ${cyan("http://localhost:26628")} and edit ${bold("public/app.js")}.\n`);
+console.log(`\nThen open ${cyan("http://localhost:" + port)} and edit ${bold("public/app.js")}.\n`);
