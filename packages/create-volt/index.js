@@ -34,6 +34,7 @@ ${bold("⚡ create-volt")} — scaffold a new Volt app
 ${bold("Usage")}
   npm create volt@latest <project-directory> [options]
   npx create-volt <project-directory> [options]
+  npx create-volt@latest update              # refresh public/volt.js in an existing app
 
 ${bold("Options")}
   --port <number>  Dev port for the app (default: derived from today's date)
@@ -75,6 +76,32 @@ const skipInstall = flags.has("--skip-install");
 const force = flags.has("--force");
 const dryRun = flags.has("--dry-run");
 const noGit = flags.has("--no-git");
+
+// --- `update` subcommand: refresh public/volt.js in the current app to the
+// version bundled with this create-volt (so `npx create-volt@latest update`
+// pulls the latest library). Only touches the library file — never the user's
+// app.js, server.js, or port. ---
+if (positionals[0] === "update") {
+  const target = path.join(process.cwd(), "public", "volt.js");
+  if (!fs.existsSync(target)) {
+    die(`No ${cyan("public/volt.js")} here — run ${cyan("create-volt update")} from inside a Volt app.`);
+  }
+  const latest = fs.readFileSync(path.join(__dirname, "template", "public", "volt.js"), "utf8");
+  const current = fs.readFileSync(target, "utf8");
+  if (current === latest) {
+    console.log(`\n${green("✔")} ${bold("public/volt.js")} is already current (create-volt ${pkg.version}).\n`);
+    process.exit(0);
+  }
+  if (dryRun) {
+    console.log(`\n${yellow("!")} An update is available for ${bold("public/volt.js")} (create-volt ${pkg.version}).`);
+    console.log(`  Re-run without ${cyan("--dry-run")} to apply.\n`);
+    process.exit(0);
+  }
+  fs.writeFileSync(target, latest);
+  console.log(`\n${green("✔")} Updated ${bold("public/volt.js")} to the version in create-volt ${pkg.version}.`);
+  console.log(`  Review the change with ${cyan("git diff public/volt.js")}.\n`);
+  process.exit(0);
+}
 
 // Resolve the dev port: --port wins, else derive it from today's date as
 // two-digit-year + month (no leading zero) + two-digit-day (house convention),

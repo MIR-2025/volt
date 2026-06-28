@@ -28,6 +28,19 @@ npm run dev        # → http://localhost:26628
 
 Edit `public/app.js` and save — the page hot-reloads itself.
 
+## Updating Volt
+
+Volt is vendored as a single file (`public/volt.js`), not an npm dependency.
+To pull the latest library into an existing app, run from its directory:
+
+```bash
+npx create-volt@latest update         # refresh public/volt.js
+npx create-volt@latest update --dry-run   # just check if an update is available
+```
+
+It only rewrites `public/volt.js` — your `app.js`, `server.js`, and dev port are
+left untouched. Review the change with `git diff public/volt.js`.
+
 ## Options
 
 | Flag              | Effect                                                  |

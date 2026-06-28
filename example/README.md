@@ -32,6 +32,17 @@ date and takes `--port <number>` to avoid collisions on the same day:
 npm create volt@latest api-app -- --port 26630
 ```
 
+## Updating Volt
+
+`public/volt.js` is a vendored file, not an npm dependency. Pull the latest
+library version with:
+
+```bash
+npx create-volt@latest update
+```
+
+This rewrites only `public/volt.js` — your app code and port stay as-is.
+
 ## Project layout
 
 ```

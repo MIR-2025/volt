@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-06-28
+
+### Added
+- `create-volt update` command: refresh `public/volt.js` in an existing app to
+  the library version bundled with create-volt. Run `npx create-volt@latest
+  update` inside an app. Only touches the library file — never your `app.js`,
+  `server.js`, or chosen port. Supports `--dry-run` to check without writing.
+
 ## [0.3.2] - 2026-06-28
 
 ### Changed
@@ -40,6 +48,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.4.0]: https://github.com/MIR-2025/volt/releases/tag/v0.4.0
 [0.3.2]: https://github.com/MIR-2025/volt/releases/tag/v0.3.2
 [0.3.1]: https://github.com/MIR-2025/volt/releases/tag/v0.3.1
 [0.3.0]: https://github.com/MIR-2025/volt/releases/tag/v0.3.0
