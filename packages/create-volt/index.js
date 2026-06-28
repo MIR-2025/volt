@@ -37,6 +37,8 @@ ${bold("Usage")}
 
 ${bold("Options")}
   --skip-install   Don't run the package manager install step
+  --no-git         Don't initialize a git repository
+  --dry-run        Show what would be created without writing anything
   --force          Scaffold into an existing non-empty directory
   -h, --help       Show this help
   -v, --version    Show the create-volt version
@@ -62,6 +64,8 @@ if (flags.has("-v") || flags.has("--version")) {
 
 const skipInstall = flags.has("--skip-install");
 const force = flags.has("--force");
+const dryRun = flags.has("--dry-run");
+const noGit = flags.has("--no-git");
 
 const rawName = positionals[0];
 if (!rawName) die(`Please specify a project directory:\n    ${cyan("npm create volt@latest")} ${green("<project-directory>")}`);
@@ -79,15 +83,41 @@ const targetDir = path.resolve(process.cwd(), projectName);
 const appName = path.basename(targetDir);
 const templateDir = path.join(__dirname, "template");
 
+// List every file in the template, relative to its root (for dry-run preview).
+function listTemplateFiles(dir, base = dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listTemplateFiles(full, base));
+    else out.push(path.relative(base, full));
+  }
+  return out;
+}
+
 // --- target directory checks ---
 if (fs.existsSync(targetDir)) {
   const existing = fs.readdirSync(targetDir).filter((f) => f !== ".git");
   if (existing.length && !force) {
     die(`Directory ${green(projectName)} already exists and is not empty.\n  Pass ${cyan("--force")} to scaffold into it anyway.`);
   }
-} else {
-  fs.mkdirSync(targetDir, { recursive: true });
 }
+
+// --- dry run: print the plan and exit without writing anything ---
+if (dryRun) {
+  console.log(`\n${bold("⚡ Dry run")} — would create a Volt app in ${cyan(targetDir)}\n`);
+  console.log("Would write:");
+  for (const f of listTemplateFiles(templateDir).sort()) {
+    // the shipped "gitignore" is renamed to ".gitignore" on scaffold
+    console.log("  " + dim(f === "gitignore" ? ".gitignore" : f));
+  }
+  console.log("");
+  console.log(dim(`Would ${skipInstall ? "skip dependency install" : "install dependencies"}.`));
+  console.log(dim(`Would ${noGit ? "skip git init" : "initialize a git repository with an initial commit"}.`));
+  console.log(`\n${green("✔")} Dry run complete — nothing was written.\n`);
+  process.exit(0);
+}
+
+if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
 console.log(`\n${bold("⚡ Creating a new Volt app in")} ${cyan(targetDir)}\n`);
 
@@ -140,6 +170,31 @@ if (!skipInstall) {
     installed = true;
   } else {
     console.log(`\n${yellow("!")} ${pm} install did not complete — you can run it yourself below.`);
+  }
+}
+
+// --- initialize a git repository (unless skipped or already inside one) ---
+if (!noGit) {
+  const git = (gitArgs) =>
+    spawnSync("git", gitArgs, {
+      cwd: targetDir,
+      stdio: "ignore",
+      shell: process.platform === "win32",
+    });
+  const gitAvailable = git(["--version"]).status === 0;
+  const insideRepo = gitAvailable && git(["rev-parse", "--is-inside-work-tree"]).status === 0;
+  if (gitAvailable && !insideRepo) {
+    const initOk = git(["init", "-b", "main"]).status === 0 || git(["init"]).status === 0;
+    if (initOk) {
+      git(["add", "-A"]);
+      const committed = git(["commit", "-m", "Initial commit from create-volt"]).status === 0;
+      console.log(
+        green("✔") +
+          (committed
+            ? " Initialized a git repository (1 commit)\n"
+            : " Initialized a git repository (commit skipped — set git user.name/email)\n"),
+      );
+    }
   }
 }
 

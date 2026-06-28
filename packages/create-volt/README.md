@@ -30,9 +30,14 @@ Edit `public/app.js` and save — the page hot-reloads itself.
 | Flag             | Effect                                                  |
 | ---------------- | ------------------------------------------------------- |
 | `--skip-install` | Don't run the install step (scaffold files only)        |
+| `--no-git`       | Don't initialize a git repository                       |
+| `--dry-run`      | Show what would be created without writing anything      |
 | `--force`        | Scaffold into an existing non-empty directory           |
 | `-h`, `--help`   | Show help                                               |
 | `-v`, `--version`| Print the create-volt version                           |
+
+By default the new project is initialized as a git repository with one initial
+commit (skip with `--no-git`).
 
 The installer auto-detects whichever package manager invoked it
 (npm / pnpm / yarn / bun) and uses it for `install`.
