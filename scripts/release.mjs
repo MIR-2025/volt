@@ -41,8 +41,9 @@ fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 const tag = `v${next}`;
 git(["add", pkgPath]);
 git(["commit", "-m", `release: create-volt ${tag}`]);
-git(["tag", tag]);
-git(["push", "--follow-tags"]);
+git(["tag", "-a", tag, "-m", `create-volt ${tag}`]); // annotated, so it pushes
+git(["push"]); // push the release commit to the current branch's upstream
+git(["push", "origin", tag]); // push the tag explicitly → triggers the workflow
 
 console.log(`\n✅ Released ${tag} (${bump}) — pushed commit + tag.`);
 console.log("   GitHub Actions will publish create-volt via Trusted Publishing.");

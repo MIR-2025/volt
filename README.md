@@ -17,6 +17,21 @@ npm run dev          # → http://localhost:26628
 
 Edit `public/app.js` and save — the page reloads itself.
 
+## Dev port
+
+Each scaffolded app's dev port is baked into its `server.js`. By default it's
+derived from the **date you create it** — two-digit year + month + two-digit day
+(e.g. `2026-06-28` → `26628`) — so apps made on different days never collide.
+Creating more than one app on the same day? Give them distinct ports with
+`--port`:
+
+```bash
+npm create volt@latest web-app                 # → port from today's date
+npm create volt@latest api-app -- --port 26630 # → explicit port
+```
+
+The runtime `PORT` env var still overrides it at launch: `PORT=4000 npm run dev`.
+
 ## This repo (monorepo)
 
 ```
