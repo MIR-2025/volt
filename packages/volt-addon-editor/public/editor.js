@@ -20,6 +20,29 @@ const ed = RTEPro.init("#editor", {
   exportCSS: themeCss,
 });
 
+// Markdown can't round-trip complex layouts (multi-column, merged table cells,
+// inline styles, colors, embeds). Detect those and lock the save format to HTML
+// so the layout isn't silently flattened on save.
+const fmtSel = $("#fmt");
+const mdOption = fmtSel && [...fmtSel.options].find((o) => o.value === "markdown");
+function isComplex(html) {
+  return (
+    /\bstyle\s*=\s*["'][^"']*(text-align|column|float|grid|flex|width|height|color|background|font|margin|padding)/i.test(html) ||
+    /\b(colspan|rowspan)\b/i.test(html) ||
+    /<(u|font|mark|sub|sup|iframe|video|audio|figure)\b/i.test(html) ||
+    /class\s*=\s*["'][^"']*(col|grid|row|flex|layout)/i.test(html)
+  );
+}
+function updateFmtLock() {
+  if (!mdOption) return;
+  const complex = isComplex(ed.getHTML() || "");
+  mdOption.disabled = complex;
+  mdOption.textContent = complex ? "Markdown — unavailable (complex layout)" : "Markdown";
+  if (complex && fmtSel.value === "markdown") fmtSel.value = "html";
+  if (complex) $("#msg").textContent = "Complex layout — saving as HTML to preserve it (Markdown would flatten it).";
+}
+$("#editor").addEventListener("input", updateFmtLock);
+
 async function refresh() {
   const { pages } = await (await fetch(base + "/api/pages")).json();
   const list = $("#pages");
@@ -45,6 +68,7 @@ async function load(slug) {
   $("#img").value = d.image || "";
   $("#jsonld").value = d.jsonld || "";
   ed.setHTML(d.html || "");
+  updateFmtLock();
   $("#msg").textContent = "Editing " + slug;
 }
 
@@ -55,6 +79,7 @@ function newPage() {
   $("#img").value = "";
   $("#jsonld").value = "";
   ed.setHTML("");
+  updateFmtLock();
   $("#msg").textContent = "New page";
 }
 
@@ -78,3 +103,4 @@ async function save() {
 $("#save").onclick = save;
 $("#new").onclick = newPage;
 refresh();
+updateFmtLock();
