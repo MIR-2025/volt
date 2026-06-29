@@ -75,6 +75,14 @@ function genEnv(s) {
 }
 const env = computed(() => genEnv(state()));
 const eff = computed(() => effective(state()));
+// Memoized, primitive-valued derivations: a conditional section keyed on these
+// only re-renders when the *discriminant* changes — not on every keystroke in a
+// field it contains (which would recreate the input and drop focus).
+const dbDriver = computed(() => state().dbDriver);
+const mediaDriver = computed(() => state().mediaDriver);
+const hasDb = computed(() => eff().includes("db"));
+const hasMailer = computed(() => eff().includes("mailer"));
+const hasMedia = computed(() => eff().includes("media"));
 
 async function testDb() {
   const s = state();
@@ -137,7 +145,7 @@ const addonRow = (a) =>
 const dbSettings = () =>
   html`<div class="mb-2">
       <label class="form-label small mb-1">Database (DB_DRIVER)</label>
-      <select class="form-select" value=${() => state().dbDriver} onchange=${(e) => set({ dbDriver: e.target.value })}>
+      <select class="form-select" value=${() => dbDriver()} onchange=${(e) => set({ dbDriver: e.target.value })}>
         <option value="memory">memory (no setup)</option>
         <option value="mongodb">mongodb</option>
         <option value="mysql">mysql</option>
@@ -145,23 +153,23 @@ const dbSettings = () =>
       </select>
     </div>
     ${() =>
-      state().dbDriver === "mongodb"
+      dbDriver() === "mongodb"
         ? html`${field("MONGODB_URI", "mongoUri", "mongodb://user:pass@host:27017/db")}${field("MONGODB_DATABASE", "mongoDb", "db")}`
-        : state().dbDriver === "mysql" || state().dbDriver === "postgres"
-          ? field("DATABASE_URL", "dbUrl", state().dbDriver + "://user:pass@host/db")
+        : dbDriver() === "mysql" || dbDriver() === "postgres"
+          ? field("DATABASE_URL", "dbUrl", dbDriver() + "://user:pass@host/db")
           : null}
-    ${() => (state().dbDriver !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>` : null)}`;
+    ${() => (dbDriver() !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>` : null)}`;
 
 const mediaSettings = () =>
   html`<div class="mb-2">
       <label class="form-label small mb-1">Media storage (MEDIA_DRIVER)</label>
-      <select class="form-select" value=${() => state().mediaDriver} onchange=${(e) => set({ mediaDriver: e.target.value })}>
+      <select class="form-select" value=${() => mediaDriver()} onchange=${(e) => set({ mediaDriver: e.target.value })}>
         <option value="local">local (disk)</option>
         <option value="s3">s3 — AWS S3 / DigitalOcean Spaces</option>
       </select>
     </div>
     ${() =>
-      state().mediaDriver === "s3"
+      mediaDriver() === "s3"
         ? html`${field("S3_ENDPOINT", "s3Endpoint", "https://nyc3.digitaloceanspaces.com")}${field("S3_REGION", "s3Region", "us-east-1")}${field("S3_BUCKET", "s3Bucket", "my-space")}${field("S3_KEY", "s3Key", "access key")}${field("S3_SECRET", "s3Secret", "secret key")}${field("S3_PUBLIC_BASE (optional CDN base)", "s3PublicBase", "https://cdn.example.com")}`
         : null}`;
 
@@ -177,9 +185,9 @@ mount(
   html`<div class="card-x p-4 mb-3">
     <h2 class="h6 mb-3">Settings</h2>
     ${field("PORT", "port", String(defaultPort))}
-    ${() => (eff().includes("db") ? dbSettings() : null)}
-    ${() => (eff().includes("mailer") ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
-    ${() => (eff().includes("media") ? mediaSettings() : null)}
+    ${() => (hasDb() ? dbSettings() : null)}
+    ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+    ${() => (hasMedia() ? mediaSettings() : null)}
   </div>`,
   html`<div class="card-x p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">

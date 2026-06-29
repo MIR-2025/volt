@@ -127,7 +127,8 @@ export function mount(target, ...children) {
 
 function setAttr(node, name, value) {
   if (name === "value") {
-    node.value = value ?? "";
+    const v = value ?? "";
+    if (node.value !== v) node.value = v; // skip redundant writes — they reset the caret while typing
     return;
   }
   if (name === "checked" || name === "disabled" || name === "selected") {

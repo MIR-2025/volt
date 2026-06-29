@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-06-29
+
+### Fixed
+- **Setup wizard: typing in a settings field no longer drops focus.** The
+  conditional sections (DB-driver fields, S3 fields) read the whole `state()`
+  signal, so every keystroke re-rendered the section and recreated the `<input>`,
+  losing focus. They now key on memoized primitive derivations (`dbDriver`,
+  `mediaDriver`, `hasDb`/`hasMailer`/`hasMedia`) so a section re-renders only when
+  its discriminant changes.
+- **`volt.js`: reactive `value` bindings skip redundant DOM writes.** `setAttr`
+  no longer reassigns `node.value` when it already equals the new value — those
+  writes were resetting the caret to the end while typing. Benefits every Volt
+  app, not just the wizard.
+
 ## [0.29.0] - 2026-06-29
 
 ### Fixed
@@ -399,6 +413,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.30.0]: https://github.com/MIR-2025/volt/releases/tag/v0.30.0
 [0.29.0]: https://github.com/MIR-2025/volt/releases/tag/v0.29.0
 [0.28.0]: https://github.com/MIR-2025/volt/releases/tag/v0.28.0
 [0.27.0]: https://github.com/MIR-2025/volt/releases/tag/v0.27.0
