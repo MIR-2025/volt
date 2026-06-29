@@ -150,6 +150,7 @@ const DOCS = [
   { id: "customize-with-ai", title: "Customize with AI" },
   { id: "add-ons", title: "Add-ons" },
   { id: "pages", title: "Markdown pages" },
+  { id: "migrate", title: "Migrate from WordPress" },
   { id: "media", title: "Media uploads" },
   { id: "studio", title: "Studio" },
   { id: "security", title: "Security" },

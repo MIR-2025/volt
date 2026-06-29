@@ -61,12 +61,15 @@ const flags = new Set();
 const positionals = [];
 let portArg = null;
 let templateArg = null;
+let outArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
   else if (a.startsWith("--port=")) portArg = a.slice("--port=".length);
   else if (a === "--template") templateArg = argv[++i];
   else if (a.startsWith("--template=")) templateArg = a.slice("--template=".length);
+  else if (a === "--out") outArg = argv[++i];
+  else if (a.startsWith("--out=")) outArg = a.slice("--out=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -130,6 +133,34 @@ if (positionals[0] === "config") {
     env: flags.has("--no-open") ? { ...process.env, VOLT_NO_OPEN: "1" } : process.env,
   });
   process.exit(res.status ?? 0);
+}
+
+// --- `import-wxr` subcommand: import a WordPress export into markdown pages ---
+if (positionals[0] === "import-wxr") {
+  const xmlPath = positionals[1];
+  if (!xmlPath) die(`Usage: ${cyan("create-volt import-wxr <export.xml>")} [--out pages] [--drafts] [--force]`);
+  if (!fs.existsSync(xmlPath)) die(`No such file: ${cyan(xmlPath)}`);
+  const outDir = path.resolve(outArg || "pages");
+  const { runImport } = await import("./lib/import-wxr.js");
+  const { imported, stats } = runImport(fs.readFileSync(xmlPath, "utf8"), { drafts: flags.has("--drafts") });
+  fs.mkdirSync(outDir, { recursive: true });
+  let written = 0;
+  let skippedExisting = 0;
+  for (const d of imported) {
+    const dest = path.join(outDir, d.filename);
+    if (fs.existsSync(dest) && !flags.has("--force")) {
+      skippedExisting++;
+      continue;
+    }
+    fs.writeFileSync(dest, d.markdown);
+    written++;
+    console.log("  " + dim(path.relative(process.cwd(), dest)));
+  }
+  const types = Object.entries(stats.byType).map(([t, n]) => `${n} ${t}`).join(", ");
+  console.log(`\n${cyan(`✓ Imported ${written}`)} page(s) → ${outDir}`);
+  console.log(dim(`  source: ${stats.total} items (${types}); skipped ${stats.draftsSkipped} draft(s), ${stats.otherTypeSkipped} non-page/post item(s)${skippedExisting ? `, ${skippedExisting} already-present (use --force)` : ""}.`));
+  console.log(dim("  Enable the pages add-on to serve them: npm run dev -- --edit"));
+  process.exit(0);
 }
 
 // --- `studio` subcommand: ephemeral, localhost-only data browser (server.js --studio) ---
