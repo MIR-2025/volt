@@ -21,6 +21,24 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const DEFAULT_PORT = 26629; // create-volt stamps this with the project's date-port
+
+// `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
+// --edit/--studio dodge a port the running app already holds, and runs the app
+// itself on a one-off port. Explicit flag wins over PORT in .env.
+function cliPort() {
+  const i = process.argv.indexOf("--port");
+  const raw = i > -1 ? process.argv[i + 1] : (process.argv.find((a) => a.startsWith("--port=")) || "").split("=")[1];
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : null;
+}
+
+// Port for the disposable config UI (--edit / --studio): --port wins, then
+// CONFIG_PORT in .env (run it on its own port so it never clashes with the app),
+// then the app's PORT, then the date-port.
+function configPort() {
+  const env = readEnvFile(); // --edit runs before loadEnv(), so read the file too
+  return cliPort() || Number(process.env.CONFIG_PORT) || Number(env.CONFIG_PORT) || Number(process.env.PORT) || Number(env.PORT) || DEFAULT_PORT;
+}
 const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1", marked: "^18.0.5", busboy: "^1.6.0", "@aws-sdk/client-s3": "^3.1075.0" };
 const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js", posts: "posts.js", media: "media.js" };
 
@@ -101,7 +119,7 @@ function openBrowser(url) {
 
 // --- the actual app: wires whichever add-ons .env enables ---
 async function startApp() {
-  const PORT = Number(process.env.PORT) || DEFAULT_PORT;
+  const PORT = cliPort() || Number(process.env.PORT) || DEFAULT_PORT;
   const enabled = enabledFrom(process.env);
   const app = express();
   app.disable("x-powered-by");
@@ -188,7 +206,12 @@ async function startApp() {
     };
     w(dir);
   };
-  for (const d of ["views", "public"]) watchRecursive(path.join(__dirname, d));
+  // watch content dirs too (pages/posts markdown is read per request, so a
+  // browser reload shows the edit); skip dirs that don't exist.
+  for (const d of ["views", "public", "pages", "posts"]) {
+    const full = path.join(__dirname, d);
+    if (fs.existsSync(full)) watchRecursive(full);
+  }
 
   const on = [...enabled];
   server.listen(PORT, () => console.log(`â¡ Volt â http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
@@ -221,7 +244,7 @@ function ensureDriverInstalled(driver) {
 
 // --- the disposable setup wizard (localhost only) ---
 function startSetup() {
-  const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
+  const PORT = configPort();
   const assets = {
     "/setup.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "setup", "setup.js"))],
     "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
@@ -341,6 +364,7 @@ function startSetup() {
     res.end("not found");
   });
 
+  server.on("error", (e) => { if (e.code === "EADDRINUSE") { console.error(`\n[volt] Config UI port ${PORT} is in use (is the app already running?). Set CONFIG_PORT in .env or pass --port <n>.\n`); process.exit(1); } throw e; });
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\nâ¡ Volt setup â ${url}`);
@@ -379,7 +403,7 @@ async function startStudio() {
     console.error("Studio: couldn't connect the store â " + e.message);
     process.exit(1);
   }
-  const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
+  const PORT = configPort();
   const visible = (n) => n && !HIDDEN_COLLECTIONS.has(n);
   const assets = {
     "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
@@ -431,6 +455,7 @@ async function startStudio() {
     }
   });
 
+  server.on("error", (e) => { if (e.code === "EADDRINUSE") { console.error(`\n[volt] Config UI port ${PORT} is in use (is the app already running?). Set CONFIG_PORT in .env or pass --port <n>.\n`); process.exit(1); } throw e; });
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\nâ¡ Volt Studio â ${url}   (${store.name})`);

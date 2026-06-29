@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-06-29
+
+### Added
+- **`--port <n>` and `CONFIG_PORT`.** `--port` overrides the listen port for any
+  run; `CONFIG_PORT` in `.env` gives the `--edit`/`--studio` config UI its own
+  port, so it never collides with a running app. An in-use config port now prints
+  a clear hint instead of a raw `EADDRINUSE` stack.
+- **Hot reload watches `pages/` and `posts/`.** Editing markdown content now
+  reloads the browser (content is read per request, so the edit shows). Theme
+  files (`_theme.js`) still need a restart — ES modules cache.
+
+### Fixed
+- The `blog` + `docs` templates had drifted from `default`s `server.js`/wizard and
+  silently missed recent fixes (including the hot-reload watcher). Re-synced, with
+  a test that fails if they drift again.
+
 ## [0.35.0] - 2026-06-29
 
 ### Fixed
@@ -463,6 +479,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.36.0]: https://github.com/MIR-2025/volt/releases/tag/v0.36.0
 [0.35.0]: https://github.com/MIR-2025/volt/releases/tag/v0.35.0
 [0.34.0]: https://github.com/MIR-2025/volt/releases/tag/v0.34.0
 [0.33.0]: https://github.com/MIR-2025/volt/releases/tag/v0.33.0
