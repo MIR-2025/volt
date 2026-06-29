@@ -28,13 +28,18 @@ own **SSH key**. That is *stronger* than a shared web admin:
 - OS-level audit logging of every access;
 - zero standing attack surface.
 
-### The one exception: non-shell admins
+### No web admin, on purpose
 
-A **persistent, role-gated web admin** is only justified when you need admins who
-must work through the browser and should never have server access (e.g. a
-client's content editor). That reintroduces a standing surface, so in Volt it is
-**opt-in**, never the default — the `admin` add-on, gated by auth **and** an
-`ADMIN_EMAILS` allowlist. Enable it only when you actually need it.
+Volt deliberately ships **no persistent web admin** — there is nothing like
+`/wp-admin` anywhere, not even an opt-in one. A standing, internet-reachable
+admin route is the single biggest reason CMS installs get popped, and the
+ephemeral shell-gated tools (`--edit`, `--studio`) cover the real need without
+it.
+
+If your app genuinely requires browser-only admins (e.g. a client's content
+editor who must never have server access), that's an app-level feature *you*
+add, with eyes open about the standing surface it creates — the framework won't
+hand you one by default.
 
 ## Other defaults
 

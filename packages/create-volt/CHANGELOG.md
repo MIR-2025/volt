@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-06-28
+
+### Changed
+- **Adopted the most-secure admin model: ephemeral, shell-only.** Removed the
+  persistent role-gated `admin` add-on (from 0.13.0). There is now **no web
+  admin** anywhere — the data browser is the ephemeral, localhost-only
+  `--studio`, and config is `--edit`; both are shell/SSH-gated. SECURITY.md
+  updated to state this as a core property.
+
+### Added
+- Dependency auto-update: `scripts/update-deps.mjs` + a weekly GitHub Action
+  bump create-volt's pinned dependency floors to the latest **within the current
+  major** (never a breaking major). Repo-only — scaffolded apps are untouched.
+- Refreshed floors: express ^4.22.2, socket.io ^4.8.3, mongodb ^6.21.0,
+  mysql2 ^3.22.5, pg ^8.22.0, nodemailer ^6.10.1.
+
 ## [0.13.0] - 2026-06-28
 
 ### Added
@@ -187,6 +203,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.14.0]: https://github.com/MIR-2025/volt/releases/tag/v0.14.0
 [0.13.0]: https://github.com/MIR-2025/volt/releases/tag/v0.13.0
 [0.12.0]: https://github.com/MIR-2025/volt/releases/tag/v0.12.0
 [0.11.0]: https://github.com/MIR-2025/volt/releases/tag/v0.11.0

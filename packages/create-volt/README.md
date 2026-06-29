@@ -82,14 +82,12 @@ MySQL / Postgres) to show data; the memory driver is per-process.
 
 ## Security & admin model
 
-Volt is secure by default, and deliberately has **no standing admin route** —
-the config wizard (`--edit`) and data browser (`--studio`) are ephemeral,
-localhost-only processes; **shell/SSH access is the auth**. Several admins? Give
-each an SSH key — stronger than a shared web panel, with nothing public to
-attack. A persistent, role-gated web admin exists only as an **opt-in** add-on
-(`admin`, gated by auth + an `ADMIN_EMAILS` allowlist) for when you truly need
-browser-only admins. Plus: escaping by default (no XSS), server-side validation
-+ caps, security headers, and `HttpOnly`+`SameSite` cookies. See
+Volt is secure by default, and deliberately has **no web admin** — nothing like
+`/wp-admin` anywhere. The config wizard (`--edit`) and data browser (`--studio`)
+are ephemeral, localhost-only processes; **shell/SSH access is the auth**.
+Several admins? Give each an SSH key — stronger than a shared web panel, with
+nothing public to attack. Plus: escaping by default (no XSS), server-side
+validation + caps, security headers, and `HttpOnly`+`SameSite` cookies. See
 [SECURITY.md](https://github.com/MIR-2025/volt/blob/main/SECURITY.md).
 
 ## Updating Volt

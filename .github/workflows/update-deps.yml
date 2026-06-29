@@ -1,0 +1,32 @@
+name: Update pinned deps
+
+# Keeps create-volt's pinned dependency floors current (latest within the
+# current major) and commits the bump to main automatically. Runs weekly and
+# on demand. Publishing stays manual/tag-triggered: the freshened floors ride
+# out with the next `npm run release`.
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays 07:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - id: upd
+        run: node scripts/update-deps.mjs
+      - name: Commit if changed
+        if: steps.upd.outputs.changed == 'true'
+        run: |
+          git config user.name "volt-deps-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(deps): bump pinned dependency floors (latest within major)"
+          git push origin HEAD
