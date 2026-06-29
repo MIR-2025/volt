@@ -1,9 +1,11 @@
 name: Update pinned deps
 
 # Keeps create-volt's pinned dependency floors current (latest within the
-# current major) and commits the bump to main automatically. Runs weekly and
-# on demand. Publishing stays manual/tag-triggered: the freshened floors ride
-# out with the next `npm run release`.
+# current major) and commits the bump to main automatically — but ONLY after a
+# full smoke test (scaffold → install → boot → hit endpoints) passes on the
+# bumped versions, so an auto-update can't silently break a scaffolded app.
+# Runs weekly and on demand. Publishing stays manual/tag-triggered: the
+# freshened floors ride out with the next `npm run release`.
 on:
   schedule:
     - cron: "0 7 * * 1" # Mondays 07:00 UTC
@@ -22,7 +24,16 @@ jobs:
           node-version: lts/*
       - id: upd
         run: node scripts/update-deps.mjs
-      - name: Commit if changed
+      # Gate: prove the bumped versions still scaffold, install, boot, and serve.
+      # If either fails, the job fails here and the commit step never runs —
+      # nothing is pushed, so a breaking bump can't land.
+      - name: Unit tests (bumped versions)
+        if: steps.upd.outputs.changed == 'true'
+        run: npm test
+      - name: Smoke test (bumped versions)
+        if: steps.upd.outputs.changed == 'true'
+        run: npm run smoke
+      - name: Commit if changed and green
         if: steps.upd.outputs.changed == 'true'
         run: |
           git config user.name "volt-deps-bot"

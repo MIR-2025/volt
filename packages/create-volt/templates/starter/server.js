@@ -138,7 +138,7 @@ async function startApp() {
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "views", "index.html")));
 
   // markdown pages (/<slug> ← pages/<slug>.md) — mounted last, so app routes win
-  if (enabled.has("pages")) app.use((await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
+  if (enabled.has("pages")) app.use(await (await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
 
   const server = http.createServer(app);
   const io = new SocketServer(server);

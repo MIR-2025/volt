@@ -20,7 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
-const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
+const DEFAULT_PORT = 26629; // create-volt stamps this with the project's date-port
 const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1", marked: "^18.0.5" };
 const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js" };
 
@@ -112,7 +112,7 @@ async function startApp() {
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "views", "index.html")));
 
   // markdown pages (/<slug> ← pages/<slug>.md) — mounted last, so app routes win
-  if (enabled.has("pages")) app.use((await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
+  if (enabled.has("pages")) app.use(await (await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
 
   const server = http.createServer(app);
   const io = new SocketServer(server);

@@ -1,0 +1,25 @@
+name: CI
+
+# Unit tests + a full smoke test (scaffold a real app → install → boot → hit
+# the key endpoints) on every push and PR. No build step to run — this is the
+# whole pipeline.
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Unit tests
+        run: npm test
+      - name: Smoke test (scaffold → install → boot → serve)
+        run: npm run smoke

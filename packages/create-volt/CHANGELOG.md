@@ -4,6 +4,23 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.1] - 2026-06-29
+
+### Fixed
+- `volt.js` no longer touches `window` at import time — the hot-reload client is
+  guarded with `typeof window`, so the library is safe to import in Node (SSR,
+  tests), not just the browser.
+
+### Changed
+- The `pages` add-on imports `express`/`marked` lazily (only when mounted), so
+  its pure helpers load without those packages present.
+
+### Added (repo tooling — not shipped in scaffolded apps)
+- A `node --test` unit suite (reactive core, memory store, pages helpers), a
+  `smoke` script (scaffold → install → boot → hit endpoints), a CI workflow, and
+  a smoke-test **gate** on the dependency auto-updater: a version bump is
+  committed only if unit tests + smoke pass on the bumped versions.
+
 ## [0.15.0] - 2026-06-28
 
 ### Added
@@ -213,6 +230,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.15.1]: https://github.com/MIR-2025/volt/releases/tag/v0.15.1
 [0.15.0]: https://github.com/MIR-2025/volt/releases/tag/v0.15.0
 [0.14.0]: https://github.com/MIR-2025/volt/releases/tag/v0.14.0
 [0.13.0]: https://github.com/MIR-2025/volt/releases/tag/v0.13.0

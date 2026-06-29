@@ -3,8 +3,8 @@
 // Pages are code-owned files (trusted), so their markdown HTML is served as-is.
 import fs from "node:fs";
 import path from "node:path";
-import express from "express";
-import { marked } from "marked";
+// express + marked are imported lazily in pagesRouter() so this module's pure
+// helpers (parseFrontMatter, isSafeSlug) load without those deps installed.
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
@@ -36,7 +36,7 @@ function ensure(dir) {
 }
 
 const FM = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-function parse(src) {
+export function parseFrontMatter(src) {
   const m = src.match(FM);
   if (!m) return { meta: {}, body: src };
   const meta = {};
@@ -46,6 +46,9 @@ function parse(src) {
   }
   return { meta, body: src.slice(m[0].length) };
 }
+
+// slugs are restricted to a safe charset — no dots/slashes → no path traversal
+export const isSafeSlug = (s) => /^[a-z0-9][a-z0-9-]*$/i.test(s);
 
 function shell(title, inner) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
@@ -64,15 +67,17 @@ table { border-collapse: collapse } td, th { border: 1px solid #ccc; padding: .4
 </style></head><body>${inner}</body></html>`;
 }
 
-export function pagesRouter({ dir }) {
+export async function pagesRouter({ dir }) {
+  const express = (await import("express")).default;
+  const { marked } = await import("marked");
   ensure(dir);
   const r = express.Router();
   r.get("/:slug", (req, res, next) => {
     const slug = req.params.slug;
-    if (!/^[a-z0-9][a-z0-9-]*$/i.test(slug)) return next(); // safe slug only — no traversal
+    if (!isSafeSlug(slug)) return next(); // safe slug only — no traversal
     const file = path.join(dir, slug + ".md");
     if (!fs.existsSync(file)) return next();
-    const { meta, body } = parse(fs.readFileSync(file, "utf8"));
+    const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
     res.type("html").send(shell(meta.title || slug, marked.parse(body)));
   });
   return r;

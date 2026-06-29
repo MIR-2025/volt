@@ -13,7 +13,9 @@
     "example": "node example/server.js",
     "create-volt": "node packages/create-volt/index.js",
     "release": "node scripts/release.mjs",
-    "update-deps": "node scripts/update-deps.mjs"
+    "update-deps": "node scripts/update-deps.mjs",
+    "test": "node --test",
+    "smoke": "node scripts/smoke.mjs"
   },
   "license": "MIT"
 }

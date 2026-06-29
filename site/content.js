@@ -221,6 +221,25 @@ mount("#app", view, card);`)}
       </tbody></table>`,
   },
   {
+    id: "pages",
+    title: "Markdown pages",
+    body: `<h1 class="h3 mb-3">Markdown pages</h1>
+      <p class="lead2">The <code>pages</code> add-on serves markdown files as HTML — no database, no admin. Author them in your editor or with AI.</p>
+      ${cmd('npm run dev -- --edit   # tick the "pages" add-on')}
+      <p>Drop <code>.md</code> files in the <code>pages/</code> directory (created automatically on first run). Each file is served at its slug:</p>
+      ${code(`pages/about.md     →  /about
+pages/pricing.md   →  /pricing`)}
+      <p>Front-matter sets the page title:</p>
+      ${code(`---
+title: About us
+---
+
+# About us
+
+Written in **markdown**, served as HTML.`)}
+      <p class="lead2">Pages are code-owned files (trusted), so their HTML renders as-is. The router is mounted last — your app's own routes always win, and unknown slugs fall through to 404. Slugs are limited to letters, numbers, and hyphens (no path traversal).</p>`,
+  },
+  {
     id: "studio",
     title: "Studio",
     body: `<h1 class="h3 mb-3">Studio</h1>

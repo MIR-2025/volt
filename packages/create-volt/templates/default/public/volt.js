@@ -254,6 +254,7 @@ function bindNodeHole(comment, value) {
 // ---------------------------------------------------------------------------
 
 (function startHotReload() {
+  if (typeof window === "undefined") return; // not a browser (SSR / Node imports / tests)
   const connect = () => {
     if (!window.io) return false;
     const socket = window.io();
