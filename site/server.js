@@ -6,7 +6,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { home, build, DOCS, docsPage, GH, NPM } from "./content.js";
+import { home, build, compare, DOCS, docsPage, GH, NPM } from "./content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 26628;
@@ -20,6 +20,7 @@ const nav = (active) => {
   return `<nav class="navx py-2"><div class="container d-flex align-items-center gap-3" style="max-width:1000px">
     <a class="brand h5 mb-0 accent" href="/">⚡ Volt</a>
     ${link("/build", "10-min demo")}
+    ${link("/compare", "Compare")}
     ${link("/docs", "Docs")}
     <a class="ms-auto" href="${GH}" rel="noopener">GitHub</a>
     <a href="${NPM}" rel="noopener">npm</a>
@@ -74,6 +75,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const sendPage = (res, page) => res.type("html").send(shell(page));
 app.get("/", (_req, res) => sendPage(res, home));
 app.get("/build", (_req, res) => sendPage(res, build));
+app.get("/compare", (_req, res) => sendPage(res, compare));
 app.get("/docs", (_req, res) => res.redirect(301, "/docs/" + DOCS[0].id));
 app.get("/docs/:id", (req, res) => {
   if (!DOCS.some((d) => d.id === req.params.id)) return res.status(404).type("html").send(shell({ path: "/404", title: "Not found — Volt", desc: "Page not found.", body: '<h1 class="h3">Not found</h1><p><a href="/">← Home</a></p>' }));
@@ -83,7 +85,7 @@ app.get("/docs/:id", (req, res) => {
 app.get("/robots.txt", (_req, res) =>
   res.type("text/plain").send(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`));
 app.get("/sitemap.xml", (_req, res) => {
-  const urls = ["/", "/build", ...DOCS.map((d) => "/docs/" + d.id)];
+  const urls = ["/", "/build", "/compare", ...DOCS.map((d) => "/docs/" + d.id)];
   const body = urls.map((u) => `  <url><loc>${SITE_URL}${u}</loc></url>`).join("\n");
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`);
 });

@@ -24,3 +24,4 @@ table.cmp td, table.cmp th { border-color: var(--line) !important; }
 .badge-soft { background:#11151c; border:1px solid var(--line); color:var(--muted); }
 footer { border-top: 1px solid var(--line); color: var(--muted); }
 main :is(h2,h3) { margin-top: 1.25rem; }
+.feat pre { font-size: .76rem; padding: 10px 12px; }

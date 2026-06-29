@@ -271,6 +271,114 @@ pm2 save
   },
 ];
 
+// ----- side-by-side comparison -----
+const col = (label, badge, codeStr) =>
+  `<div class="col-lg-4 mb-3"><div class="feat p-3 h-100"><div class="d-flex justify-content-between align-items-center mb-1"><span class="accent fw-bold">${label}</span><span class="badge-soft px-2 py-1 rounded small">${badge}</span></div>${code(codeStr)}</div></div>`;
+const task = (title, note, volt, react, wp) =>
+  `<h2 class="h4 mt-5 mb-1">${title}</h2><p class="lead2 small mb-2">${note}</p><div class="row">${col("Volt", "no build", volt)}${col("React stack", "needs bundler", react)}${col("WordPress", "plugin + DB", wp)}</div>`;
+
+const compare = {
+  path: "/compare",
+  title: "Volt vs React vs WordPress — side-by-side code | Volt",
+  desc: "The same three tasks — a counter, a per-user CRUD list, and login — built in Volt, a React stack, and WordPress. See where each one fits in 30 seconds.",
+  body: `
+    <h1 class="display-6 mb-2">Volt vs React vs WordPress</h1>
+    <p class="lead2 fs-5">The same three tasks in each — a counter, a per-user CRUD list, and login. Different tools for different jobs; this just makes the trade-off concrete.</p>
+
+    ${task(
+      "A counter",
+      "The “hello world” of reactivity.",
+      `import { signal, html, mount } from "/volt.js";
+
+const n = signal(0);
+mount("#app",
+  html\`<button onclick=\${() => n(n() + 1)}>\${n}</button>\`);
+// no build — save and it hot-reloads`,
+      `import { useState } from "react";
+
+export default function Counter() {
+  const [n, setN] = useState(0);
+  return <button onClick={() => setN(n + 1)}>{n}</button>;
+}
+// + Vite/Next, npm install, a build step`,
+      `// no native counter — functions.php:
+add_shortcode('counter', fn() =>
+  '<button onclick="this.textContent=
+     +this.textContent+1">0</button>');
+// then type [counter] into a post`,
+    )}
+
+    ${task(
+      "A per-user CRUD list",
+      "Create/read/delete, scoped to the logged-in user.",
+      `// server.js — auth add-on already on
+const todos = store.collection("todos");
+const guard = requireAuth(store);
+
+app.get("/api/todos", guard, async (req, res) =>
+  res.json({ todos: await todos.find({ owner: req.user.email }) }));
+app.post("/api/todos", guard, async (req, res) => {
+  await todos.put(id(), { owner: req.user.email, text: req.body.text });
+  res.json({ ok: true });
+});
+// + a ~10-line Volt list. That's it.`,
+      `function Todos() {
+  const [items, set] = useState([]);
+  useEffect(() => {
+    fetch("/api/todos").then(r => r.json()).then(set);
+  }, []);
+  // ...and you still build the API,
+  // the auth, and the database yourself
+}`,
+      `// a custom post type or a CRUD plugin
+register_post_type('todo', [ /* ... */ ]);
+// data lives in wp_posts + wp_postmeta,
+// edited through /wp-admin; per-user
+// scoping needs a plugin or custom
+// meta_query in PHP`,
+    )}
+
+    ${task(
+      "Login",
+      "Authenticated sessions for real users.",
+      `# enable the auth add-on — no code:
+npm run dev -- --edit      # tick "auth"
+
+# magic-link login + sessions are wired.
+# guard any route:
+app.get("/me", requireAuth(store),
+  (req, res) => res.json(req.user));`,
+      `// choose a library, then configure it
+import NextAuth from "next-auth";
+export default NextAuth({
+  providers: [ /* ... */ ],
+  // + a session store, callbacks,
+  // env secrets, route handlers
+});`,
+      `// built-in users at /wp-admin/, or for
+// front-end login install a membership
+// plugin, then configure roles + pages
+// in the dashboard (often a paid add-on)`,
+    )}
+
+    <h2 class="h4 mt-5 mb-2">Where each one wins</h2>
+    <table class="table table-dark table-borderless cmp">
+      <thead><tr><th></th><th class="accent">Volt</th><th>React stack</th><th>WordPress</th></tr></thead>
+      <tbody>
+        <tr><td>Build step</td><td class="accent">none</td><td>bundler / transpile</td><td>none (PHP)</td></tr>
+        <tr><td>Auth</td><td class="accent">toggle an add-on</td><td>wire a library</td><td>built-in / plugin</td></tr>
+        <tr><td>Data</td><td class="accent">store.collection(...)</td><td>your own DB layer</td><td>wp_posts + plugins</td></tr>
+        <tr><td>Where you edit</td><td class="accent">your files</td><td>your files</td><td>/wp-admin + DB</td></tr>
+        <tr><td>Best for</td><td class="accent">small–medium apps, dashboards</td><td>large apps, scale, hiring</td><td>content, editors, plugins</td></tr>
+      </tbody>
+    </table>
+    <p class="lead2 small">This isn't “WordPress bad” — it's the best tool in the world when content and nontechnical editors are the point. The comparison is about <strong>code-owned apps</strong>, where Volt's smallness and no-build feedback loop win, versus React, where you trade setup for a vast ecosystem.</p>
+
+    <div class="text-center mt-4">
+      <div style="max-width:520px;margin:0 auto">${cmd("npm create volt@latest my-app")}</div>
+    </div>`,
+};
+
 const docsPage = (id) => {
   const idx = Math.max(0, DOCS.findIndex((d) => d.id === id));
   const cur = DOCS[idx];
@@ -283,4 +391,4 @@ const docsPage = (id) => {
   };
 };
 
-export { home, build, DOCS, docsPage, GH, NPM };
+export { home, build, compare, DOCS, docsPage, GH, NPM };
