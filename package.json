@@ -14,7 +14,7 @@
     "create-volt": "node packages/create-volt/index.js",
     "release": "node scripts/release.mjs",
     "update-deps": "node scripts/update-deps.mjs",
-    "test": "node --test",
+    "test": "node --test test/*.test.mjs",
     "test:browser": "node scripts/browser-test.mjs",
     "smoke": "node scripts/smoke.mjs"
   },
