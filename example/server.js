@@ -205,7 +205,7 @@ async function startApp() {
     clearTimeout(timer);
     timer = setTimeout(() => {
       console.log(`[volt] change: ${file ?? "?"} â reload`);
-      io.emit("volt:reload");
+      io.emit("volt:reload", { file });
     }, 80);
   };
   const watchRecursive = (dir) => {

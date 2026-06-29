@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 // express + marked are imported lazily in postsRouter() so the pure helpers load
 // without those deps. Theme + SEO come from the pages add-on (a dependency).
-import { parseFrontMatter, isSafeSlug, metaHead, loadTheme } from "../../../pages/files/lib/pages.js";
+import { parseFrontMatter, isSafeSlug, metaHead, themeResolver } from "../../../pages/files/lib/pages.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -115,24 +115,25 @@ export async function postsRouter({ dir, themeDir }) {
   const express = (await import("express")).default;
   const { marked } = await import("marked");
   fs.mkdirSync(dir, { recursive: true });
-  const { layout } = await loadTheme(themeDir || dir, process.env); // same theme as pages
+  const getTheme = themeResolver(themeDir || dir); // same theme as pages (live in dev)
   const PER = Math.max(1, Number(process.env.POSTS_PER_PAGE) || 10);
-  const render = ({ title, content, meta = {} }) => {
+  const render = async ({ title, content, meta = {} }) => {
     const m = { ...meta, title };
+    const { layout } = await getTheme();
     return layout({ title, head: metaHead(m), content, meta: m });
   };
   const r = express.Router();
 
-  r.get("/blog", (req, res) => {
+  r.get("/blog", async (req, res) => {
     const all = readPosts(dir);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const totalPages = Math.max(1, Math.ceil(all.length / PER));
     const slice = all.slice((page - 1) * PER, page * PER);
     const heading = process.env.SITE_NAME || "Blog";
-    res.type("html").send(render({ title: heading, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl: "/blog" }) }));
+    res.type("html").send(await render({ title: heading, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl: "/blog" }) }));
   });
 
-  r.get("/blog/:slug", (req, res, next) => {
+  r.get("/blog/:slug", async (req, res, next) => {
     if (!isSafeSlug(req.params.slug)) return next();
     const post = readPosts(dir).find((p) => p.slug === req.params.slug);
     if (!post) return next();
@@ -145,7 +146,7 @@ export async function postsRouter({ dir, themeDir }) {
       ...(post.meta.author ? { author: { "@type": "Person", name: post.meta.author } } : {}),
     });
     res.type("html").send(
-      render({
+      await render({
         title,
         meta: { ...post.meta, title, type: "article", jsonld: post.meta.jsonld || autoLd },
         content: renderPost(post, marked),
@@ -153,18 +154,18 @@ export async function postsRouter({ dir, themeDir }) {
     );
   });
 
-  r.get("/category/:name", (req, res, next) => {
+  r.get("/category/:name", async (req, res, next) => {
     if (!isSafeSlug(req.params.name)) return next();
     const list = readPosts(dir).filter((p) => slugify(p.meta.category) === req.params.name);
     if (!list.length) return next();
-    res.type("html").send(render({ title: "Category: " + req.params.name, content: renderList(list, { heading: "Category: " + req.params.name, baseUrl: "/category/" + req.params.name }) }));
+    res.type("html").send(await render({ title: "Category: " + req.params.name, content: renderList(list, { heading: "Category: " + req.params.name, baseUrl: "/category/" + req.params.name }) }));
   });
 
-  r.get("/tag/:name", (req, res, next) => {
+  r.get("/tag/:name", async (req, res, next) => {
     if (!isSafeSlug(req.params.name)) return next();
     const list = readPosts(dir).filter((p) => tagsOf(p.meta).some((t) => slugify(t) === req.params.name));
     if (!list.length) return next();
-    res.type("html").send(render({ title: "Tag: " + req.params.name, content: renderList(list, { heading: "Tag: " + req.params.name, baseUrl: "/tag/" + req.params.name }) }));
+    res.type("html").send(await render({ title: "Tag: " + req.params.name, content: renderList(list, { heading: "Tag: " + req.params.name, baseUrl: "/tag/" + req.params.name }) }));
   });
 
   r.get("/feed.xml", (_req, res) => {

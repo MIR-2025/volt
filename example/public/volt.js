@@ -262,11 +262,88 @@ function bindNodeHole(comment, value) {
 
 (function startHotReload() {
   if (typeof window === "undefined") return; // not a browser (SSR / Node imports / tests)
+
+  // Patch `from` to match `to` in place — only changed nodes are touched, so
+  // focus, caret, scroll, and untouched subtrees survive. Positional (no keys),
+  // which is plenty for a dev reload; the caller falls back to a full reload if
+  // anything throws.
+  const morph = (from, to) => {
+    const active = document.activeElement;
+    if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) {
+      from.replaceWith(document.importNode(to, true));
+      return;
+    }
+    if (from.nodeType === 3 || from.nodeType === 8) {
+      if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue;
+      return;
+    }
+    if (from.nodeType !== 1) return;
+    for (const a of [...to.attributes]) {
+      if (from === active && a.name === "value") continue; // don't fight the typist
+      if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value);
+    }
+    for (const a of [...from.attributes]) if (!to.hasAttribute(a.name)) from.removeAttribute(a.name);
+    let f = from.firstChild,
+      t = to.firstChild;
+    while (f && t) {
+      const nf = f.nextSibling,
+        nt = t.nextSibling;
+      morph(f, t);
+      f = nf;
+      t = nt;
+    }
+    while (f) {
+      const nf = f.nextSibling;
+      from.removeChild(f);
+      f = nf;
+    }
+    while (t) {
+      const nt = t.nextSibling;
+      from.appendChild(document.importNode(t, true));
+      t = nt;
+    }
+  };
+
+  const bustStyles = () => {
+    for (const link of document.querySelectorAll('link[rel="stylesheet"]')) {
+      const u = new URL(link.getAttribute("href"), location.href);
+      u.searchParams.set("_hr", Date.now());
+      link.setAttribute("href", u.pathname + u.search);
+    }
+  };
+
+  let busy = false;
+  const onChange = async (info) => {
+    const file = (info && info.file) || "";
+    if (/\.css(\?|$)/i.test(file)) return bustStyles(); // pure CSS → swap, no reload
+    if (/\.(js|mjs)(\?|$)/i.test(file)) return location.reload(); // JS changed → must re-run
+    if (busy) return;
+    busy = true;
+    try {
+      const html = await (await fetch(location.href, { headers: { "x-volt-hot": "1" } })).text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      // a client-rendered app (#app filled by JS, empty in server HTML) can't be
+      // morphed without wiping it — full reload instead.
+      const cur = document.querySelector("#app");
+      const next = doc.querySelector("#app");
+      if (cur && cur.children.length && next && !next.children.length) {
+        location.reload();
+        return;
+      }
+      morph(document.body, doc.body);
+      if (document.title !== doc.title) document.title = doc.title;
+      if (/_theme/.test(file)) bustStyles(); // theme/layout edit may change CSS too
+    } catch {
+      location.reload();
+    } finally {
+      busy = false;
+    }
+  };
+
   const connect = () => {
     if (!window.io) return false;
-    const socket = window.io();
-    socket.on("volt:reload", () => location.reload());
-    console.log("[volt] hot reload connected");
+    window.io().on("volt:reload", onChange);
+    console.log("[volt] hot reload connected (live morph)");
     return true;
   };
   if (!connect()) window.addEventListener("load", connect);

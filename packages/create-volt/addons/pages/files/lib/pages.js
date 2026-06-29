@@ -123,6 +123,11 @@ function themeCss(dir) {
 // local pages/_theme.js; else the built-in default. A theme may `export const css`
 // (served at /_theme.css, shared with the editor); otherwise pages/_theme.css or
 // the default CSS is used.
+const DEV = process.env.NODE_ENV !== "production";
+// In dev, cache-bust theme imports by mtime so editing _theme.js shows up without
+// a restart (ESM caches a given URL forever); unchanged files keep the same URL.
+const freshUrl = (f) => pathToFileURL(f).href + (DEV ? "?t=" + fs.statSync(f).mtimeMs : "");
+
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
     const layout = m && (m.layout || m.default);
@@ -132,7 +137,7 @@ export async function loadTheme(dir, env) {
     // a theme bundled by create-volt (.volt/themes/<name>/index.js) — no npm needed
     const bundled = path.resolve(dir, "..", ".volt", "themes", env.THEME, "index.js");
     if (fs.existsSync(bundled)) {
-      const t = wrap(await import(pathToFileURL(bundled).href));
+      const t = wrap(await import(freshUrl(bundled)));
       if (t) return t;
     }
     for (const id of [`volt-theme-${env.THEME}`, env.THEME]) {
@@ -146,20 +151,27 @@ export async function loadTheme(dir, env) {
   }
   const local = path.join(dir, "_theme.js");
   if (fs.existsSync(local)) {
-    const t = wrap(await import(pathToFileURL(local).href));
+    const t = wrap(await import(freshUrl(local)));
     if (t) return t;
   }
   return { layout: defaultLayout(dir), css: themeCss(dir) };
+}
+
+// A theme getter that caches in production but re-resolves every call in dev, so
+// theme edits hot-reload. Shared by pages + posts so they render the same theme.
+export function themeResolver(dir) {
+  let cached = null;
+  return async () => (cached && !DEV ? cached : (cached = await loadTheme(dir, process.env)));
 }
 
 export async function pagesRouter({ dir }) {
   const express = (await import("express")).default;
   const { marked } = await import("marked");
   ensure(dir);
-  const { layout, css } = await loadTheme(dir, process.env);
+  const getTheme = themeResolver(dir);
   const r = express.Router();
-  r.get("/_theme.css", (_req, res) => res.type("css").send(css));
-  r.get("/:slug", (req, res, next) => {
+  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css));
+  r.get("/:slug", async (req, res, next) => {
     const slug = req.params.slug;
     if (!isSafeSlug(slug)) return next(); // safe slug only — no traversal
     const file = path.join(dir, slug + ".md");
@@ -169,6 +181,7 @@ export async function pagesRouter({ dir }) {
     // preserve complex layouts; everything else is markdown rendered with marked.
     const content = meta.format === "html" ? body : marked.parse(body);
     const m = { ...meta, title: meta.title || slug };
+    const { layout } = await getTheme();
     res.type("html").send(layout({ title: m.title, head: metaHead(m), content, meta: m }));
   });
   return r;
