@@ -17,7 +17,10 @@ const tagsOf = (meta) => String(meta.tags || "").split(",").map((s) => s.trim())
 
 function fmtDate(d) {
   if (!d) return "";
-  const t = new Date(d);
+  // parse YYYY-MM-DD as *local* midnight (new Date("2026-06-28") is UTC → off by a
+  // day in negative-offset zones); fall back to Date() for full timestamps.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d).trim());
+  const t = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
   return isNaN(t.getTime()) ? esc(d) : t.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 

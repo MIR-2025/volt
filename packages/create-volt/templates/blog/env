@@ -1,0 +1,3 @@
+VOLT_ADDONS=pages,posts
+SITE_NAME=My Volt Blog
+# SITE_URL=https://example.com   # set for absolute RSS/canonical links

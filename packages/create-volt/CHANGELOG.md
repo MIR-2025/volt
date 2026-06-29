@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.33.0] - 2026-06-29
+
+### Added
+- **Two content templates** showcasing the pages/posts/theme system:
+  `--template blog` (markdown posts → /blog, categories, tags, RSS, an /about
+  page, per-post SEO, a serif theme) and `--template docs` (markdown pages in a
+  sidebar layout). Both ship a pre-configured `.env` and boot straight into the
+  app — no wizard.
+
+### Fixed
+- Dark-on-dark text in the default + starter apps: `.text-muted` is overridden to
+  a readable color on the dark background (the demo footer caption was dropped).
+- `posts`: `YYYY-MM-DD` dates render on the correct day (parsed as local, not UTC).
+
 ## [0.32.0] - 2026-06-29
 
 ### Changed
@@ -432,6 +446,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.33.0]: https://github.com/MIR-2025/volt/releases/tag/v0.33.0
 [0.32.0]: https://github.com/MIR-2025/volt/releases/tag/v0.32.0
 [0.31.0]: https://github.com/MIR-2025/volt/releases/tag/v0.31.0
 [0.30.0]: https://github.com/MIR-2025/volt/releases/tag/v0.30.0

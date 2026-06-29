@@ -1,0 +1,15 @@
+# Fly.io — run `fly launch` (it uses the Dockerfile), then set config:
+#   fly secrets set VOLT_ADDONS=db,auth DB_DRIVER=mongodb MONGODB_URI=...
+app = "volt-app"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
