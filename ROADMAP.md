@@ -49,22 +49,31 @@ where it's strong.
 - [x] Server-rendered marketing + docs site with WP-grade SEO
 - [x] Test suite (unit + headless-browser DOM tests), smoke test, CI
 - [x] Dependency auto-updater with a smoke-test gate (within-major only)
+- [x] **`media` add-on** — uploads to local disk or any S3-compatible store
+      (AWS S3, DigitalOcean Spaces), auth-gated, images + PDF
+- [x] **PaaS deploy targets** — Dockerfile / render.yaml / fly.toml / Procfile in
+      every scaffold + production-boot, so apps deploy to Render / Fly.io /
+      Railway / DO App Platform (server + DNS + TLS handled for you). This is
+      hosting **tier 1** (borrow others' infra) — the first dent in WP's real
+      moat, distribution.
 
 ### Next — strengthen the wedge (Path A)
 - [ ] **WXR importer** — ingest a WordPress export into Volt `pages`/content.
       Migration cost is the #1 reason people don't leave WP; lowering it is
       leverage.
-- [ ] **Media-upload add-on** — local/S3-style uploads + image resizing.
 - [ ] Content model maturity: posts/collections + simple taxonomies on top of
       the `pages` model.
 - [ ] 2–3 real "would-be-WordPress" sites built in Volt as proof (dogfood).
 
-### Later — the CMS variant (Path B)
+### Later — hosting tiers 2–3 + the CMS variant (Path B)
+- [ ] **Hosting tier 2** — a `volt bootstrap <domain>` for VPS owners: automate
+      Node + PM2 + nginx + certbot (+ DNS via the DO/Cloudflare API) on a bare
+      server. Seed: `deploy.sh`.
+- [ ] **Hosting tier 3** — managed/one-click Volt hosting (the actual business
+      model — WP's money is hosting, not software).
 - [ ] Editing surface built on **RTEPro** (the AI WYSIWYG), with the
       security/editing tension resolved (separate role-gated editing app).
 - [ ] A small theme/layout system a non-coder can choose.
-- [ ] Managed/one-click hosting (the actual business model — WP's money is in
-      hosting, not the software). Seed: `deploy.sh` + PM2 + nginx.
 
 ## Non-goals (on purpose)
 - A standing, internet-facing admin in the core framework.
