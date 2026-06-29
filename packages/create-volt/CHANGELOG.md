@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-06-29
+
+### Added
+- **`posts` add-on — a blog (the WordPress content model).** Markdown in `posts/`
+  becomes a paginated index at `/blog`, single posts at `/blog/<slug>`, plus
+  `/category/<name>`, `/tag/<name>`, and an RSS feed at `/feed.xml`. Posts carry
+  date/author/category/tags front-matter (date can also come from a
+  `YYYY-MM-DD-` filename prefix); drafts (`draft: true`) are skipped. Renders in
+  the site theme and reuses pages' SEO — single posts get an auto Article
+  JSON-LD + `og:type=article`. Depends on the `pages` add-on. New `/docs/posts`.
+
 ## [0.30.0] - 2026-06-29
 
 ### Fixed
@@ -413,6 +424,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.31.0]: https://github.com/MIR-2025/volt/releases/tag/v0.31.0
 [0.30.0]: https://github.com/MIR-2025/volt/releases/tag/v0.30.0
 [0.29.0]: https://github.com/MIR-2025/volt/releases/tag/v0.29.0
 [0.28.0]: https://github.com/MIR-2025/volt/releases/tag/v0.28.0

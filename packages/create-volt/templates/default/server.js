@@ -1,9 +1,9 @@
-// server.js — dev server with a built-in first-run setup wizard.
+// server.js â dev server with a built-in first-run setup wizard.
 //
 // First run (no .env) or `node server.js --edit` (-e) opens a disposable, local
 // config page: tick add-ons, fill settings, Apply. Apply writes .env (a
 // VOLT_ADDONS list + settings) and adds any needed packages to package.json,
-// runs npm install, then starts the app — which wires whatever .env enables.
+// runs npm install, then starts the app â which wires whatever .env enables.
 // Add-on code is bundled under .volt/addons; nothing is copied into your code.
 //
 // No build step, no env-file flag: .env is auto-loaded below.
@@ -22,7 +22,7 @@ const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
 const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1", marked: "^18.0.5", busboy: "^1.6.0", "@aws-sdk/client-s3": "^3.1075.0" };
-const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js", media: "media.js" };
+const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js", posts: "posts.js", media: "media.js" };
 
 // --- tiny .env loader (no dependency); never overrides an existing env var ---
 function readEnvFile() {
@@ -67,7 +67,7 @@ const imp = (rel) => import(pathToFileURL(path.join(__dirname, rel)).href);
 const addonMod = (n) => imp(path.join(".volt", "addons", n, "files", "lib", LIB_FILE[n]));
 
 // Built-in add-ons are wired explicitly below; everything else in VOLT_ADDONS is
-// a third-party add-on — a local .volt/addons/<name>/index.js or an installed
+// a third-party add-on â a local .volt/addons/<name>/index.js or an installed
 // npm package "volt-addon-<name>" exporting register(ctx). See /docs/plugins.
 const BUILTINS = new Set(Object.keys(LIB_FILE));
 async function loadAddon(name) {
@@ -91,7 +91,7 @@ function openBrowser(url) {
   const args = plat === "win32" ? ["/c", "start", "", url] : [url];
   try {
     const child = spawn(cmd, args, { stdio: "ignore", detached: true });
-    child.on("error", () => {}); // launcher missing — emits async, don't crash
+    child.on("error", () => {}); // launcher missing â emits async, don't crash
     child.unref();
     return true;
   } catch {
@@ -134,14 +134,16 @@ async function startApp() {
     app.use(await (await addonMod("media")).mediaRouter({ requireAuth, dir: path.join(__dirname, "media") }));
   }
 
-  // markdown pages (/<slug> ← pages/<slug>.md) — mounted last, so app routes win
+  // markdown pages (/<slug> â pages/<slug>.md) â mounted last, so app routes win
+  // blog posts (/blog, /blog/<slug>, /category, /tag, /feed.xml) — before pages so /blog wins; renders in the same theme.
+  if (enabled.has("posts")) app.use(await (await addonMod("posts")).postsRouter({ dir: path.join(__dirname, "posts"), themeDir: path.join(__dirname, "pages") }));
   if (enabled.has("pages")) app.use(await (await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
 
   const server = http.createServer(app);
   const io = new SocketServer(server);
   if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
 
-  // third-party add-ons — register(ctx). When auth is on, requireAuth/sessionFromReq
+  // third-party add-ons â register(ctx). When auth is on, requireAuth/sessionFromReq
   // are provided so add-ons can gate routes by login.
   let requireAuth = null;
   let sessionFromReq = null;
@@ -157,7 +159,7 @@ async function startApp() {
     if (typeof register === "function") {
       await register({ app, express, io, store, mailer, env: process.env, requireAuth, sessionFromReq, log: (...a) => console.log(`[${name}]`, ...a) });
     } else {
-      console.warn(`[volt] add-on "${name}" not found or missing a register() export — skipped`);
+      console.warn(`[volt] add-on "${name}" not found or missing a register() export â skipped`);
     }
   }
 
@@ -165,7 +167,7 @@ async function startApp() {
   const onChange = (file) => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      console.log(`[volt] change: ${file ?? "?"} → reload`);
+      console.log(`[volt] change: ${file ?? "?"} â reload`);
       io.emit("volt:reload");
     }, 80);
   };
@@ -189,7 +191,7 @@ async function startApp() {
   for (const d of ["views", "public"]) watchRecursive(path.join(__dirname, d));
 
   const on = [...enabled];
-  server.listen(PORT, () => console.log(`⚡ Volt → http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
+  server.listen(PORT, () => console.log(`â¡ Volt â http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
 }
 
 // Packages an .env's selections need, beyond what package.json already has.
@@ -202,7 +204,7 @@ function neededPackages(env) {
   if (driver === "mysql") want.push("mysql2");
   if (driver === "postgres") want.push("pg");
   if (/^\s*SMTP_URL\s*=\s*\S/m.test(env)) want.push("nodemailer");
-  if (/^\s*VOLT_ADDONS\s*=.*\bpages\b/m.test(env)) want.push("marked");
+  if (/^\s*VOLT_ADDONS\s*=.*\b(pages|posts)\b/m.test(env)) want.push("marked");
   if (/^\s*VOLT_ADDONS\s*=.*\bmedia\b/m.test(env)) want.push("busboy");
   if (/^\s*MEDIA_DRIVER\s*=\s*s3\b/m.test(env)) want.push("@aws-sdk/client-s3");
   return want.filter((p) => !deps[p]);
@@ -213,7 +215,7 @@ function neededPackages(env) {
 function ensureDriverInstalled(driver) {
   const pkg = { mongodb: "mongodb", mongo: "mongodb", mysql: "mysql2", postgres: "pg", postgresql: "pg", pg: "pg" }[String(driver || "").toLowerCase()];
   if (!pkg || fs.existsSync(path.join(__dirname, "node_modules", pkg))) return;
-  console.log(`[volt] installing ${pkg} for the connection test…`);
+  console.log(`[volt] installing ${pkg} for the connection testâ¦`);
   spawnSync("npm", ["install", `${pkg}@${PKG_VERSIONS[pkg] || "latest"}`], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
 }
 
@@ -314,15 +316,15 @@ function startSetup() {
               server.closeIdleConnections?.();
             };
             if (added.length) {
-              console.log(`[volt] installing ${added.join(", ")}…`);
+              console.log(`[volt] installing ${added.join(", ")}â¦`);
               const npm = spawn("npm", ["install"], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
               npm.on("error", () => handoff());
               npm.on("close", () => {
-                console.log("[volt] saved .env — starting the app…");
+                console.log("[volt] saved .env â starting the appâ¦");
                 handoff();
               });
             } else {
-              console.log("[volt] saved .env — starting the app…");
+              console.log("[volt] saved .env â starting the appâ¦");
               handoff();
             }
           });
@@ -339,18 +341,18 @@ function startSetup() {
 
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
-    console.log(`\n⚡ Volt setup → ${url}`);
+    console.log(`\nâ¡ Volt setup â ${url}`);
     console.log("  Configure your app; it starts automatically on Apply. (reopen later: npm run dev -- --edit)");
     const ssh = process.env.SSH_CONNECTION;
     if (ssh) {
       const host = ssh.split(" ")[2];
       const user = process.env.USER || process.env.USERNAME || "you";
-      console.log("  Remote box — the server is up here; bridge it from your LOCAL machine:");
+      console.log("  Remote box â the server is up here; bridge it from your LOCAL machine:");
       console.log(`    ssh -N -L 127.0.0.1:${PORT}:localhost:${PORT} ${user}@${host}`);
-      console.log(`  …then open ${url} on your machine (the tunnel points it here).`);
+      console.log(`  â¦then open ${url} on your machine (the tunnel points it here).`);
     }
     console.log("");
-    if (openBrowser(url)) console.log("  (opening your browser…)\n");
+    if (openBrowser(url)) console.log("  (opening your browserâ¦)\n");
   });
 }
 
@@ -358,8 +360,8 @@ function readEnvFileLines() {
   return fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8").split("\n") : [];
 }
 
-// --- Studio: an ephemeral, localhost-only data browser (à la Prisma Studio).
-// Not a route in the running app — it only exists while you run `--studio`, on
+// --- Studio: an ephemeral, localhost-only data browser (Ã  la Prisma Studio).
+// Not a route in the running app â it only exists while you run `--studio`, on
 // loopback, and disappears on Ctrl-C. Shell/SSH access is the auth. ---
 const HIDDEN_COLLECTIONS = new Set(["auth_tokens", "auth_sessions", "__voltcheck"]);
 async function startStudio() {
@@ -372,7 +374,7 @@ async function startStudio() {
   try {
     store = await (await addonMod("db")).createStore();
   } catch (e) {
-    console.error("Studio: couldn't connect the store — " + e.message);
+    console.error("Studio: couldn't connect the store â " + e.message);
     process.exit(1);
   }
   const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
@@ -427,15 +429,15 @@ async function startStudio() {
 
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
-    console.log(`\n⚡ Volt Studio → ${url}   (${store.name})`);
-    console.log("  Browse your data. localhost-only, disposable — Ctrl-C when done.");
+    console.log(`\nâ¡ Volt Studio â ${url}   (${store.name})`);
+    console.log("  Browse your data. localhost-only, disposable â Ctrl-C when done.");
     const ssh = process.env.SSH_CONNECTION;
     if (ssh) {
       const host = ssh.split(" ")[2];
       const user = process.env.USER || process.env.USERNAME || "you";
-      console.log("  Remote box — from your LOCAL machine:");
+      console.log("  Remote box â from your LOCAL machine:");
       console.log(`    ssh -N -L 127.0.0.1:${PORT}:localhost:${PORT} ${user}@${host}`);
-      console.log(`  …then open ${url}.`);
+      console.log(`  â¦then open ${url}.`);
     }
     console.log("");
     openBrowser(url);

@@ -153,6 +153,7 @@ const DOCS = [
   { id: "editor", title: "WYSIWYG editor" },
   { id: "themes", title: "Themes" },
   { id: "pages", title: "Markdown pages" },
+  { id: "posts", title: "Posts (blog)" },
   { id: "migrate", title: "Migrate from WordPress" },
   { id: "media", title: "Media uploads" },
   { id: "studio", title: "Studio" },

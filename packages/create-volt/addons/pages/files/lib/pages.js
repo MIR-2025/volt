@@ -52,7 +52,7 @@ export function parseFrontMatter(src) {
 export const isSafeSlug = (s) => /^[a-z0-9][a-z0-9-]*$/i.test(s);
 
 // SEO/social head from front-matter: description, image, type, canonical, jsonld.
-function metaHead(meta) {
+export function metaHead(meta) {
   const t = [];
   const title = meta.title || "";
   const desc = meta.description || "";
@@ -117,7 +117,7 @@ function themeCss(dir) {
 // local pages/_theme.js; else the built-in default. A theme may `export const css`
 // (served at /_theme.css, shared with the editor); otherwise pages/_theme.css or
 // the default CSS is used.
-async function loadTheme(dir, env) {
+export async function loadTheme(dir, env) {
   const wrap = (m) => {
     const layout = m && (m.layout || m.default);
     return layout ? { layout, css: m.css || themeCss(dir) } : null;
