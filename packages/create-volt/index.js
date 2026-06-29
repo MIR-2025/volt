@@ -37,7 +37,8 @@ ${bold("Usage")}
   npx create-volt@latest update              # refresh public/volt.js in an existing app
 
 ${bold("Options")}
-  --port <number>  Dev port for the app (default: derived from today's date)
+  --template <name>  Starter template: default | guestbook  (default: default)
+  --port <number>    Dev port for the app (default: derived from today's date)
   --skip-install   Don't run the package manager install step
   --no-git         Don't initialize a git repository
   --dry-run        Show what would be created without writing anything
@@ -55,10 +56,13 @@ const argv = process.argv.slice(2);
 const flags = new Set();
 const positionals = [];
 let portArg = null;
+let templateArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
   else if (a.startsWith("--port=")) portArg = a.slice("--port=".length);
+  else if (a === "--template") templateArg = argv[++i];
+  else if (a.startsWith("--template=")) templateArg = a.slice("--template=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -86,7 +90,7 @@ if (positionals[0] === "update") {
   if (!fs.existsSync(target)) {
     die(`No ${cyan("public/volt.js")} here — run ${cyan("create-volt update")} from inside a Volt app.`);
   }
-  const latest = fs.readFileSync(path.join(__dirname, "template", "public", "volt.js"), "utf8");
+  const latest = fs.readFileSync(path.join(__dirname, "templates", "default", "public", "volt.js"), "utf8");
   const current = fs.readFileSync(target, "utf8");
   if (current === latest) {
     console.log(`\n${green("✔")} ${bold("public/volt.js")} is already current (create-volt ${pkg.version}).\n`);
@@ -139,7 +143,19 @@ if (!/^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(path.basena
 
 const targetDir = path.resolve(process.cwd(), projectName);
 const appName = path.basename(targetDir);
-const templateDir = path.join(__dirname, "template");
+
+// Resolve the starter template (default | guestbook | …).
+const templatesDir = path.join(__dirname, "templates");
+const templateName = templateArg || "default";
+const templateDir = path.join(templatesDir, templateName);
+if (!fs.existsSync(templateDir) || !fs.statSync(templateDir).isDirectory()) {
+  const available = fs
+    .readdirSync(templatesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .join(", ");
+  die(`Unknown template "${templateName}". Available: ${available}.`);
+}
 
 // List every file in the template, relative to its root (for dry-run preview).
 function listTemplateFiles(dir, base = dir) {
@@ -162,7 +178,7 @@ if (fs.existsSync(targetDir)) {
 
 // --- dry run: print the plan and exit without writing anything ---
 if (dryRun) {
-  console.log(`\n${bold("⚡ Dry run")} — would create a Volt app in ${cyan(targetDir)}\n`);
+  console.log(`\n${bold("⚡ Dry run")} — would create a ${cyan(templateName)} Volt app in ${cyan(targetDir)}\n`);
   console.log("Would write:");
   for (const f of listTemplateFiles(templateDir).sort()) {
     // the shipped "gitignore" is renamed to ".gitignore" on scaffold
@@ -207,14 +223,10 @@ if (fs.existsSync(appReadme)) {
   fs.writeFileSync(appReadme, fs.readFileSync(appReadme, "utf8").replace(/localhost:\d+/g, `localhost:${port}`));
 }
 
-const created = [
-  "public/volt.js   — the Volt library (no build step)",
-  "public/app.js    — your app (Counter + Todos demo)",
-  "views/index.html — the HTML shell",
-  "server.js        — dev server with hot reload",
-];
-console.log(green("✔") + " Files created:");
-for (const line of created) console.log("  " + dim(line));
+console.log(green("✔") + ` Created a ${cyan(templateName)} app — files:`);
+for (const f of listTemplateFiles(templateDir).sort()) {
+  console.log("  " + dim(f === "gitignore" ? ".gitignore" : f));
+}
 console.log("");
 
 // --- detect the package manager that invoked us (npm / pnpm / yarn / bun) ---

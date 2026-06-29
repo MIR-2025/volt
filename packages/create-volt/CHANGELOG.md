@@ -4,6 +4,18 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-06-28
+
+### Added
+- Multiple starter templates via `--template <name>`. The default stays the
+  Counter + Todos demo; `--template guestbook` scaffolds a full real-world app:
+  magic-link auth, Socket.io real-time, and pluggable **MongoDB / MySQL /
+  Postgres** storage (with an in-memory dev fallback so it runs with no setup).
+
+### Changed
+- Templates now live under `templates/<name>/` (was a single `template/`).
+- The "files created" summary is derived from the chosen template.
+
 ## [0.4.0] - 2026-06-28
 
 ### Added
@@ -48,6 +60,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.5.0]: https://github.com/MIR-2025/volt/releases/tag/v0.5.0
 [0.4.0]: https://github.com/MIR-2025/volt/releases/tag/v0.4.0
 [0.3.2]: https://github.com/MIR-2025/volt/releases/tag/v0.3.2
 [0.3.1]: https://github.com/MIR-2025/volt/releases/tag/v0.3.1

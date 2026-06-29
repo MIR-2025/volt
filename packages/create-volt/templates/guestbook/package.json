@@ -1,0 +1,21 @@
+{
+  "name": "volt-guestbook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Live guestbook — a real Volt app: magic-link auth, Socket.io real-time, pluggable MongoDB/MySQL/Postgres storage (with an in-memory dev fallback).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "optionalDependencies": {
+    "mongodb": "^6.8.0",
+    "mysql2": "^3.11.0",
+    "pg": "^8.12.0"
+  }
+}

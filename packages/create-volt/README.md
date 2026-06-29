@@ -17,7 +17,19 @@ bun create volt my-app
 
 # choose the dev port (default: derived from today's date)
 npm create volt@latest my-app -- --port 26630
+
+# pick a starter template
+npm create volt@latest my-app -- --template guestbook
 ```
+
+## Templates
+
+Pick one with `--template` (default: `default`):
+
+| Template    | What you get                                                          |
+| ----------- | -------------------------------------------------------------------- |
+| `default`   | The Counter + Todos demo on the Volt signal engine. Minimal.        |
+| `guestbook` | A real app: magic-link auth, Socket.io real-time message board, and pluggable **MongoDB / MySQL / Postgres** storage (in-memory by default, so it runs with zero setup). |
 
 Then:
 
