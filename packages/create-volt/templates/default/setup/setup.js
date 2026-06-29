@@ -17,6 +17,13 @@ const state = signal({
   dbUrl: current.DATABASE_URL || "",
   smtpUrl: current.SMTP_URL || "",
   mailFrom: current.MAIL_FROM || "",
+  mediaDriver: current.MEDIA_DRIVER || "local",
+  s3Endpoint: current.S3_ENDPOINT || "",
+  s3Region: current.S3_REGION || "",
+  s3Bucket: current.S3_BUCKET || "",
+  s3Key: current.S3_KEY || "",
+  s3Secret: current.S3_SECRET || "",
+  s3PublicBase: current.S3_PUBLIC_BASE || "",
   port: current.PORT || String(defaultPort),
 });
 const set = (patch) => state({ ...state(), ...patch });
@@ -52,6 +59,17 @@ function genEnv(s) {
     if (s.smtpUrl) out.push(`SMTP_URL=${clean(s.smtpUrl)}`);
     else out.push("# SMTP_URL=        # unset → emails print to the console");
     if (s.mailFrom) out.push(`MAIL_FROM=${clean(s.mailFrom)}`);
+  }
+  if (eff.includes("media")) {
+    out.push(`MEDIA_DRIVER=${clean(s.mediaDriver)}`);
+    if (s.mediaDriver === "s3") {
+      out.push(`S3_ENDPOINT=${clean(s.s3Endpoint)}`);
+      out.push(`S3_REGION=${clean(s.s3Region)}`);
+      out.push(`S3_BUCKET=${clean(s.s3Bucket)}`);
+      out.push(`S3_KEY=${clean(s.s3Key)}`);
+      out.push(`S3_SECRET=${clean(s.s3Secret)}`);
+      if (s.s3PublicBase) out.push(`S3_PUBLIC_BASE=${clean(s.s3PublicBase)}`);
+    }
   }
   return out.join("\n") + "\n";
 }
@@ -134,6 +152,19 @@ const dbSettings = () =>
           : null}
     ${() => (state().dbDriver !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>` : null)}`;
 
+const mediaSettings = () =>
+  html`<div class="mb-2">
+      <label class="form-label small mb-1">Media storage (MEDIA_DRIVER)</label>
+      <select class="form-select" value=${() => state().mediaDriver} onchange=${(e) => set({ mediaDriver: e.target.value })}>
+        <option value="local">local (disk)</option>
+        <option value="s3">s3 — AWS S3 / DigitalOcean Spaces</option>
+      </select>
+    </div>
+    ${() =>
+      state().mediaDriver === "s3"
+        ? html`${field("S3_ENDPOINT", "s3Endpoint", "https://nyc3.digitaloceanspaces.com")}${field("S3_REGION", "s3Region", "us-east-1")}${field("S3_BUCKET", "s3Bucket", "my-space")}${field("S3_KEY", "s3Key", "access key")}${field("S3_SECRET", "s3Secret", "secret key")}${field("S3_PUBLIC_BASE (optional CDN base)", "s3PublicBase", "https://cdn.example.com")}`
+        : null}`;
+
 mount(
   "#app",
   available.length
@@ -148,6 +179,7 @@ mount(
     ${field("PORT", "port", String(defaultPort))}
     ${() => (eff().includes("db") ? dbSettings() : null)}
     ${() => (eff().includes("mailer") ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+    ${() => (eff().includes("media") ? mediaSettings() : null)}
   </div>`,
   html`<div class="card-x p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18 };
+const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18, busboy: 1, "@aws-sdk/client-s3": 3 };
 
 const cmp = (a, b) => {
   const A = a.split(".").map(Number);
@@ -50,7 +50,9 @@ const edit = (rel, transform) => {
 };
 
 // 1) PKG_VERSIONS maps (server-side packages added on demand) in template server.js
-const pkgVersionsLine = `const PKG_VERSIONS = { ${["mongodb", "mysql2", "pg", "nodemailer", "marked"].map((n) => `${n}: "^${want[n]}"`).join(", ")} };`;
+const PKG_ORDER = ["mongodb", "mysql2", "pg", "nodemailer", "marked", "busboy", "@aws-sdk/client-s3"];
+const keyOf = (n) => (/^[a-z_$][\w$]*$/i.test(n) ? n : JSON.stringify(n)); // quote scoped/dotted names
+const pkgVersionsLine = `const PKG_VERSIONS = { ${PKG_ORDER.map((n) => `${keyOf(n)}: "^${want[n]}"`).join(", ")} };`;
 for (const t of ["default", "starter"]) {
   edit(`packages/create-volt/templates/${t}/server.js`, (s) => s.replace(/const PKG_VERSIONS = \{[^}]*\};/, pkgVersionsLine));
 }

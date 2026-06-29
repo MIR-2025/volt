@@ -4,6 +4,18 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-06-29
+
+### Added
+- **`media` add-on** — file uploads with a swappable storage driver: `local`
+  (disk, served at `/media`) or `s3` (any S3-compatible store: AWS S3,
+  DigitalOcean Spaces, …). `POST /api/media` is auth-gated (depends on the auth
+  add-on); uploads are size-capped (`MEDIA_MAX_MB`, default 10), restricted to
+  raster images + PDF (SVG rejected), stored under a random key, and returned as
+  a public URL. Driver + S3 settings are configured in the setup wizard. Pulls in
+  `busboy` (and `@aws-sdk/client-s3` when `MEDIA_DRIVER=s3`), both tracked by the
+  dependency auto-updater and exercised by the smoke gate.
+
 ## [0.15.1] - 2026-06-29
 
 ### Fixed
@@ -230,6 +242,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.16.0]: https://github.com/MIR-2025/volt/releases/tag/v0.16.0
 [0.15.1]: https://github.com/MIR-2025/volt/releases/tag/v0.15.1
 [0.15.0]: https://github.com/MIR-2025/volt/releases/tag/v0.15.0
 [0.14.0]: https://github.com/MIR-2025/volt/releases/tag/v0.14.0

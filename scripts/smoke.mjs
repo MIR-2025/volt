@@ -42,18 +42,19 @@ async function main() {
   step(`scaffold → ${app}`);
   execFileSync("node", [CLI, app, "--port", String(PORT), "--skip-install", "--no-git"], { stdio: "inherit" });
 
-  // enable a representative slice: db(memory) + mailer + auth + realtime + pages
-  fs.writeFileSync(path.join(app, ".env"), `VOLT_ADDONS=db,mailer,auth,realtime,pages\nDB_DRIVER=memory\nPORT=${PORT}\n`);
+  // enable a representative slice: db(memory) + mailer + auth + realtime + pages + media(local)
+  fs.writeFileSync(path.join(app, ".env"), `VOLT_ADDONS=db,mailer,auth,realtime,pages,media\nDB_DRIVER=memory\nMEDIA_DRIVER=local\nPORT=${PORT}\n`);
 
-  // mirror the wizard: pages needs `marked` in package.json, at the pinned floor
+  // mirror the wizard: on-demand packages (pages→marked, media→busboy) must be
+  // in package.json at the pinned floor before install
   const serverSrc = fs.readFileSync(path.join(app, "server.js"), "utf8");
-  const markedVer = (serverSrc.match(/marked:\s*"([^"]+)"/) || [])[1] || "latest";
+  const ver = (name) => (serverSrc.match(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ':\\s*"([^"]+)"')) || [])[1] || "latest";
   const pkgPath = path.join(app, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  pkg.dependencies = { ...pkg.dependencies, marked: markedVer };
+  pkg.dependencies = { ...pkg.dependencies, marked: ver("marked"), busboy: ver("busboy") };
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 
-  step(`npm install (real — exercises the pinned versions; marked ${markedVer})`);
+  step(`npm install (real — exercises the pinned versions; marked ${ver("marked")}, busboy ${ver("busboy")})`);
   execFileSync("npm", ["install"], { cwd: app, stdio: "inherit" });
 
   step("boot server.js");
@@ -86,9 +87,14 @@ async function main() {
     if (got !== want) throw new Error(`smoke check failed: ${p} → ${got}, expected ${want}`);
   }
 
+  // media upload endpoint is mounted AND auth-gated (no session → 401)
+  const mediaStatus = (await fetch(`http://127.0.0.1:${PORT}/api/media`, { method: "POST" })).status;
+  step(`POST /api/media (no auth) → ${mediaStatus} (want 401)`);
+  if (mediaStatus !== 401) throw new Error(`media upload not auth-gated: got ${mediaStatus}, expected 401`);
+
   // add-ons actually enabled?
   const addons = await (await fetch(`http://127.0.0.1:${PORT}/__volt/addons`)).json();
-  for (const a of ["db", "mailer", "auth", "realtime", "pages"]) {
+  for (const a of ["db", "mailer", "auth", "realtime", "pages", "media"]) {
     if (!addons.includes(a)) throw new Error(`add-on not wired: ${a}`);
   }
   step(`add-ons wired: ${addons.join(", ")}`);

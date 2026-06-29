@@ -240,6 +240,23 @@ Written in **markdown**, served as HTML.`)}
       <p class="lead2">Pages are code-owned files (trusted), so their HTML renders as-is. The router is mounted last — your app's own routes always win, and unknown slugs fall through to 404. Slugs are limited to letters, numbers, and hyphens (no path traversal).</p>`,
   },
   {
+    id: "media",
+    title: "Media uploads",
+    body: `<h1 class="h3 mb-3">Media uploads</h1>
+      <p class="lead2">The <code>media</code> add-on handles uploads to local disk or any S3-compatible store (AWS S3, DigitalOcean Spaces). Uploads are signed-in only.</p>
+      ${cmd('npm run dev -- --edit   # enable "media", choose local or s3')}
+      <p>Upload from the browser to <code>POST /api/media</code> (multipart) and get back a public URL:</p>
+      ${code(`const fd = new FormData();
+fd.append("file", input.files[0]);
+const { url } = await (await fetch("/api/media", { method: "POST", body: fd })).json();`)}
+      <h2 class="h5 mt-4">Storage drivers</h2>
+      <ul class="lead2">
+        <li><strong>local</strong> — written to <code>media/</code>, served by the app at <code>/media/&lt;key&gt;</code>. Good for dev and small sites. (For big files behind nginx, raise <code>client_max_body_size</code>.)</li>
+        <li><strong>s3</strong> — any S3-compatible endpoint: set <code>S3_ENDPOINT</code>, <code>S3_REGION</code>, <code>S3_BUCKET</code>, <code>S3_KEY</code>, <code>S3_SECRET</code> (and optional <code>S3_PUBLIC_BASE</code> for a CDN). Objects are stored public-read and served from your bucket/CDN — your server isn't in the serving path.</li>
+      </ul>
+      <p class="lead2 small">Uploads require a signed-in user (the add-on depends on auth), are capped by <code>MEDIA_MAX_MB</code> (default 10), and are limited to raster images and PDFs. SVG is rejected (it can carry script).</p>`,
+  },
+  {
     id: "studio",
     title: "Studio",
     body: `<h1 class="h3 mb-3">Studio</h1>
