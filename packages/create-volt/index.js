@@ -35,6 +35,7 @@ ${bold("Usage")}
   npm create volt@latest <project-directory> [options]
   npx create-volt <project-directory> [options]
   npx create-volt@latest update              # refresh public/volt.js in an existing app
+  npx create-volt@latest add <integration>   # add db | auth | realtime | mailer to an app
 
 ${bold("Options")}
   --template <name>  Starter template: default | guestbook  (default: default)
@@ -104,6 +105,75 @@ if (positionals[0] === "update") {
   fs.writeFileSync(target, latest);
   console.log(`\n${green("✔")} Updated ${bold("public/volt.js")} to the version in create-volt ${pkg.version}.`);
   console.log(`  Review the change with ${cyan("git diff public/volt.js")}.\n`);
+  process.exit(0);
+}
+
+// --- `add <integration>` subcommand: copy a self-contained add-on into the
+// current app and print how to wire it. Never edits your existing files; skips
+// files that already exist unless --force. ---
+if (positionals[0] === "add") {
+  const addonsDir = path.join(__dirname, "addons");
+  const available = fs
+    .readdirSync(addonsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+  const readMeta = (a) => JSON.parse(fs.readFileSync(path.join(addonsDir, a, "meta.json"), "utf8"));
+
+  const name = positionals[1];
+  if (!name) {
+    console.log(`\n${bold("Available integrations")} — ${cyan("create-volt add <name>")}\n`);
+    for (const a of available) console.log(`  ${cyan(a.padEnd(10))} ${dim(readMeta(a).description)}`);
+    console.log("");
+    process.exit(0);
+  }
+  if (!available.includes(name)) die(`Unknown integration "${name}". Available: ${available.join(", ")}.`);
+  if (!fs.existsSync(path.join(process.cwd(), "package.json"))) {
+    die(`No package.json here — run ${cyan("create-volt add")} from inside a project.`);
+  }
+
+  const meta = readMeta(name);
+  const filesDir = path.join(addonsDir, name, "files");
+  const rel = listTemplateFiles(filesDir);
+  const missingDeps = (meta.dependsOn || []).filter((d) => !fs.existsSync(path.join(process.cwd(), readMeta(d).sentinel)));
+
+  if (dryRun) {
+    console.log(`\n${bold("⚡ Dry run")} — would add ${cyan(name)}:\n`);
+    for (const f of rel.sort()) console.log("  " + dim(f));
+    console.log(`\n${green("✔")} Dry run — nothing written.\n`);
+    process.exit(0);
+  }
+
+  const copied = [];
+  const skipped = [];
+  for (const f of rel) {
+    const dest = path.join(process.cwd(), f);
+    if (fs.existsSync(dest) && !force) {
+      skipped.push(f);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(path.join(filesDir, f), dest);
+    copied.push(f);
+  }
+
+  console.log(`\n${bold("⚡ Added")} ${cyan(name)} — ${meta.description}\n`);
+  if (copied.length) {
+    console.log(green("✔") + " Files:");
+    for (const f of copied.sort()) console.log("  " + dim(f));
+  }
+  if (skipped.length) {
+    console.log(`\n${yellow("!")} Skipped (already exist — ${cyan("--force")} to overwrite):`);
+    for (const f of skipped.sort()) console.log("  " + dim(f));
+  }
+  if (missingDeps.length) {
+    console.log(`\n${yellow("!")} Add these first: ${missingDeps.map((d) => cyan("create-volt add " + d)).join(", ")}`);
+  }
+  const installs = meta.install || [];
+  if (installs.length) console.log(`\n${bold("Install:")} ${cyan("npm install " + installs.join(" "))}`);
+  if (meta.optional && Object.keys(meta.optional).length) {
+    console.log(dim("Optional: " + Object.entries(meta.optional).map(([p, why]) => `${p} (${why})`).join(", ")));
+  }
+  console.log(`\n${bold("Wire it up:")}\n${meta.wiring.split("\n").map((l) => "  " + l).join("\n")}\n`);
   process.exit(0);
 }
 

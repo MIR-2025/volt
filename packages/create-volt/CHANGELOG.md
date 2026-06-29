@@ -4,6 +4,18 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-06-28
+
+### Added
+- `create-volt add <integration>` — layer composable add-ons into an existing
+  app instead of cloning whole templates. Copies self-contained files and prints
+  the wiring (never edits your code); supports `--dry-run` and `--force`, and
+  `create-volt add` with no name lists what's available. Integrations:
+  - `db` — document store over memory / MongoDB / MySQL / Postgres
+  - `mailer` — console (dev) / SMTP (prod) email
+  - `auth` — magic-link login + sessions (builds on db + mailer)
+  - `realtime` — Socket.io chat with rooms, presence, and typing
+
 ## [0.5.0] - 2026-06-28
 
 ### Added
@@ -60,6 +72,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.6.0]: https://github.com/MIR-2025/volt/releases/tag/v0.6.0
 [0.5.0]: https://github.com/MIR-2025/volt/releases/tag/v0.5.0
 [0.4.0]: https://github.com/MIR-2025/volt/releases/tag/v0.4.0
 [0.3.2]: https://github.com/MIR-2025/volt/releases/tag/v0.3.2

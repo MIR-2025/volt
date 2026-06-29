@@ -40,6 +40,24 @@ npm run dev        # → http://localhost:26628
 
 Edit `public/app.js` and save — the page hot-reloads itself.
 
+## Add-on integrations
+
+Rather than clone whole-app templates, layer features into an existing app with
+`create-volt add <name>`. It copies self-contained files and prints exactly how
+to wire them in — it never edits your code.
+
+```bash
+npx create-volt@latest add            # list integrations
+npx create-volt@latest add db         # document store (memory/MongoDB/MySQL/Postgres)
+npx create-volt@latest add mailer     # console (dev) / SMTP (prod) email
+npx create-volt@latest add auth       # magic-link login + sessions (needs db + mailer)
+npx create-volt@latest add realtime   # Socket.io chat: rooms, presence, typing (needs db)
+npx create-volt@latest add auth --dry-run   # preview without writing
+```
+
+Add-ons compose — e.g. `db` + `mailer` + `auth` + `realtime` gives you the
+guestbook/chat stack, added piece by piece into any Volt app.
+
 ## Updating Volt
 
 Volt is vendored as a single file (`public/volt.js`), not an npm dependency.
