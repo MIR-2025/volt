@@ -1,0 +1,28 @@
+name: Publish volt-addon-editor to npm
+
+# Publishes the volt-addon-editor package when an editor tag (e.g. editor-v0.1.0)
+# is pushed. Separate from create-volt's tags so the two version independently.
+#   git tag editor-v0.1.0 && git push origin editor-v0.1.0
+on:
+  push:
+    tags:
+      - "editor-v*"
+
+permissions:
+  contents: read
+  id-token: write # npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Upgrade npm (Trusted Publishing needs >= 11.5)
+        run: npm install -g npm@latest
+      # No token: npm exchanges the GitHub OIDC token. The trusted publisher must
+      # be configured for this repo + workflow on npmjs.com for volt-addon-editor.
+      - name: Publish
+        run: npm publish -w volt-addon-editor --provenance --access public

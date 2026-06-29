@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18, busboy: 1, "@aws-sdk/client-s3": 3 };
+const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18, busboy: 1, "@aws-sdk/client-s3": 3, "rte-rich-text-editor-pro": 1 };
 
 const cmp = (a, b) => {
   const A = a.split(".").map(Number);
@@ -57,9 +57,16 @@ for (const t of ["default", "starter"]) {
   edit(`packages/create-volt/templates/${t}/server.js`, (s) => s.replace(/const PKG_VERSIONS = \{[^}]*\};/, pkgVersionsLine));
 }
 
-// 2) deps / optionalDeps in every template package.json
-for (const t of ["default", "starter", "guestbook"]) {
-  edit(`packages/create-volt/templates/${t}/package.json`, (s) => {
+// 2) deps / optionalDeps in template package.json + first-party packages/site
+const PKG_JSON = [
+  "packages/create-volt/templates/default/package.json",
+  "packages/create-volt/templates/starter/package.json",
+  "packages/create-volt/templates/guestbook/package.json",
+  "packages/volt-addon-editor/package.json",
+  "site/package.json",
+];
+for (const rel of PKG_JSON) {
+  edit(rel, (s) => {
     const pkg = JSON.parse(s);
     for (const field of ["dependencies", "optionalDependencies"]) {
       if (!pkg[field]) continue;
