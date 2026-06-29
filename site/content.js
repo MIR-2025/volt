@@ -205,7 +205,7 @@ mount("#app", view, card);`)}
         <li>“Turn on realtime so the list updates live across tabs.” (the AI enables it via <code>--edit</code> + the realtime add-on)</li>
       </ul>
       <p class="lead2 small">Tip: have the AI <em>run the app and verify in a browser</em>, not just write code. No build step means the feedback loop is seconds.</p>
-      <p class="lead2 small">Volt itself — and this site — were built this way.</p>`,
+      <p class="lead2 small">Volt itself was built this way.</p>`,
   },
   {
     id: "add-ons",
