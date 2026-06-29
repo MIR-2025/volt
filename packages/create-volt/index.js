@@ -466,6 +466,7 @@ if (fs.existsSync(shippedDockerignore)) {
 // (only for templates that ship the wizard, i.e. have a setup/ dir).
 if (fs.existsSync(path.join(targetDir, "setup"))) {
   fs.cpSync(path.join(__dirname, "addons"), path.join(targetDir, ".volt", "addons"), { recursive: true });
+  fs.cpSync(path.join(__dirname, "themes"), path.join(targetDir, ".volt", "themes"), { recursive: true }); // bundled themes the wizard can pick
 }
 
 // --- stamp the project name into package.json ---
@@ -549,7 +550,7 @@ console.log(`\n${green("✔")} ${bold("Done!")} Next steps:\n`);
 console.log(`  ${cyan("cd")} ${projectName}`);
 if (!installed) console.log(`  ${cyan(installCmd)}`);
 console.log(`  ${cyan(runCmd)}`);
-console.log(`\nFirst run opens a quick ${bold("setup")} page at ${cyan("http://localhost:" + port)}, then your app starts.\n`);
+console.log(`\nFirst run opens a quick ${bold("setup")} page at ${cyan("http://localhost:5050")}; your app then runs at ${cyan("http://localhost:" + port)}.\n`);
 
 if (flags.has("--start")) {
   if (!installed) {

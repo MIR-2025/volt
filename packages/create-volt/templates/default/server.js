@@ -20,7 +20,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
+const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes the wizard can pick
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
+const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
 // `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
 // --edit/--studio dodge a port the running app already holds, and runs the app
@@ -37,7 +39,7 @@ function cliPort() {
 // then the app's PORT, then the date-port.
 function configPort() {
   const env = readEnvFile(); // --edit runs before loadEnv(), so read the file too
-  return cliPort() || Number(process.env.CONFIG_PORT) || Number(env.CONFIG_PORT) || Number(process.env.PORT) || Number(env.PORT) || DEFAULT_PORT;
+  return cliPort() || Number(process.env.CONFIG_PORT) || Number(env.CONFIG_PORT) || CONFIG_DEFAULT_PORT;
 }
 const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1", marked: "^18.0.5", busboy: "^1.6.0", "@aws-sdk/client-s3": "^3.1075.0" };
 const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js", posts: "posts.js", media: "media.js" };
@@ -65,6 +67,23 @@ function availableAddons() {
     .map((e) => {
       const m = JSON.parse(fs.readFileSync(path.join(ADDONS_DIR, e.name, "meta.json"), "utf8"));
       return { name: e.name, description: m.description, dependsOn: m.dependsOn || [] };
+    });
+}
+
+// Themes bundled by create-volt (under .volt/themes), pickable in the wizard.
+function availableThemes() {
+  if (!fs.existsSync(THEMES_DIR)) return [];
+  return fs
+    .readdirSync(THEMES_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(THEMES_DIR, e.name, "index.js")))
+    .map((e) => {
+      let description = "";
+      try {
+        description = JSON.parse(fs.readFileSync(path.join(THEMES_DIR, e.name, "meta.json"), "utf8")).description;
+      } catch {
+        /* no meta */
+      }
+      return { name: e.name, description };
     });
 }
 
@@ -266,7 +285,27 @@ function startSetup() {
     }
     if (req.method === "GET" && p === "/setup/state") {
       res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ available: availableAddons(), current: readEnvFile(), defaultPort: DEFAULT_PORT }));
+      return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT }));
+    }
+    // "Customize": copy a bundled theme into pages/_theme.js so it can be edited.
+    if (req.method === "POST" && p === "/setup/eject-theme") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        res.setHeader("Content-Type", "application/json");
+        try {
+          const { theme } = JSON.parse(body || "{}");
+          const src = path.join(THEMES_DIR, String(theme || ""), "index.js");
+          if (!theme || !/^[a-z0-9-]+$/i.test(theme) || !fs.existsSync(src)) return res.end(JSON.stringify({ ok: false, error: "unknown theme" }));
+          const dest = path.join(__dirname, "pages", "_theme.js");
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.copyFileSync(src, dest);
+          res.end(JSON.stringify({ ok: true, path: "pages/_theme.js" }));
+        } catch (e) {
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
     }
     if (req.method === "POST" && p === "/setup/test-db") {
       let body = "";

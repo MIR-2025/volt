@@ -77,6 +77,12 @@ export function metaHead(meta) {
     }
     if (ok) t.push(`<script type="application/ld+json">${meta.jsonld.replace(/</g, "\\u003c")}</script>`);
   }
+  // custom <script> tags for third-party libs: per-page front-matter `scripts:`
+  // (comma-separated URLs) and/or a site-wide SITE_SCRIPTS env. Loaded deferred.
+  const scripts = [process.env.SITE_SCRIPTS, meta.scripts].filter(Boolean).join(",");
+  for (const url of scripts.split(",").map((s) => s.trim()).filter(Boolean)) {
+    t.push(`<script src="${esc(url)}" defer></script>`);
+  }
   return t.join("\n");
 }
 
@@ -123,6 +129,12 @@ export async function loadTheme(dir, env) {
     return layout ? { layout, css: m.css || themeCss(dir) } : null;
   };
   if (env.THEME) {
+    // a theme bundled by create-volt (.volt/themes/<name>/index.js) — no npm needed
+    const bundled = path.resolve(dir, "..", ".volt", "themes", env.THEME, "index.js");
+    if (fs.existsSync(bundled)) {
+      const t = wrap(await import(pathToFileURL(bundled).href));
+      if (t) return t;
+    }
     for (const id of [`volt-theme-${env.THEME}`, env.THEME]) {
       try {
         const t = wrap(await import(id));

@@ -4,7 +4,7 @@
 // just config.
 import { signal, computed, html, mount } from "/volt.js";
 
-const { available, current, defaultPort } = await (await fetch("/setup/state")).json();
+const { available, themes = [], current, defaultPort, configDefaultPort = 5050 } = await (await fetch("/setup/state")).json();
 const depsOf = Object.fromEntries(available.map((a) => [a.name, a.dependsOn || []]));
 const order = available.map((a) => a.name);
 const enabledNow = new Set(String(current.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean));
@@ -28,6 +28,12 @@ const state = signal({
   // detect the admin's timezone from their browser (the wizard runs here), so
   // dates render in their zone — not the server's (usually UTC on a host).
   tz: current.SITE_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  siteName: current.SITE_NAME || "",
+  siteUrl: current.SITE_URL || "",
+  configPort: current.CONFIG_PORT || "",
+  theme: current.THEME || "",
+  aiProvider: current.AI_PROVIDER || "anthropic",
+  aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -67,6 +73,15 @@ function genEnv(s) {
   const eff = effective(s);
   const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${clean(s.port)}`];
   if (s.tz) out.push(`SITE_TZ=${clean(s.tz)}`); // admin's timezone, for date display
+  if (s.siteName) out.push(`SITE_NAME=${clean(s.siteName)}`);
+  if (s.siteUrl) out.push(`SITE_URL=${clean(s.siteUrl)}`);
+  if (s.configPort) out.push(`CONFIG_PORT=${clean(s.configPort)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
+  if (s.aiKey) {
+    out.push(`AI_PROVIDER=${clean(s.aiProvider)}`);
+    const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
+    out.push(`${keyVar}=${clean(s.aiKey)}`);
+  }
   if (eff.includes("db")) {
     out.push(`DB_DRIVER=${clean(s.dbDriver)}`);
     if (s.dbDriver === "mongodb") {
@@ -104,6 +119,24 @@ const mediaDriver = computed(() => state().mediaDriver);
 const hasDb = computed(() => eff().includes("db"));
 const hasMailer = computed(() => eff().includes("mailer"));
 const hasMedia = computed(() => eff().includes("media"));
+const hasContent = computed(() => eff().includes("pages") || eff().includes("posts")); // themes apply to pages/posts
+
+// "Customize": copy the selected bundled theme to pages/_theme.js, then use it
+// locally (THEME cleared) so edits take effect.
+async function ejectTheme() {
+  const theme = state().theme;
+  if (!theme) return;
+  status("Copying theme…");
+  try {
+    const r = await (await fetch("/setup/eject-theme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) })).json();
+    if (r.ok) {
+      set({ theme: "" });
+      status(`Copied ${theme} → ${r.path}. Edit it freely; THEME was cleared so your local copy is used.`);
+    } else status("Error: " + (r.error || "?"));
+  } catch {
+    status("Network error copying theme.");
+  }
+}
 
 async function testDb() {
   const s = state();
@@ -201,6 +234,34 @@ const mediaSettings = () =>
         ? html`${field("S3_ENDPOINT", "s3Endpoint", "https://nyc3.digitaloceanspaces.com")}${field("S3_REGION", "s3Region", "us-east-1")}${field("S3_BUCKET", "s3Bucket", "my-space")}${field("S3_KEY", "s3Key", "access key")}${field("S3_SECRET", "s3Secret", "secret key")}${field("S3_PUBLIC_BASE (optional CDN base)", "s3PublicBase", "https://cdn.example.com")}`
         : null}`;
 
+// theme chooser: a bundled theme (or the built-in/local one), with Customize
+const themePicker = () =>
+  html`<div class="mb-2">
+    <label class="form-label small mb-1">Theme (THEME)</label>
+    <select class="form-select" value=${() => state().theme} onchange=${(e) => set({ theme: e.target.value })}>
+      <option value="">default — built-in, or your pages/_theme.js</option>
+      ${themes.map((t) => html`<option value=${t.name}>${t.name}${t.description ? " — " + t.description : ""}</option>`)}
+    </select>
+    ${() =>
+      state().theme
+        ? html`<button class="btn btn-sm btn-outline-secondary mt-1" onclick=${ejectTheme}>Customize → copy to pages/_theme.js</button>`
+        : html`<div class="small text-muted mt-1">Pick a starter theme, or keep the built-in / your local <code>pages/_theme.js</code>.</div>`}
+  </div>`;
+
+// AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.
+const aiSettings = () =>
+  html`<details class="mb-2"><summary class="form-label small mb-0" style="cursor:pointer">AI keys (optional) — for the editor's assistant</summary>
+    <div class="mt-2">
+      <label class="form-label small mb-1">Provider (AI_PROVIDER)</label>
+      <select class="form-select mb-2" value=${() => state().aiProvider} onchange=${(e) => set({ aiProvider: e.target.value })}>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+      ${field("API key — stays server-side, written to .env", "aiKey", "sk-…")}
+    </div>
+  </details>`;
+
 mount(
   "#app",
   available.length
@@ -213,9 +274,14 @@ mount(
   html`<div class="card-x p-4 mb-3">
     <h2 class="h6 mb-3">Settings</h2>
     ${field("PORT", "port", String(defaultPort))}
+    ${field("SITE_NAME", "siteName", "My Site")}
+    ${() => (hasContent() ? themePicker() : null)}
     ${() => (hasDb() ? dbSettings() : null)}
     ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
     ${() => (hasMedia() ? mediaSettings() : null)}
+    ${aiSettings()}
+    ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
+    ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
   </div>`,
   html`<div class="card-x p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">

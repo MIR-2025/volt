@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-06-29
+
+### Added
+- **Bundled themes + a wizard theme picker.** create-volt ships paper/midnight/
+  classic under `.volt/themes`; the setup wizard has a **Theme** dropdown (no npm
+  needed) with a **Customize** button that copies the chosen theme to
+  `pages/_theme.js` for editing. `THEME` now also resolves bundled themes.
+- **More wizard settings:** `SITE_NAME`, `SITE_URL`, `CONFIG_PORT`, and optional
+  **AI keys** (`AI_PROVIDER` + Anthropic/OpenAI/Gemini key — written to `.env`,
+  kept server-side).
+- **`CONFIG_PORT` defaults to 5050** for the `--edit`/`--studio` config UI, so it
+  never collides with a running app.
+- **Inject `<script>` tags** for third-party libs: per-page front-matter
+  `scripts:` (comma-separated URLs) and/or a site-wide `SITE_SCRIPTS` env, loaded
+  deferred (works on pages + posts).
+
 ## [0.36.0] - 2026-06-29
 
 ### Added
@@ -479,6 +495,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.37.0]: https://github.com/MIR-2025/volt/releases/tag/v0.37.0
 [0.36.0]: https://github.com/MIR-2025/volt/releases/tag/v0.36.0
 [0.35.0]: https://github.com/MIR-2025/volt/releases/tag/v0.35.0
 [0.34.0]: https://github.com/MIR-2025/volt/releases/tag/v0.34.0
