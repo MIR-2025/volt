@@ -28,8 +28,9 @@ Pick one with `--template` (default: `default`):
 
 | Template    | What you get                                                          |
 | ----------- | -------------------------------------------------------------------- |
-| `default`   | The Counter + Todos demo on the Volt signal engine. Minimal.        |
-| `guestbook` | A real app: magic-link auth, Socket.io real-time message board, and pluggable **MongoDB / MySQL / Postgres** storage (in-memory by default, so it runs with zero setup). |
+| `default`   | The Counter + Todos demo on the Volt signal engine. Minimal. Add-ons off; turn them on in the wizard. |
+| `starter`   | A full app shell, everything on out of the box: top nav + Home, magic-link **Account**, per-user **Notes** (CRUD), and **Chat** (realtime). The SaaS-style starting point. |
+| `guestbook` | A focused real app: magic-link auth + a Socket.io message board, over pluggable **MongoDB / MySQL / Postgres** storage (in-memory by default). |
 
 Then:
 

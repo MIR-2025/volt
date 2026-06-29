@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-06-28
+
+### Added
+- **`--template starter`** — a complete, no-build app shell, fully wired and on
+  out of the box: top nav over **Home**, magic-link **Account**, per-user
+  **Notes** (auth-gated CRUD, db-backed), and **Chat** (realtime rooms + presence
+  + typing). Ships a default `.env` enabling db+mailer+auth+realtime; includes
+  the setup wizard (`--edit`) and Studio (`--studio`). The SaaS-style starting
+  point.
+- Templates can now ship a default `.env` (as `env`, renamed on scaffold).
+
 ## [0.11.0] - 2026-06-28
 
 ### Added
@@ -162,6 +173,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.12.0]: https://github.com/MIR-2025/volt/releases/tag/v0.12.0
 [0.11.0]: https://github.com/MIR-2025/volt/releases/tag/v0.11.0
 [0.10.0]: https://github.com/MIR-2025/volt/releases/tag/v0.10.0
 [0.9.0]: https://github.com/MIR-2025/volt/releases/tag/v0.9.0

@@ -39,7 +39,7 @@ ${bold("Usage")}
   npx create-volt@latest studio              # browse your data — ephemeral, localhost (like Prisma Studio)
 
 ${bold("Options")}
-  --template <name>  Starter template: default | guestbook  (default: default)
+  --template <name>  Template: default | starter | guestbook  (default: default)
   --port <number>    Dev port for the app (default: derived from today's date)
   --skip-install   Don't run the package manager install step
   --no-git         Don't initialize a git repository
@@ -244,6 +244,11 @@ fs.cpSync(templateDir, targetDir, { recursive: true });
 const shippedGitignore = path.join(targetDir, "gitignore");
 if (fs.existsSync(shippedGitignore)) {
   fs.renameSync(shippedGitignore, path.join(targetDir, ".gitignore"));
+}
+// some templates ship a default .env as "env" (a real .env is stripped from npm)
+const shippedEnv = path.join(targetDir, "env");
+if (fs.existsSync(shippedEnv)) {
+  fs.renameSync(shippedEnv, path.join(targetDir, ".env"));
 }
 
 // Bundle the add-on sources so the app's setup wizard can enable them later
