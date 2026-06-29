@@ -32,7 +32,11 @@ const EDITOR_HTML = (base, provider) => `<!doctype html><html lang="en"><head>
   <div class="col-md-9">
     <div class="d-flex gap-2 mb-2">
       <input id="title" class="form-control" placeholder="Title" />
-      <input id="slug" class="form-control" style="max-width:240px" placeholder="slug" />
+      <input id="slug" class="form-control" style="max-width:200px" placeholder="slug" />
+      <select id="fmt" class="form-select" style="max-width:170px" title="Save format">
+        <option value="html">HTML (keeps layout)</option>
+        <option value="markdown">Markdown</option>
+      </select>
       <button id="save" class="btn btn-primary">Save</button>
     </div>
     <div id="editor"></div>
@@ -92,19 +96,22 @@ export function register({ app, express, env, requireAuth, log }) {
     }
     // editor loads HTML into RTEPro.setHTML(); html pages pass through verbatim,
     // markdown pages are rendered so they show formatted in the editor.
-    res.json({ ok: true, slug, title, html: format === "html" ? body : marked.parse(body) });
+    res.json({ ok: true, slug, title, format: format === "html" ? "html" : "markdown", html: format === "html" ? body : marked.parse(body) });
   });
 
   app.post(base + "/api/page", gate, json, (req, res) => {
     const slug = String(req.body?.slug || "").toLowerCase();
     if (!isSafeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
     const title = String(req.body?.title || slug).replace(/[\r\n]+/g, " ").slice(0, 200);
-    // Store the editor's HTML verbatim (format: html) so complex layouts survive
-    // losslessly — markdown can't represent multi-column/styled layouts.
-    const body = String(req.body?.html ?? req.body?.markdown ?? "");
+    // The editor chooses: HTML (format: html, served verbatim) preserves complex
+    // layouts losslessly; markdown is clean + hand-editable but can't represent
+    // multi-column/styled layouts.
+    const isHtml = typeof req.body?.html === "string";
+    const body = String(isHtml ? req.body.html : (req.body?.markdown ?? ""));
+    const fm = isHtml ? `---\ntitle: ${title}\nformat: html\n---\n\n` : `---\ntitle: ${title}\n---\n\n`;
     fs.mkdirSync(pagesDir, { recursive: true });
-    fs.writeFileSync(path.join(pagesDir, slug + ".md"), `---\ntitle: ${title}\nformat: html\n---\n\n${body}\n`);
-    res.json({ ok: true, url: "/" + slug });
+    fs.writeFileSync(path.join(pagesDir, slug + ".md"), fm + body + "\n");
+    res.json({ ok: true, url: "/" + slug, format: isHtml ? "html" : "markdown" });
   });
 
   app.post(base + "/api/ai", gate, json, aiProxyHandler(env));
