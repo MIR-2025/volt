@@ -45,6 +45,23 @@ function effective(s) {
   return order.filter((n) => want.has(n));
 }
 
+// which *enabled* add-ons pull in `name` as a (transitive) dependency
+function requiredBy(s, name) {
+  const causes = [];
+  for (const n of order) {
+    if (n === name || !s.addons[n]) continue;
+    const seen = new Set();
+    const visit = (x) => {
+      if (seen.has(x)) return;
+      seen.add(x);
+      (depsOf[x] || []).forEach(visit);
+    };
+    (depsOf[n] || []).forEach(visit);
+    if (seen.has(name)) causes.push(n);
+  }
+  return causes;
+}
+
 const clean = (v) => String(v).replace(/[\r\n]/g, "").trim(); // one value per line; no injection
 function genEnv(s) {
   const eff = effective(s);
@@ -137,11 +154,18 @@ const field = (label, key, placeholder = "") =>
     <input class="form-control" placeholder=${placeholder} value=${() => state()[key]} oninput=${(e) => set({ [key]: e.target.value })} />
   </div>`;
 
+// A dependency pulled in by another enabled add-on shows as checked + disabled
+// (you can't turn it off while something needs it), with a "required by" note —
+// so the .env's VOLT_ADDONS always matches what the boxes show.
 const addonRow = (a) =>
   html`<div class="form-check mb-2">
-    <input class="form-check-input" type="checkbox" id=${"x-" + a.name} checked=${() => state().addons[a.name]} onchange=${() => toggle(a.name)} />
+    <input class="form-check-input" type="checkbox" id=${"x-" + a.name}
+      checked=${() => eff().includes(a.name)}
+      disabled=${() => !state().addons[a.name] && eff().includes(a.name)}
+      onchange=${() => toggle(a.name)} />
     <label class="form-check-label" for=${"x-" + a.name}>
-      <span class="accent">${a.name}</span>${a.dependsOn?.length ? html` <span class="text-muted small">(needs ${a.dependsOn.join(", ")})</span>` : ""}
+      <span class="accent">${a.name}</span>${a.dependsOn?.length ? html` <span class="text-muted small">(needs ${a.dependsOn.join(", ")})</span>` : ""}${() =>
+        !state().addons[a.name] && eff().includes(a.name) ? html` <span class="text-muted small">· required by ${requiredBy(state(), a.name).join(", ")}</span>` : ""}
       <div class="small text-muted">${a.description}</div>
     </label>
   </div>`;

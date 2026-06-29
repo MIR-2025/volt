@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-06-29
+
+### Fixed
+- **Setup wizard: dependency add-ons now show as checked.** Enabling `auth` pulls
+  in `db` + `mailer` (its dependencies), which were added to `VOLT_ADDONS` but
+  whose checkboxes stayed *unchecked* — so the generated `.env` looked like it had
+  add-ons you never picked. Pulled-in dependencies now render **checked + disabled**
+  with a "required by <add-on>" note, so the checkboxes always match `VOLT_ADDONS`.
+
 ## [0.34.0] - 2026-06-29
 
 ### Added
@@ -454,6 +463,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.35.0]: https://github.com/MIR-2025/volt/releases/tag/v0.35.0
 [0.34.0]: https://github.com/MIR-2025/volt/releases/tag/v0.34.0
 [0.33.0]: https://github.com/MIR-2025/volt/releases/tag/v0.33.0
 [0.32.0]: https://github.com/MIR-2025/volt/releases/tag/v0.32.0
