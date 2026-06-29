@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6 };
+const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18 };
 
 const cmp = (a, b) => {
   const A = a.split(".").map(Number);
@@ -49,8 +49,8 @@ const edit = (rel, transform) => {
   }
 };
 
-// 1) PKG_VERSIONS maps (mongodb/mysql2/pg/nodemailer) in template server.js
-const pkgVersionsLine = `const PKG_VERSIONS = { ${["mongodb", "mysql2", "pg", "nodemailer"].map((n) => `${n}: "^${want[n]}"`).join(", ")} };`;
+// 1) PKG_VERSIONS maps (server-side packages added on demand) in template server.js
+const pkgVersionsLine = `const PKG_VERSIONS = { ${["mongodb", "mysql2", "pg", "nodemailer", "marked"].map((n) => `${n}: "^${want[n]}"`).join(", ")} };`;
 for (const t of ["default", "starter"]) {
   edit(`packages/create-volt/templates/${t}/server.js`, (s) => s.replace(/const PKG_VERSIONS = \{[^}]*\};/, pkgVersionsLine));
 }

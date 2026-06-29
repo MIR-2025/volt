@@ -22,8 +22,8 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
-const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1" };
-const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js" };
+const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.22.5", pg: "^8.22.0", nodemailer: "^6.10.1", marked: "^18.0.5" };
+const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js" };
 
 // --- tiny .env loader (no dependency); never overrides an existing env var ---
 function readEnvFile() {
@@ -137,6 +137,9 @@ async function startApp() {
 
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "views", "index.html")));
 
+  // markdown pages (/<slug> ← pages/<slug>.md) — mounted last, so app routes win
+  if (enabled.has("pages")) app.use((await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
+
   const server = http.createServer(app);
   const io = new SocketServer(server);
   if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
@@ -182,6 +185,7 @@ function neededPackages(env) {
   if (driver === "mysql") want.push("mysql2");
   if (driver === "postgres") want.push("pg");
   if (/^\s*SMTP_URL\s*=\s*\S/m.test(env)) want.push("nodemailer");
+  if (/^\s*VOLT_ADDONS\s*=.*\bpages\b/m.test(env)) want.push("marked");
   return want.filter((p) => !deps[p]);
 }
 

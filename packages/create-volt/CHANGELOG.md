@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-06-28
+
+### Added
+- **`pages` add-on** — markdown pages, no database and no admin. Drop `.md`
+  files in `pages/` and each is served as HTML at `/<slug>`; front-matter
+  `title:` sets the page title. Author them in your editor or with AI. Pulls in
+  `marked` (added on enable, tracked by the dependency auto-updater); the
+  `pages/` directory is auto-created with a sample on first run. Mounted last,
+  so your own app routes always win.
+
 ## [0.14.0] - 2026-06-28
 
 ### Changed
@@ -203,6 +213,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.15.0]: https://github.com/MIR-2025/volt/releases/tag/v0.15.0
 [0.14.0]: https://github.com/MIR-2025/volt/releases/tag/v0.14.0
 [0.13.0]: https://github.com/MIR-2025/volt/releases/tag/v0.13.0
 [0.12.0]: https://github.com/MIR-2025/volt/releases/tag/v0.12.0

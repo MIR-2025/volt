@@ -1,0 +1,8 @@
+{
+  "description": "Markdown pages: drop .md files in pages/ and each is served as HTML at /<slug>. No database, no admin — author them in your editor or with AI.",
+  "dependsOn": [],
+  "sentinel": "lib/pages.js",
+  "install": ["marked"],
+  "optional": {},
+  "wiring": "Add markdown files to the pages/ directory (created automatically on first run). pages/about.md is served at /about; front-matter `title:` sets the page title."
+}
