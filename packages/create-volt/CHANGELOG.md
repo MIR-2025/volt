@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-06-29
+
+### Added
+- **Volt SSR** — `volt-ssr.js`, a tiny server-side renderer: render the same
+  `html` / `h()` markup and signal values to an HTML string in Node (`${values}`
+  escaped by default, `raw()` for trusted HTML) via `renderToString`. Ships in
+  every template, so a scaffolded app can be server-rendered for SEO + fast first
+  paint and hydrate with `volt.js` on the client. The Volt site itself is now
+  built with it — marketing pages as Volt components, docs as markdown rendered
+  with `raw()`, the whole page composed by `renderToString`.
+
 ## [0.17.0] - 2026-06-29
 
 ### Added
@@ -256,6 +267,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.18.0]: https://github.com/MIR-2025/volt/releases/tag/v0.18.0
 [0.17.0]: https://github.com/MIR-2025/volt/releases/tag/v0.17.0
 [0.16.0]: https://github.com/MIR-2025/volt/releases/tag/v0.16.0
 [0.15.1]: https://github.com/MIR-2025/volt/releases/tag/v0.15.1

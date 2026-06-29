@@ -3,6 +3,7 @@
 // a live Volt widget on the landing (so the site dogfoods its own library).
 import { signal, el, mount } from "/volt.js";
 
+// copy buttons baked into marketing pages (cmd boxes)
 for (const b of document.querySelectorAll(".copy")) {
   b.addEventListener("click", () => {
     navigator.clipboard?.writeText(b.dataset.copy || "");
@@ -10,6 +11,20 @@ for (const b of document.querySelectorAll(".copy")) {
     b.textContent = "✓ copied";
     setTimeout(() => (b.textContent = t), 1200);
   });
+}
+
+// add a copy button to every code block in the markdown-rendered docs
+for (const pre of document.querySelectorAll(".docs-content pre")) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "copy";
+  btn.textContent = "Copy";
+  btn.addEventListener("click", () => {
+    navigator.clipboard?.writeText(pre.innerText);
+    btn.textContent = "✓ copied";
+    setTimeout(() => (btn.textContent = "Copy"), 1200);
+  });
+  pre.appendChild(btn);
 }
 
 const demo = document.getElementById("volt-demo");

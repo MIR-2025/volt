@@ -1,27 +1,34 @@
-// content.js — the site content as server-rendered HTML (no build step, no SPA).
-// Each page returns { title, desc, path, body } so server.js can emit real,
-// crawlable HTML per URL with proper <title>/meta/canonical/OG. A small Volt
-// widget + enhance.js progressively enhance it in the browser.
+// content.js — the site, built with Volt. Marketing pages (home / build /
+// compare) are Volt components authored in html``; docs pages are markdown files
+// in ./content/*.md rendered with marked. Everything is composed by Volt's SSR
+// renderer (volt-ssr.js) in server.js. The split mirrors a CMS: content is data
+// (markdown), the theme/templates are code.
 
-const esc = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+import { html, raw } from "./public/volt-ssr.js";
+import { marked } from "marked";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-// copy-able command line (enhance.js wires the button)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONTENT_DIR = path.join(__dirname, "content");
+
+// copy-able command line (enhance.js wires the button). html`` escapes ${text}.
 const cmd = (text) =>
-  `<div class="cmd"><code>${esc(text)}</code><button class="copy" type="button" data-copy="${esc(text)}">Copy</button></div>`;
-const code = (text) => `<pre><code>${esc(text)}</code></pre>`;
+  html`<div class="cmd"><code>${text}</code><button class="copy" type="button" data-copy="${text}">Copy</button></div>`;
+const code = (text) => html`<pre><code>${text}</code></pre>`;
 
 const GH = "https://github.com/MIR-2025/volt";
 const NPM = "https://www.npmjs.com/package/create-volt";
 
 // ----- landing -----
-const feat = (t, b) => `<div class="col-md-4 mb-3"><div class="feat p-3"><h3 class="h6 accent">${t}</h3><p class="lead2 small mb-0">${b}</p></div></div>`;
+const feat = (t, b) => html`<div class="col-md-4 mb-3"><div class="feat p-3"><h3 class="h6 accent">${t}</h3><p class="lead2 small mb-0">${b}</p></div></div>`;
 
 const home = {
   path: "/",
   title: "Volt — a no-build, signals-based UI library with a secure-by-default scaffold",
   desc: "Volt is a tiny, no-build, signals-based UI library with a create-volt app scaffold. No JSX, no virtual DOM, no build step — and no standing admin surface to attack.",
-  body: `
+  body: html`
     <section class="hero text-center py-4">
       <h1 class="display-5 mb-3">A <span class="accent">no-build</span>, signals-based UI library.<br /><span class="lead2 fs-3">With a secure-by-default app scaffold.</span></h1>
       <p class="lead2 fs-5" style="max-width:720px;margin:0 auto">Closer to a tiny Solid/Preact-style reactive core than to React or a CMS. No JSX, no virtual DOM, no build step — signals update the exact text node that changed. Scaffold an app in one command; toggle auth, realtime, and a database from a config wizard.</p>
@@ -65,7 +72,7 @@ const build = {
   path: "/build",
   title: "Build a login-protected CRUD app in 10 minutes — no build step | Volt",
   desc: "A step-by-step: scaffold, run, and read the ~40 lines that make a magic-link, per-user CRUD app over a real database with Volt. No build tooling.",
-  body: `
+  body: html`
     <span class="badge-soft px-2 py-1 rounded small">the killer demo</span>
     <h1 class="display-6 mt-2 mb-2">Build a <span class="accent">login-protected CRUD app</span><br />in 10 minutes — no build step.</h1>
     <p class="lead2 fs-5">Magic-link auth, a per-user database, and a working CRUD UI. One command to a running app; the rest is just reading the ~40 lines that power it.</p>
@@ -134,205 +141,35 @@ mount("#app", html\`
     </div>`,
 };
 
-// ----- docs sections -----
+// ----- docs (content is markdown in ./content/*.md; this is just the ordered nav) -----
 const DOCS = [
-  {
-    id: "getting-started",
-    title: "Getting started",
-    body: `<h1 class="h3 mb-3">Getting started</h1>
-      <p class="lead2">One command scaffolds an app. No build step, no config to hand-write.</p>
-      ${cmd("npm create volt@latest my-app")}${cmd("cd my-app && npm run dev")}
-      <p>The <strong>first run opens a setup wizard</strong> in your browser — tick the features you want (auth, realtime, a database), fill in settings, click <em>Apply</em>, and the app starts. On a headless/remote box it prints a link + an SSH-tunnel command. Reopen settings anytime with <code>npm run dev -- --edit</code>.</p>
-      <p class="lead2">Requirements: Node.js ≥ 16.7. Works on Linux, macOS, and Windows — <code>.env</code> is auto-loaded, no <code>--env-file</code> flag.</p>`,
-  },
-  {
-    id: "templates",
-    title: "Templates",
-    body: `<h1 class="h3 mb-3">Templates</h1>
-      <p class="lead2">Pick one with <code>--template</code> (default: <code>default</code>).</p>
-      ${cmd("npm create volt@latest my-app -- --template starter")}
-      <table class="table table-dark table-borderless cmp mt-2"><thead><tr><th>Template</th><th>What you get</th></tr></thead><tbody>
-        <tr><td class="accent">default</td><td>Counter + Todos demo on the signal engine. Add-ons off; turn them on in the wizard.</td></tr>
-        <tr><td class="accent">starter</td><td>A full app shell, on out of the box: nav + Home, magic-link Account, per-user Notes (CRUD), realtime Chat.</td></tr>
-        <tr><td class="accent">guestbook</td><td>A focused real app: magic-link auth + a Socket.io message board over Mongo/MySQL/Postgres.</td></tr>
-      </tbody></table>`,
-  },
-  {
-    id: "library",
-    title: "The library",
-    body: `<h1 class="h3 mb-3">The Volt library</h1>
-      <p class="lead2">Fine-grained signals, two authoring styles, one ~260-line file. Not React: no JSX, no virtual DOM — reading a signal subscribes that exact piece of UI; writing touches only the text/attribute that changed.</p>
-      ${code(`import { signal, computed, effect, el, html, mount } from "/volt.js";
-
-const n = signal(0);                  // n() reads, n(next) writes
-const even = computed(() => n() % 2 === 0);
-effect(() => console.log("n is", n()));
-
-const view = el("button", { onClick: () => n(n() + 1) }, () => String(n()));
-const card = html\`<p>\${n} is \${() => (even() ? "even" : "odd")}</p>\`;
-mount("#app", view, card);`)}
-      <ul class="lead2">
-        <li><code>signal(initial)</code> — getter/setter function.</li>
-        <li><code>computed(fn)</code> — read-only derived signal.</li>
-        <li><code>effect(fn)</code> — runs fn, re-runs on change; returns a disposer.</li>
-        <li><code>el(tag, props?, ...children)</code> — a DOM element; function props/children are live.</li>
-        <li><code>html\`…\`</code> — tagged-template markup; <code>\${signal}</code> holes, <code>onclick=\${fn}</code>, <code>value=\${signal}</code>.</li>
-        <li><code>mount(target, ...children)</code> — append into a selector/element.</li>
-      </ul>
-      <p>Interpolated values render as text nodes (HTML-escaped) — user content can't inject markup.</p>`,
-  },
-  {
-    id: "customize-with-ai",
-    title: "Customize with AI",
-    body: `<h1 class="h3 mb-3">Customize with AI</h1>
-      <p class="lead2">Volt is unusually friendly to AI coding tools (Claude Code, Cursor, Copilot, …) — and that's not an accident. The qualities that make it small make it easy for an AI to understand and change correctly.</p>
-      <h2 class="h5 mt-4">Why it works so well</h2>
-      <ul class="lead2">
-        <li><strong>One readable file.</strong> The entire UI library is ~260 lines of plain JS — an AI can hold all of it in context and reason about the whole framework, not a slice of a giant ecosystem.</li>
-        <li><strong>No build step.</strong> The AI edits a file, you save, it hot-reloads. There's no bundler/transpiler config for the AI to get wrong, and no opaque error surface between the code and the result.</li>
-        <li><strong>Plain files, not a database.</strong> Your app <em>is</em> <code>server.js</code>, <code>public/app.js</code>, <code>views/</code>, and <code>.env</code> — readable, diffable, version-controlled. There's no hidden config in a DB (the WordPress problem) for an AI to be blind to.</li>
-        <li><strong>Safe by construction.</strong> Volt interpolations render as escaped text nodes, so an AI can't accidentally introduce an XSS hole by templating user data.</li>
-      </ul>
-      <h2 class="h5 mt-4">How to do it</h2>
-      <p class="lead2">Open the app in your AI editor, point it at the relevant files, and ask. Give it <code>public/volt.js</code> plus the file you're changing, and mention the API (<a href="/docs/library">signal / computed / el / html / mount</a>). Then run <code>npm run dev</code> and watch it hot-reload.</p>
-      ${cmd("npm run dev      # keep it running; AI edits hot-reload live")}
-      <h2 class="h5 mt-4">Prompts that just work</h2>
-      <ul class="lead2">
-        <li>“Add a <em>priority</em> field to tasks — a low/med/high dropdown — and sort the list by it.”</li>
-        <li>“Add a dark/light theme toggle stored in localStorage.”</li>
-        <li>“Add pagination to the notes list, 20 per page.”</li>
-        <li>“When a new item is added, email me a summary using the mailer add-on.”</li>
-        <li>“Turn on realtime so the list updates live across tabs.” (the AI enables it via <code>--edit</code> + the realtime add-on)</li>
-      </ul>
-      <p class="lead2 small">Tip: have the AI <em>run the app and verify in a browser</em>, not just write code. No build step means the feedback loop is seconds.</p>
-      <p class="lead2 small">Volt itself was built this way.</p>`,
-  },
-  {
-    id: "add-ons",
-    title: "Add-ons",
-    body: `<h1 class="h3 mb-3">Add-ons</h1>
-      <p class="lead2">Apps ship with add-ons bundled but off. The wizard turns them on — pure config: it writes <code>.env</code>, adds packages, runs <code>npm install</code>, and the app auto-wires what's enabled.</p>
-      ${cmd("npm run dev -- --edit")}
-      <table class="table table-dark table-borderless cmp mt-2"><thead><tr><th>Add-on</th><th>What it gives you</th></tr></thead><tbody>
-        <tr><td class="accent">db</td><td>Document store: memory / MongoDB / MySQL / Postgres — one interface.</td></tr>
-        <tr><td class="accent">mailer</td><td>Console (dev) / SMTP (prod) email.</td></tr>
-        <tr><td class="accent">auth</td><td>Magic-link login + sessions (pulls in db + mailer).</td></tr>
-        <tr><td class="accent">realtime</td><td>Socket.io chat: rooms, presence, typing (pulls in db).</td></tr>
-      </tbody></table>`,
-  },
-  {
-    id: "pages",
-    title: "Markdown pages",
-    body: `<h1 class="h3 mb-3">Markdown pages</h1>
-      <p class="lead2">The <code>pages</code> add-on serves markdown files as HTML — no database, no admin. Author them in your editor or with AI.</p>
-      ${cmd('npm run dev -- --edit   # tick the "pages" add-on')}
-      <p>Drop <code>.md</code> files in the <code>pages/</code> directory (created automatically on first run). Each file is served at its slug:</p>
-      ${code(`pages/about.md     →  /about
-pages/pricing.md   →  /pricing`)}
-      <p>Front-matter sets the page title:</p>
-      ${code(`---
-title: About us
----
-
-# About us
-
-Written in **markdown**, served as HTML.`)}
-      <p class="lead2">Pages are code-owned files (trusted), so their HTML renders as-is. The router is mounted last — your app's own routes always win, and unknown slugs fall through to 404. Slugs are limited to letters, numbers, and hyphens (no path traversal).</p>`,
-  },
-  {
-    id: "media",
-    title: "Media uploads",
-    body: `<h1 class="h3 mb-3">Media uploads</h1>
-      <p class="lead2">The <code>media</code> add-on handles uploads to local disk or any S3-compatible store (AWS S3, DigitalOcean Spaces). Uploads are signed-in only.</p>
-      ${cmd('npm run dev -- --edit   # enable "media", choose local or s3')}
-      <p>Upload from the browser to <code>POST /api/media</code> (multipart) and get back a public URL:</p>
-      ${code(`const fd = new FormData();
-fd.append("file", input.files[0]);
-const { url } = await (await fetch("/api/media", { method: "POST", body: fd })).json();`)}
-      <h2 class="h5 mt-4">Storage drivers</h2>
-      <ul class="lead2">
-        <li><strong>local</strong> — written to <code>media/</code>, served by the app at <code>/media/&lt;key&gt;</code>. Good for dev and small sites. (For big files behind nginx, raise <code>client_max_body_size</code>.)</li>
-        <li><strong>s3</strong> — any S3-compatible endpoint: set <code>S3_ENDPOINT</code>, <code>S3_REGION</code>, <code>S3_BUCKET</code>, <code>S3_KEY</code>, <code>S3_SECRET</code> (and optional <code>S3_PUBLIC_BASE</code> for a CDN). Objects are stored public-read and served from your bucket/CDN — your server isn't in the serving path.</li>
-      </ul>
-      <p class="lead2 small">Uploads require a signed-in user (the add-on depends on auth), are capped by <code>MEDIA_MAX_MB</code> (default 10), and are limited to raster images and PDFs. SVG is rejected (it can carry script).</p>`,
-  },
-  {
-    id: "studio",
-    title: "Studio",
-    body: `<h1 class="h3 mb-3">Studio</h1>
-      <p class="lead2">An ephemeral, localhost-only data browser — like Prisma Studio.</p>
-      ${cmd("npm run dev -- --studio")}
-      <p>It connects the database in your <code>.env</code> and is <strong>never a route in the running app</strong> — it exists only while you run it, binds <code>127.0.0.1</code>, and disappears on Ctrl-C. Shell/SSH access is the auth; internal collections (auth tokens/sessions) are hidden.</p>`,
-  },
-  {
-    id: "security",
-    title: "Security",
-    body: `<h1 class="h3 mb-3">Security model</h1>
-      <p class="lead2">Privileged surfaces are ephemeral, not standing — the opposite of an always-on CMS admin.</p>
-      <ul class="lead2">
-        <li><strong>No web admin.</strong> Nothing like <code>/wp-admin</code>. Config (<code>--edit</code>) and the data browser (<code>--studio</code>) are on-demand, localhost-only; shell/SSH is the auth.</li>
-        <li><strong>Multiple admins = multiple SSH keys</strong> — per-person, revocable, audited; nothing public to brute-force.</li>
-        <li><strong>No XSS by construction</strong> — dynamic content renders as escaped text nodes.</li>
-        <li><strong>Validation + caps</strong> server-side; <code>.env</code> values newline-stripped.</li>
-        <li><strong>Security headers</strong> on every response; sessions <code>HttpOnly</code> + <code>SameSite=Lax</code>; magic-link tokens single-use, time-limited, same-browser.</li>
-      </ul>
-      <p>Full write-up: <a href="${GH}/blob/main/SECURITY.md">SECURITY.md</a>.</p>`,
-  },
-  {
-    id: "cli",
-    title: "CLI reference",
-    body: `<h1 class="h3 mb-3">CLI reference</h1>
-      ${code(`npm create volt@latest <dir> [options]   # scaffold
-  --template <name>   default | starter | guestbook
-  --port <number>     dev port (default: derived from today's date)
-  --start             scaffold, then run the dev server
-  --no-git            don't init a git repo
-  --skip-install      don't install dependencies
-
-# inside an app:
-npx create-volt@latest update     # refresh public/volt.js
-npx create-volt@latest config     # open the setup wizard (= npm run dev -- --edit)
-npx create-volt@latest studio     # ephemeral data browser`)}
-      <p class="lead2">The dev port defaults to the creation date (YY+M+DD, e.g. <code>2026-06-28 → 26628</code>) so apps made on different days never collide.</p>`,
-  },
-  {
-    id: "deploy",
-    title: "Deploy",
-    body: `<h1 class="h3 mb-3">Deploy</h1>
-      <p class="lead2">A Volt app is a plain Node app. Every scaffold ships a <code>Dockerfile</code>, <code>render.yaml</code>, <code>fly.toml</code>, and <code>Procfile</code>, so a platform can stand up the server, DNS, and TLS for you.</p>
-
-      <h2 class="h5 mt-4">One-click PaaS (recommended)</h2>
-      <ul class="lead2">
-        <li><strong>Render</strong> — push to GitHub, then New → Blueprint (uses <code>render.yaml</code>).</li>
-        <li><strong>Fly.io</strong> — <code>fly launch</code> (uses the <code>Dockerfile</code>).</li>
-        <li><strong>Railway / DigitalOcean App Platform</strong> — point at the repo; they build the <code>Dockerfile</code>.</li>
-      </ul>
-      <p class="lead2">Config comes from the platform's <strong>env vars</strong>, not a committed <code>.env</code>:</p>
-      <ol class="lead2">
-        <li>Run <code>npm run dev</code> locally and enable your add-ons in the wizard — that saves their packages into <code>package.json</code>. Commit it.</li>
-        <li>Deploy, and set the same config as env vars: <code>VOLT_ADDONS</code>, <code>DB_DRIVER</code>, <code>MONGODB_URI</code>/<code>DATABASE_URL</code>, <code>MEDIA_DRIVER</code> + <code>S3_*</code>, <code>SMTP_URL</code>, …</li>
-      </ol>
-      <p class="lead2"><code>NODE_ENV=production</code> (set by the Dockerfile) makes the app boot straight up — no setup wizard.</p>
-
-      <h2 class="h5 mt-4">Your own server (PM2 + nginx)</h2>
-      ${code(`PORT=8080 pm2 start server.js --name my-app
-pm2 save
-# nginx: proxy your domain → 127.0.0.1:8080`)}
-      <p class="lead2">Ensure config is present (a <code>.env</code> or env vars) so it boots the app, not the localhost wizard. This very site is deployed this way.</p>`,
-  },
+  { id: "getting-started", title: "Getting started" },
+  { id: "templates", title: "Templates" },
+  { id: "library", title: "The library" },
+  { id: "ssr", title: "Server rendering" },
+  { id: "customize-with-ai", title: "Customize with AI" },
+  { id: "add-ons", title: "Add-ons" },
+  { id: "pages", title: "Markdown pages" },
+  { id: "media", title: "Media uploads" },
+  { id: "studio", title: "Studio" },
+  { id: "security", title: "Security" },
+  { id: "cli", title: "CLI reference" },
+  { id: "deploy", title: "Deploy" },
 ];
+
+const docHtml = (id) => marked.parse(fs.readFileSync(path.join(CONTENT_DIR, id + ".md"), "utf8"));
 
 // ----- side-by-side comparison -----
 const col = (label, badge, codeStr) =>
-  `<div class="col-lg-4 mb-3"><div class="feat p-3 h-100"><div class="d-flex justify-content-between align-items-center mb-1"><span class="accent fw-bold">${label}</span><span class="badge-soft px-2 py-1 rounded small">${badge}</span></div>${code(codeStr)}</div></div>`;
+  html`<div class="col-lg-4 mb-3"><div class="feat p-3 h-100"><div class="d-flex justify-content-between align-items-center mb-1"><span class="accent fw-bold">${label}</span><span class="badge-soft px-2 py-1 rounded small">${badge}</span></div>${code(codeStr)}</div></div>`;
 const task = (title, note, volt, react, wp) =>
-  `<h2 class="h4 mt-5 mb-1">${title}</h2><p class="lead2 small mb-2">${note}</p><div class="row">${col("Volt", "no build", volt)}${col("React stack", "needs bundler", react)}${col("WordPress", "plugin + DB", wp)}</div>`;
+  html`<h2 class="h4 mt-5 mb-1">${title}</h2><p class="lead2 small mb-2">${note}</p><div class="row">${col("Volt", "no build", volt)}${col("React stack", "needs bundler", react)}${col("WordPress", "plugin + DB", wp)}</div>`;
 
 const compare = {
   path: "/compare",
   title: "Volt vs React vs WordPress — side-by-side code | Volt",
   desc: "The same three tasks — a counter, a per-user CRUD list, and login — built in Volt, a React stack, and WordPress. See where each one fits in 30 seconds.",
-  body: `
+  body: html`
     <h1 class="display-6 mb-2">Volt vs React vs WordPress</h1>
     <p class="lead2 fs-5">The same three tasks in each — a counter, a per-user CRUD list, and login. Different tools for different jobs; this just makes the trade-off concrete.</p>
 
@@ -433,12 +270,12 @@ export default NextAuth({
 const docsPage = (id) => {
   const idx = Math.max(0, DOCS.findIndex((d) => d.id === id));
   const cur = DOCS[idx];
-  const side = DOCS.map((d) => `<a class="${d.id === cur.id ? "active" : ""}" href="/docs/${d.id}">${d.title}</a>`).join("");
+  const side = DOCS.map((d) => html`<a class="${d.id === cur.id ? "active" : ""}" href="/docs/${d.id}">${d.title}</a>`);
   return {
     path: `/docs/${cur.id}`,
     title: `${cur.title} — Volt docs`,
     desc: `Volt documentation: ${cur.title}.`,
-    body: `<div class="row"><div class="col-md-3 docs-side mb-3"><div class="position-sticky" style="top:70px">${side}</div></div><div class="col-md-9">${cur.body}</div></div>`,
+    body: html`<div class="row"><div class="col-md-3 docs-side mb-3"><div class="position-sticky" style="top:70px">${side}</div></div><div class="col-md-9 docs-content">${raw(docHtml(cur.id))}</div></div>`,
   };
 };
 
