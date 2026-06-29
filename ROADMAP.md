@@ -58,9 +58,10 @@ where it's strong.
       moat, distribution.
 
 ### Next — strengthen the wedge (Path A)
-- [ ] **WXR importer** — ingest a WordPress export into Volt `pages`/content.
-      Migration cost is the #1 reason people don't leave WP; lowering it is
-      leverage.
+- [x] **WXR importer** — `create-volt import-wxr` ingests a WordPress export into
+      markdown `pages/`. Migration cost is the #1 reason people don't leave WP.
+- [x] **Volt SSR** (`volt-ssr.js`) + the site rebuilt as a real Volt app
+      (components + markdown docs) — the content/theme split that seeds theming.
 - [ ] Content model maturity: posts/collections + simple taxonomies on top of
       the `pages` model.
 - [ ] 2–3 real "would-be-WordPress" sites built in Volt as proof (dogfood).
