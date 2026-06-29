@@ -10,6 +10,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import http from "node:http";
+import os from "node:os";
+import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -35,13 +38,15 @@ ${bold("Usage")}
   npm create volt@latest <project-directory> [options]
   npx create-volt <project-directory> [options]
   npx create-volt@latest update              # refresh public/volt.js in an existing app
-  npx create-volt@latest add <integration>   # add db | auth | realtime | mailer to an app
+  npx create-volt@latest config              # disposable page: add db/auth/realtime/mailer + write .env
 
 ${bold("Options")}
   --template <name>  Starter template: default | guestbook  (default: default)
   --port <number>    Dev port for the app (default: derived from today's date)
   --skip-install   Don't run the package manager install step
   --no-git         Don't initialize a git repository
+  --start          After scaffolding, run the dev server (opens the setup page)
+  --no-open        Don't auto-open the browser on start
   --dry-run        Show what would be created without writing anything
   --force          Scaffold into an existing non-empty directory
   -h, --help       Show this help
@@ -58,12 +63,15 @@ const flags = new Set();
 const positionals = [];
 let portArg = null;
 let templateArg = null;
+let hostArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
   else if (a.startsWith("--port=")) portArg = a.slice("--port=".length);
   else if (a === "--template") templateArg = argv[++i];
   else if (a.startsWith("--template=")) templateArg = a.slice("--template=".length);
+  else if (a === "--host") hostArg = argv[++i];
+  else if (a.startsWith("--host=")) hostArg = a.slice("--host=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -81,6 +89,11 @@ const skipInstall = flags.has("--skip-install");
 const force = flags.has("--force");
 const dryRun = flags.has("--dry-run");
 const noGit = flags.has("--no-git");
+
+// The `add` command was replaced by `config` — catch old muscle memory.
+if (positionals[0] === "add") {
+  die(`${cyan("add")} was replaced by ${cyan("create-volt config")} — run that to add integrations.`);
+}
 
 // --- `update` subcommand: refresh public/volt.js in the current app to the
 // version bundled with this create-volt (so `npx create-volt@latest update`
@@ -108,73 +121,163 @@ if (positionals[0] === "update") {
   process.exit(0);
 }
 
-// --- `add <integration>` subcommand: copy a self-contained add-on into the
-// current app and print how to wire it. Never edits your existing files; skips
-// files that already exist unless --force. ---
-if (positionals[0] === "add") {
+// --- `config` subcommand: a disposable local page to configure add-ons and
+// write a .env. Dependency-free (node:http); the page is built with Volt. ---
+if (positionals[0] === "config") {
+  const cwd = process.cwd();
   const addonsDir = path.join(__dirname, "addons");
-  const available = fs
+  const addonList = fs
     .readdirSync(addonsDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
-    .map((e) => e.name);
-  const readMeta = (a) => JSON.parse(fs.readFileSync(path.join(addonsDir, a, "meta.json"), "utf8"));
+    .map((e) => {
+      const m = JSON.parse(fs.readFileSync(path.join(addonsDir, e.name, "meta.json"), "utf8"));
+      return {
+        name: e.name,
+        description: m.description,
+        install: m.install || [],
+        dependsOn: m.dependsOn || [],
+        wiring: m.wiring,
+        installed: fs.existsSync(path.join(cwd, m.sentinel)),
+      };
+    });
+  const assets = {
+    "/config-app.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "config", "config-app.js"))],
+    "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "templates", "default", "public", "volt.js"))],
+  };
+  const indexHtml = fs.readFileSync(path.join(__dirname, "config", "index.html"));
+  // localhost by default — shell/SSH access is the auth. --host exposes it on the
+  // network, and only then do we mint a random key to gate it.
+  const host = hostArg || "127.0.0.1";
+  const exposed = host !== "127.0.0.1" && host !== "localhost";
+  const key = exposed ? crypto.randomBytes(12).toString("hex") : null;
 
-  const name = positionals[1];
-  if (!name) {
-    console.log(`\n${bold("Available integrations")} — ${cyan("create-volt add <name>")}\n`);
-    for (const a of available) console.log(`  ${cyan(a.padEnd(10))} ${dim(readMeta(a).description)}`);
-    console.log("");
-    process.exit(0);
-  }
-  if (!available.includes(name)) die(`Unknown integration "${name}". Available: ${available.join(", ")}.`);
-  if (!fs.existsSync(path.join(process.cwd(), "package.json"))) {
-    die(`No package.json here — run ${cyan("create-volt add")} from inside a project.`);
-  }
-
-  const meta = readMeta(name);
-  const filesDir = path.join(addonsDir, name, "files");
-  const rel = listTemplateFiles(filesDir);
-  const missingDeps = (meta.dependsOn || []).filter((d) => !fs.existsSync(path.join(process.cwd(), readMeta(d).sentinel)));
-
-  if (dryRun) {
-    console.log(`\n${bold("⚡ Dry run")} — would add ${cyan(name)}:\n`);
-    for (const f of rel.sort()) console.log("  " + dim(f));
-    console.log(`\n${green("✔")} Dry run — nothing written.\n`);
-    process.exit(0);
-  }
-
-  const copied = [];
-  const skipped = [];
-  for (const f of rel) {
-    const dest = path.join(process.cwd(), f);
-    if (fs.existsSync(dest) && !force) {
-      skipped.push(f);
-      continue;
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://localhost");
+    const p = u.pathname;
+    if (req.method === "GET" && p === "/") {
+      if (key && u.searchParams.get("key") !== key) {
+        res.statusCode = 403;
+        return res.end("Forbidden — open the ?key=… link printed in the terminal.");
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.end(indexHtml);
     }
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(path.join(filesDir, f), dest);
-    copied.push(f);
-  }
+    if (req.method === "GET" && assets[p]) {
+      res.setHeader("Content-Type", assets[p][0]);
+      return res.end(assets[p][1]);
+    }
+    if (req.method === "GET" && p === "/addons.json") {
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify(addonList));
+    }
+    if (req.method === "GET" && p === "/current.json") {
+      const current = {};
+      const envPath = path.join(cwd, ".env");
+      if (fs.existsSync(envPath)) {
+        for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+          const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+          if (m) current[m[1]] = m[2];
+        }
+      }
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify(current));
+    }
+    if (req.method === "POST" && p === "/apply") {
+      if (key && req.headers["x-config-key"] !== key) {
+        res.statusCode = 403;
+        return res.end(JSON.stringify({ ok: false, error: "bad or missing key" }));
+      }
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        try {
+          const { addons = [], env } = JSON.parse(body);
+          const valid = new Set(addonList.map((a) => a.name));
+          const depsOf = Object.fromEntries(addonList.map((a) => [a.name, a.dependsOn]));
+          // expand selection to include required dependencies (deps before dependents)
+          const want = [];
+          const seen = new Set();
+          const visit = (n) => {
+            if (!valid.has(n) || seen.has(n)) return;
+            seen.add(n);
+            for (const d of depsOf[n] || []) visit(d);
+            want.push(n);
+          };
+          for (const n of addons) visit(n);
 
-  console.log(`\n${bold("⚡ Added")} ${cyan(name)} — ${meta.description}\n`);
-  if (copied.length) {
-    console.log(green("✔") + " Files:");
-    for (const f of copied.sort()) console.log("  " + dim(f));
-  }
-  if (skipped.length) {
-    console.log(`\n${yellow("!")} Skipped (already exist — ${cyan("--force")} to overwrite):`);
-    for (const f of skipped.sort()) console.log("  " + dim(f));
-  }
-  if (missingDeps.length) {
-    console.log(`\n${yellow("!")} Add these first: ${missingDeps.map((d) => cyan("create-volt add " + d)).join(", ")}`);
-  }
-  const installs = meta.install || [];
-  if (installs.length) console.log(`\n${bold("Install:")} ${cyan("npm install " + installs.join(" "))}`);
-  if (meta.optional && Object.keys(meta.optional).length) {
-    console.log(dim("Optional: " + Object.entries(meta.optional).map(([p, why]) => `${p} (${why})`).join(", ")));
-  }
-  console.log(`\n${bold("Wire it up:")}\n${meta.wiring.split("\n").map((l) => "  " + l).join("\n")}\n`);
-  process.exit(0);
+          const copied = [];
+          const skipped = [];
+          for (const n of want) {
+            const filesDir = path.join(addonsDir, n, "files");
+            for (const f of listTemplateFiles(filesDir)) {
+              const dest = path.join(cwd, f);
+              if (fs.existsSync(dest)) {
+                skipped.push(f);
+                continue;
+              }
+              fs.mkdirSync(path.dirname(dest), { recursive: true });
+              fs.copyFileSync(path.join(filesDir, f), dest);
+              copied.push(f);
+            }
+          }
+          if (typeof env === "string") {
+            // preserve any custom keys already in .env that this form doesn't manage
+            const envPath = path.join(cwd, ".env");
+            let finalEnv = env;
+            if (fs.existsSync(envPath)) {
+              const managed = new Set([...env.matchAll(/^\s*([A-Za-z0-9_]+)\s*=/gm)].map((m) => m[1]));
+              const extra = fs
+                .readFileSync(envPath, "utf8")
+                .split("\n")
+                .filter((line) => {
+                  const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=/);
+                  return m && !managed.has(m[1]);
+                });
+              if (extra.length) finalEnv = env.replace(/\n*$/, "\n") + extra.join("\n") + "\n";
+            }
+            fs.writeFileSync(envPath, finalEnv);
+          }
+          console.log(`${green("✔")} applied [${want.join(", ")}] — ${copied.length} file(s) copied, .env written`);
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ ok: true, copied, skipped, applied: want }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("not found");
+  });
+
+  const wanted = portArg ? Number(portArg) : 0;
+  server.listen(Number.isInteger(wanted) && wanted > 0 ? wanted : 0, host, () => {
+    const port = server.address().port;
+    const q = key ? `/?key=${key}` : "/";
+    console.log(`\n${bold("⚡ create-volt config")} — add-ons for ${dim(cwd)}\n`);
+    if (exposed) {
+      const lan = [];
+      for (const iface of Object.values(os.networkInterfaces())) {
+        for (const a of iface || []) if (a.family === "IPv4" && !a.internal) lan.push(a.address);
+      }
+      console.log("  Open (key-gated, reachable on your network):");
+      for (const ip of lan) console.log("    " + cyan(`http://${ip}:${port}${q}`));
+      console.log("    " + cyan(`http://localhost:${port}${q}`) + dim("   (this box)"));
+    } else {
+      const url = `http://localhost:${port}${q}`;
+      console.log("  Open: " + cyan(url));
+      const ssh = process.env.SSH_CONNECTION; // "clientIP clientPort serverIP serverPort"
+      const user = process.env.USER || process.env.USERNAME || "you";
+      const sshHost = ssh ? ssh.split(" ")[2] : os.hostname();
+      console.log(`  ${dim(ssh ? "Remote box — the server is up here; from your LOCAL machine run:" : "Remote box? from your local machine run:")}`);
+      console.log("    " + dim(`ssh -N -L 127.0.0.1:${port}:localhost:${port} ${user}@${sshHost}`));
+      console.log(`  ${dim(`…then open ${url} on your machine — shell access is the auth.`)}`);
+      console.log(`  ${dim("(LAN access instead: --host 0.0.0.0 — adds a key)")}`);
+    }
+    console.log(`\n  ${dim("Applies add-ons + writes .env here · Ctrl-C when done (disposable).")}\n`);
+  });
+  await new Promise(() => {}); // keep the server up; never fall through to scaffolding
 }
 
 // Resolve the dev port: --port wins, else derive it from today's date as
@@ -284,10 +387,10 @@ fs.writeFileSync(appPkgPath, JSON.stringify(appPkg, null, 2) + "\n");
 
 // --- stamp the chosen dev port into server.js + README ---
 const serverPath = path.join(targetDir, "server.js");
-fs.writeFileSync(
-  serverPath,
-  fs.readFileSync(serverPath, "utf8").replace(/(Number\(process\.env\.PORT\)\s*\|\|\s*)\d+/, `$1${port}`),
-);
+let serverSrc = fs.readFileSync(serverPath, "utf8");
+serverSrc = serverSrc.replace(/(const DEFAULT_PORT\s*=\s*)\d+/, `$1${port}`); // default template
+serverSrc = serverSrc.replace(/(Number\(process\.env\.PORT\)\s*\|\|\s*)\d+/, `$1${port}`); // other templates
+fs.writeFileSync(serverPath, serverSrc);
 const appReadme = path.join(targetDir, "README.md");
 if (fs.existsSync(appReadme)) {
   fs.writeFileSync(appReadme, fs.readFileSync(appReadme, "utf8").replace(/localhost:\d+/g, `localhost:${port}`));
@@ -357,4 +460,18 @@ console.log(`\n${green("✔")} ${bold("Done!")} Next steps:\n`);
 console.log(`  ${cyan("cd")} ${projectName}`);
 if (!installed) console.log(`  ${cyan(installCmd)}`);
 console.log(`  ${cyan(runCmd)}`);
-console.log(`\nThen open ${cyan("http://localhost:" + port)} and edit ${bold("public/app.js")}.\n`);
+console.log(`\nFirst run opens a quick ${bold("setup")} page at ${cyan("http://localhost:" + port)}, then your app starts.\n`);
+
+if (flags.has("--start")) {
+  if (!installed) {
+    console.log(dim(`(--start needs dependencies — run ${installCmd}, then ${runCmd}.)\n`));
+  } else {
+    console.log(`${bold("Starting…")}\n`);
+    spawnSync(pm, ["run", "dev"], {
+      cwd: targetDir,
+      stdio: "inherit",
+      shell: process.platform === "win32",
+      env: flags.has("--no-open") ? { ...process.env, VOLT_NO_OPEN: "1" } : process.env,
+    });
+  }
+}

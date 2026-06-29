@@ -10,8 +10,14 @@ Not React: no JSX, no virtual DOM, no re-render-the-world. State lives in
 
 ```bash
 npm install        # if you scaffolded with --skip-install
-npm run dev        # → http://localhost:26628   (PORT env to override)
+npm run dev        # → http://localhost:26628
 ```
+
+The **first run opens a quick setup page** in your browser (configure settings,
+click Apply, and the app starts — the setup page then disappears). On a headless
+or remote box it prints the link instead. Reopen settings anytime with
+`npm run dev -- --edit` (`-e`). `.env` is auto-loaded, so no `--env-file` flag
+is needed — it works the same on Windows.
 
 Edit anything in `public/` or `views/` and save — the dev server pushes a
 reload over Socket.io and the page refreshes itself.

@@ -4,6 +4,42 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-06-28
+
+### Added
+- **First-run setup wizard** baked into the app: on first run (no `.env`) or with
+  `npm run dev -- --edit` (`-e`), `server.js` serves a disposable local config
+  page; click **Apply** and it writes `.env`, loads it, and starts the app
+  in-process — the setup page then disappears. It self-detects which add-ons are
+  present and only asks for their settings.
+- **Auto-open browser** on first run (and prints the link); skips opening on
+  headless/remote boxes (no `DISPLAY`). Opt out with `--no-open` / `VOLT_NO_OPEN`.
+- **`--start`** flag for `create-volt`: scaffold, then launch the dev server
+  (which opens the setup page) in one go.
+- **`.env` auto-loader** in templates — no `node --env-file` needed; reads the
+  file directly, so it behaves identically on Windows/PowerShell.
+- **Test connection** button in the wizard: actually connects with the entered
+  DB credentials before you save.
+
+### Changed
+- `create-volt config` is **localhost-only by default** (shell/SSH access is the
+  auth — no key). Expose on a LAN with `--host 0.0.0.0`, which then mints a key.
+
+## [0.7.0] - 2026-06-28
+
+### Added
+- `create-volt config` — a disposable, key-gated local page (built with Volt) for
+  add-ons. Tick the add-ons (or **All**), fill settings (DB driver/URL, SMTP,
+  port), then **Apply**: it copies the add-on files into the app *and* writes
+  `.env`, and shows copy-able install + wiring. Prints localhost **and** LAN
+  links plus an SSH-tunnel hint for remote/headless boxes; a random key gates the
+  page and the apply endpoint. Dependency-free (node:http). Run apps with
+  `node --env-file=.env`.
+
+### Removed
+- The `create-volt add` command (from 0.6.0) — applying add-ons now happens
+  through `create-volt config`, which both copies files and writes `.env`.
+
 ## [0.6.0] - 2026-06-28
 
 ### Added
@@ -72,6 +108,8 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.8.0]: https://github.com/MIR-2025/volt/releases/tag/v0.8.0
+[0.7.0]: https://github.com/MIR-2025/volt/releases/tag/v0.7.0
 [0.6.0]: https://github.com/MIR-2025/volt/releases/tag/v0.6.0
 [0.5.0]: https://github.com/MIR-2025/volt/releases/tag/v0.5.0
 [0.4.0]: https://github.com/MIR-2025/volt/releases/tag/v0.4.0

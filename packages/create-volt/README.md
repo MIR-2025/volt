@@ -42,21 +42,27 @@ Edit `public/app.js` and save — the page hot-reloads itself.
 
 ## Add-on integrations
 
-Rather than clone whole-app templates, layer features into an existing app with
-`create-volt add <name>`. It copies self-contained files and prints exactly how
-to wire them in — it never edits your code.
+Layer features into an existing app from a disposable local page — pick the
+add-ons, fill in their settings, and it copies the files **and** writes your
+`.env`. Run from the app directory:
 
 ```bash
-npx create-volt@latest add            # list integrations
-npx create-volt@latest add db         # document store (memory/MongoDB/MySQL/Postgres)
-npx create-volt@latest add mailer     # console (dev) / SMTP (prod) email
-npx create-volt@latest add auth       # magic-link login + sessions (needs db + mailer)
-npx create-volt@latest add realtime   # Socket.io chat: rooms, presence, typing (needs db)
-npx create-volt@latest add auth --dry-run   # preview without writing
+npx create-volt@latest config
 ```
 
-Add-ons compose — e.g. `db` + `mailer` + `auth` + `realtime` gives you the
-guestbook/chat stack, added piece by piece into any Volt app.
+It prints a `localhost` link (plus LAN links and an SSH-tunnel hint for remote
+boxes), key-gated for safety. Available add-ons:
+
+| Add-on     | What it gives you                                                    |
+| ---------- | ------------------------------------------------------------------- |
+| `db`       | document store: memory / MongoDB / MySQL / Postgres, one interface  |
+| `mailer`   | console (dev) / SMTP (prod) email                                   |
+| `auth`     | magic-link login + sessions (uses db + mailer)                      |
+| `realtime` | Socket.io chat: rooms, presence, typing (uses db)                  |
+
+Tick **All** to add the whole stack at once. The page only writes into the
+current folder, applies once, and disappears when you Ctrl-C it. Afterwards run
+your app with `node --env-file=.env server.js`.
 
 ## Updating Volt
 

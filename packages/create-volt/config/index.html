@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>create-volt · configure add-ons</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #0f1115; color: #e7e9ee; }
+    .accent { color: #ffd24a; }
+    .card-x { background: #161a22; border: 1px solid #232a36; border-radius: 14px; }
+    .form-control, .form-select { background: #0f1115; color: #e7e9ee; border-color: #232a36; }
+    .form-control:focus, .form-select:focus { background: #0f1115; color: #e7e9ee; border-color: #ffd24a; box-shadow: none; }
+    pre { background: #0b0d11; border: 1px solid #232a36; border-radius: 10px; padding: 12px; color: #cfe3ff; white-space: pre-wrap; }
+    a { color: #ffd24a; }
+    code { color: #ffd24a; }
+  </style>
+</head>
+<body>
+  <main class="container py-5" style="max-width: 760px;">
+    <header class="mb-4">
+      <h1 class="h3"><span class="accent">⚡ create-volt</span> · configure add-ons</h1>
+      <p class="text-muted mb-0">Pick add-ons, fill in settings, write your <code>.env</code>. This page is disposable — close the terminal when you're done.</p>
+    </header>
+    <div id="app"></div>
+  </main>
+  <script type="module" src="/config-app.js"></script>
+</body>
+</html>
