@@ -1,0 +1,10 @@
+{
+  "name": "volt-theme-midnight",
+  "version": "0.1.0",
+  "description": "Volt theme: Midnight — dark, modern, sans-serif with a sticky header.",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["volt", "volt-theme", "theme"],
+  "files": ["index.js"],
+  "license": "MIT"
+}

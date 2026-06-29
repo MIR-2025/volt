@@ -1,0 +1,10 @@
+{
+  "name": "volt-theme-classic",
+  "version": "0.1.0",
+  "description": "Volt theme: Classic — a structured site with a top nav bar and card content.",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["volt", "volt-theme", "theme"],
+  "files": ["index.js"],
+  "license": "MIT"
+}

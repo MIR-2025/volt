@@ -1,0 +1,10 @@
+{
+  "name": "volt-theme-paper",
+  "version": "0.1.0",
+  "description": "Volt theme: Paper — light, serif, reading-focused (blogs, essays, docs).",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["volt", "volt-theme", "theme"],
+  "files": ["index.js"],
+  "license": "MIT"
+}
