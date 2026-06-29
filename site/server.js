@@ -17,11 +17,15 @@ const SITE_URL = process.env.SITE_URL || "https://volt.whitneys.co";
 
 const nav = (active) => {
   const link = (href, label) => html`<a class="${active === href || (href !== "/" && active.startsWith(href)) ? "active" : ""}" href="${href}">${label}</a>`;
-  return html`<nav class="navx py-2"><div class="container d-flex align-items-center gap-3" style="max-width:1000px">
+  return html`<nav class="navx py-2"><div class="container navbar-row" style="max-width:1000px">
       <a class="brand h5 mb-0 accent" href="/">⚡ Volt</a>
-      ${link("/build", "10-min demo")}${link("/compare", "Compare")}${link("/docs", "Docs")}
-      <a class="ms-auto" href="${GH}" rel="noopener">GitHub</a>
-      <a href="${NPM}" rel="noopener">npm</a>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
+      <label for="nav-toggle" class="nav-burger" aria-label="Toggle menu">☰</label>
+      <div class="nav-links">
+        ${link("/build", "10-min demo")}${link("/compare", "Compare")}${link("/docs", "Docs")}
+        <a href="${GH}" rel="noopener">GitHub</a>
+        <a href="${NPM}" rel="noopener">npm</a>
+      </div>
     </div></nav>`;
 };
 
