@@ -299,11 +299,26 @@ npx create-volt@latest studio     # ephemeral data browser`)}
     id: "deploy",
     title: "Deploy",
     body: `<h1 class="h3 mb-3">Deploy</h1>
-      <p class="lead2">It's a plain Node app — run it anywhere. Under PM2, behind nginx:</p>
+      <p class="lead2">A Volt app is a plain Node app. Every scaffold ships a <code>Dockerfile</code>, <code>render.yaml</code>, <code>fly.toml</code>, and <code>Procfile</code>, so a platform can stand up the server, DNS, and TLS for you.</p>
+
+      <h2 class="h5 mt-4">One-click PaaS (recommended)</h2>
+      <ul class="lead2">
+        <li><strong>Render</strong> — push to GitHub, then New → Blueprint (uses <code>render.yaml</code>).</li>
+        <li><strong>Fly.io</strong> — <code>fly launch</code> (uses the <code>Dockerfile</code>).</li>
+        <li><strong>Railway / DigitalOcean App Platform</strong> — point at the repo; they build the <code>Dockerfile</code>.</li>
+      </ul>
+      <p class="lead2">Config comes from the platform's <strong>env vars</strong>, not a committed <code>.env</code>:</p>
+      <ol class="lead2">
+        <li>Run <code>npm run dev</code> locally and enable your add-ons in the wizard — that saves their packages into <code>package.json</code>. Commit it.</li>
+        <li>Deploy, and set the same config as env vars: <code>VOLT_ADDONS</code>, <code>DB_DRIVER</code>, <code>MONGODB_URI</code>/<code>DATABASE_URL</code>, <code>MEDIA_DRIVER</code> + <code>S3_*</code>, <code>SMTP_URL</code>, …</li>
+      </ol>
+      <p class="lead2"><code>NODE_ENV=production</code> (set by the Dockerfile) makes the app boot straight up — no setup wizard.</p>
+
+      <h2 class="h5 mt-4">Your own server (PM2 + nginx)</h2>
       ${code(`PORT=8080 pm2 start server.js --name my-app
 pm2 save
 # nginx: proxy your domain → 127.0.0.1:8080`)}
-      <p>Ensure a <code>.env</code> exists in production (so it boots the app, not the localhost wizard). This very site is a Volt-scaffolded Node app deployed exactly this way.</p>`,
+      <p class="lead2">Ensure config is present (a <code>.env</code> or env vars) so it boots the app, not the localhost wizard. This very site is deployed this way.</p>`,
   },
 ];
 

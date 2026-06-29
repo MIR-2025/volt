@@ -423,9 +423,13 @@ async function startStudio() {
 
 // --- gate: studio / setup (first run, --edit) / the app ---
 const editMode = process.argv.includes("--edit") || process.argv.includes("-e");
+// In production / on a PaaS there's no interactive wizard: config comes from the
+// platform's env vars (a Dockerfile sets NODE_ENV=production). Only fall back to
+// the first-run wizard when nothing is configured and we're not in production.
+const configured = fs.existsSync(ENV_PATH) || process.env.VOLT_ADDONS != null || process.env.NODE_ENV === "production";
 if (process.argv.includes("--studio")) {
   startStudio();
-} else if (editMode || !fs.existsSync(ENV_PATH)) {
+} else if (editMode || !configured) {
   startSetup();
 } else {
   loadEnv();

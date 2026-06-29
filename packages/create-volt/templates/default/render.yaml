@@ -1,0 +1,15 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+# Push this repo to GitHub, then in Render: New → Blueprint → pick the repo.
+# Render builds the Dockerfile, gives you HTTPS + a domain, and runs it.
+services:
+  - type: web
+    name: volt-app
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: VOLT_ADDONS
+        sync: false # set your add-ons (e.g. "db,auth") in the dashboard
+      # Add the rest in the dashboard as needed:
+      #   DB_DRIVER, MONGODB_URI / DATABASE_URL,
+      #   MEDIA_DRIVER, S3_ENDPOINT/S3_REGION/S3_BUCKET/S3_KEY/S3_SECRET,
+      #   SMTP_URL, MAIL_FROM

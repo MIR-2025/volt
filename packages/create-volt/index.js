@@ -250,6 +250,11 @@ const shippedEnv = path.join(targetDir, "env");
 if (fs.existsSync(shippedEnv)) {
   fs.renameSync(shippedEnv, path.join(targetDir, ".env"));
 }
+// ship "dockerignore" → ".dockerignore" (same npm-safety dance)
+const shippedDockerignore = path.join(targetDir, "dockerignore");
+if (fs.existsSync(shippedDockerignore)) {
+  fs.renameSync(shippedDockerignore, path.join(targetDir, ".dockerignore"));
+}
 
 // Bundle the add-on sources so the app's setup wizard can enable them later
 // (only for templates that ship the wizard, i.e. have a setup/ dir).
