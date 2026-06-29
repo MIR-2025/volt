@@ -72,9 +72,52 @@ export function toMarkdown(item) {
   return fm.join("\n") + cleanBody(item.content) + "\n";
 }
 
-// Select + transform importable items. Returns { imported, stats }.
-export function runImport(xml, { types = ["page", "post"], drafts = false } = {}) {
-  const all = parseWXR(xml);
+// Map a WP REST API object (?_embed=1) into the same item shape as parseWXR.
+function mapREST(p, type) {
+  const flat = ((p._embedded && p._embedded["wp:term"]) || []).flat();
+  const byTax = (tax) => flat.filter((t) => t && t.taxonomy === tax).map((t) => decode(t.name)).filter(Boolean);
+  return {
+    type,
+    title: decode((p.title && p.title.rendered) || p.slug || "Untitled"),
+    slug: p.slug || "",
+    status: p.status || "publish",
+    date: String(p.date || "").replace("T", " ").replace(/\.\d+$/, ""),
+    content: (p.content && p.content.rendered) || "",
+    categories: byTax("category"),
+    tags: byTax("post_tag"),
+  };
+}
+
+// Fetch posts + pages from a live WordPress site over the REST API. Credentials
+// (Application Password) are only needed for non-published content. fetchImpl is
+// injectable for testing.
+export async function fetchWP(baseUrl, { user, appPassword, drafts = false, fetchImpl = fetch } = {}) {
+  const base = String(baseUrl).replace(/\/+$/, "");
+  const headers = { Accept: "application/json" };
+  if (user && appPassword) headers.Authorization = "Basic " + Buffer.from(`${user}:${appPassword}`).toString("base64");
+  const statuses = drafts ? "publish,draft,pending,private,future" : "publish";
+  const items = [];
+  for (const [kind, type] of [["posts", "post"], ["pages", "page"]]) {
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const url = `${base}/wp-json/wp/v2/${kind}?per_page=100&page=${page}&status=${statuses}&_embed=1`;
+      const res = await fetchImpl(url, { headers });
+      if (res.status === 400 && page > 1) break; // WP 400s past the last page
+      if (res.status === 401 || res.status === 403) throw new Error(`WP REST ${kind}: ${res.status} — credentials needed/insufficient for status=${statuses}`);
+      if (!res.ok) throw new Error(`WP REST ${kind} page ${page}: ${res.status} ${res.statusText || ""}`.trim());
+      totalPages = Number(res.headers && res.headers.get && res.headers.get("X-WP-TotalPages")) || 1;
+      const arr = await res.json();
+      if (!Array.isArray(arr) || arr.length === 0) break;
+      for (const p of arr) items.push(mapREST(p, type));
+      page++;
+    } while (page <= totalPages);
+  }
+  return items;
+}
+
+// Select + transform raw items into importable markdown pages. Returns { imported, stats }.
+export function transform(all, { types = ["page", "post"], drafts = false } = {}) {
   const stats = { total: all.length, byType: {}, draftsSkipped: 0, otherTypeSkipped: 0 };
   for (const i of all) stats.byType[i.type] = (stats.byType[i.type] || 0) + 1;
 
@@ -96,4 +139,14 @@ export function runImport(xml, { types = ["page", "post"], drafts = false } = {}
     imported.push({ slug: s, type: i.type, title: i.title, filename: `${s}.md`, markdown: toMarkdown(i) });
   }
   return { imported, stats };
+}
+
+// Import from a WXR export string (offline file path).
+export function runImport(xml, opts = {}) {
+  return transform(parseWXR(xml), opts);
+}
+
+// Import from a live WordPress site over the REST API.
+export async function runImportFromWP(baseUrl, opts = {}) {
+  return transform(await fetchWP(baseUrl, opts), opts);
 }

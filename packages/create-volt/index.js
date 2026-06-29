@@ -62,6 +62,7 @@ const positionals = [];
 let portArg = null;
 let templateArg = null;
 let outArg = null;
+let userArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
@@ -70,6 +71,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith("--template=")) templateArg = a.slice("--template=".length);
   else if (a === "--out") outArg = argv[++i];
   else if (a.startsWith("--out=")) outArg = a.slice("--out=".length);
+  else if (a === "--user") userArg = argv[++i];
+  else if (a.startsWith("--user=")) userArg = a.slice("--user=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -135,14 +138,8 @@ if (positionals[0] === "config") {
   process.exit(res.status ?? 0);
 }
 
-// --- `import-wxr` subcommand: import a WordPress export into markdown pages ---
-if (positionals[0] === "import-wxr") {
-  const xmlPath = positionals[1];
-  if (!xmlPath) die(`Usage: ${cyan("create-volt import-wxr <export.xml>")} [--out pages] [--drafts] [--force]`);
-  if (!fs.existsSync(xmlPath)) die(`No such file: ${cyan(xmlPath)}`);
-  const outDir = path.resolve(outArg || "pages");
-  const { runImport } = await import("./lib/import-wxr.js");
-  const { imported, stats } = runImport(fs.readFileSync(xmlPath, "utf8"), { drafts: flags.has("--drafts") });
+// Write imported markdown pages to disk and print a summary (shared by both importers).
+function emitImported(imported, stats, outDir) {
   fs.mkdirSync(outDir, { recursive: true });
   let written = 0;
   let skippedExisting = 0;
@@ -160,6 +157,35 @@ if (positionals[0] === "import-wxr") {
   console.log(`\n${cyan(`✓ Imported ${written}`)} page(s) → ${outDir}`);
   console.log(dim(`  source: ${stats.total} items (${types}); skipped ${stats.draftsSkipped} draft(s), ${stats.otherTypeSkipped} non-page/post item(s)${skippedExisting ? `, ${skippedExisting} already-present (use --force)` : ""}.`));
   console.log(dim("  Enable the pages add-on to serve them: npm run dev -- --edit"));
+}
+
+// --- `import-wxr` subcommand: import an offline WordPress export (WXR file) ---
+if (positionals[0] === "import-wxr") {
+  const xmlPath = positionals[1];
+  if (!xmlPath) die(`Usage: ${cyan("create-volt import-wxr <export.xml>")} [--out pages] [--drafts] [--force]`);
+  if (!fs.existsSync(xmlPath)) die(`No such file: ${cyan(xmlPath)}`);
+  const { runImport } = await import("./lib/import-wxr.js");
+  const { imported, stats } = runImport(fs.readFileSync(xmlPath, "utf8"), { drafts: flags.has("--drafts") });
+  emitImported(imported, stats, path.resolve(outArg || "pages"));
+  process.exit(0);
+}
+
+// --- `import-wp` subcommand: pull a live WordPress site over the REST API ---
+if (positionals[0] === "import-wp") {
+  const site = positionals[1];
+  if (!site || !/^https?:\/\//i.test(site)) die(`Usage: ${cyan("create-volt import-wp <https://site.com>")} [--out pages] [--drafts] [--user U]\n  Credentials (for drafts/private): set ${cyan("WP_APP_PASSWORD")} (an Application Password) and ${cyan("WP_USER")} or --user.`);
+  const user = userArg || process.env.WP_USER;
+  const appPassword = process.env.WP_APP_PASSWORD;
+  if ((user || appPassword) && !/^https:\/\//i.test(site)) die("Refusing to send credentials over a non-HTTPS URL.");
+  const { runImportFromWP } = await import("./lib/import-wxr.js");
+  console.log(dim(`Fetching ${site} via the WordPress REST API…${appPassword ? " (authenticated)" : ""}`));
+  let result;
+  try {
+    result = await runImportFromWP(site, { user, appPassword, drafts: flags.has("--drafts") });
+  } catch (e) {
+    die(`${e.message}\n  If the REST API is disabled, export a WXR file and use ${cyan("create-volt import-wxr <export.xml>")}.`);
+  }
+  emitImported(result.imported, result.stats, path.resolve(outArg || "pages"));
   process.exit(0);
 }
 

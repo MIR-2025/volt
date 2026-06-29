@@ -4,6 +4,18 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-06-29
+
+### Added
+- **`import-wp` — fully-automated WordPress import over the REST API.**
+  `npx create-volt import-wp <https://site>` pulls published posts + pages
+  directly (paginated) into markdown `pages/` — no export file, and **no
+  credentials for public content**. Drafts/private need an Application Password
+  via `WP_USER` + `WP_APP_PASSWORD` (Basic auth, **sent only over HTTPS, never
+  logged**). Falls back to `import-wxr` if the REST API is disabled. Reuses the
+  WXR→markdown converter; unit-tested with a mocked fetch. `/docs/migrate`
+  updated to lead with the automated path.
+
 ## [0.19.0] - 2026-06-29
 
 ### Added
@@ -278,6 +290,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.20.0]: https://github.com/MIR-2025/volt/releases/tag/v0.20.0
 [0.19.0]: https://github.com/MIR-2025/volt/releases/tag/v0.19.0
 [0.18.0]: https://github.com/MIR-2025/volt/releases/tag/v0.18.0
 [0.17.0]: https://github.com/MIR-2025/volt/releases/tag/v0.17.0
