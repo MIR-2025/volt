@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 // express + marked are imported lazily in postsRouter() so the pure helpers load
 // without those deps. Theme + SEO come from the pages add-on (a dependency).
-import { parseFrontMatter, isSafeSlug, metaHead, themeResolver } from "../../../pages/files/lib/pages.js";
+import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot } from "../../../pages/files/lib/pages.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -120,7 +120,7 @@ export async function postsRouter({ dir, themeDir }) {
   const render = async ({ title, content, meta = {} }) => {
     const m = { ...meta, title };
     const { layout } = await getTheme();
-    return layout({ title, head: metaHead(m), content, meta: m });
+    return injectHot(layout({ title, head: metaHead(m), content, meta: m }));
   };
   const r = express.Router();
 

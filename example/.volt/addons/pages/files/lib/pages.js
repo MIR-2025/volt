@@ -128,6 +128,13 @@ const DEV = process.env.NODE_ENV !== "production";
 // a restart (ESM caches a given URL forever); unchanged files keep the same URL.
 const freshUrl = (f) => pathToFileURL(f).href + (DEV ? "?t=" + fs.statSync(f).mtimeMs : "");
 
+// In dev, inject the hot-reload client into served pages — content pages don't
+// otherwise load volt.js, so they'd never receive reload/morph events. socket.io
+// serves its client at /socket.io/socket.io.js; volt.js (a module) runs the
+// hot-reload IIFE. Nothing is injected in production.
+const HOT = DEV ? '\n<script src="/socket.io/socket.io.js"></script><script type="module" src="/volt.js"></script>\n' : "";
+export const injectHot = (html) => (!HOT ? html : html.includes("</body>") ? html.replace("</body>", HOT + "</body>") : html + HOT);
+
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
     const layout = m && (m.layout || m.default);
@@ -182,7 +189,7 @@ export async function pagesRouter({ dir }) {
     const content = meta.format === "html" ? body : marked.parse(body);
     const m = { ...meta, title: meta.title || slug };
     const { layout } = await getTheme();
-    res.type("html").send(layout({ title: m.title, head: metaHead(m), content, meta: m }));
+    res.type("html").send(injectHot(layout({ title: m.title, head: metaHead(m), content, meta: m })));
   });
   return r;
 }

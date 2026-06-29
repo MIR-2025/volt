@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.39.0] - 2026-06-29
+
+### Fixed
+- **Hot reload now reaches content pages.** Pages/posts are server-rendered HTML
+  that dont load `volt.js`, so the 0.38 morph client never ran on them. In dev,
+  the `pages`/`posts` add-ons now inject the hot-reload client (socket.io +
+  `volt.js`) into every served page. Verified with Chromium: editing a post
+  morphs the DOM in place — scroll position and page state preserved, no full
+  reload. Nothing is injected in production.
+
 ## [0.38.0] - 2026-06-29
 
 ### Added
@@ -508,6 +518,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.39.0]: https://github.com/MIR-2025/volt/releases/tag/v0.39.0
 [0.38.0]: https://github.com/MIR-2025/volt/releases/tag/v0.38.0
 [0.37.0]: https://github.com/MIR-2025/volt/releases/tag/v0.37.0
 [0.36.0]: https://github.com/MIR-2025/volt/releases/tag/v0.36.0
