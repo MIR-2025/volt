@@ -63,6 +63,7 @@ let portArg = null;
 let templateArg = null;
 let outArg = null;
 let userArg = null;
+let prefixArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
@@ -73,6 +74,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith("--out=")) outArg = a.slice("--out=".length);
   else if (a === "--user") userArg = argv[++i];
   else if (a.startsWith("--user=")) userArg = a.slice("--user=".length);
+  else if (a === "--prefix") prefixArg = argv[++i];
+  else if (a.startsWith("--prefix=")) prefixArg = a.slice("--prefix=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -184,6 +187,28 @@ if (positionals[0] === "import-wp") {
     result = await runImportFromWP(site, { user, appPassword, drafts: flags.has("--drafts") });
   } catch (e) {
     die(`${e.message}\n  If the REST API is disabled, export a WXR file and use ${cyan("create-volt import-wxr <export.xml>")}.`);
+  }
+  emitImported(result.imported, result.stats, path.resolve(outArg || "pages"));
+  process.exit(0);
+}
+
+// --- `import-wp-db` subcommand: read a WordPress MySQL database directly ---
+if (positionals[0] === "import-wp-db") {
+  const dbUrl = positionals[1] || process.env.WP_DB_URL || process.env.DATABASE_URL;
+  if (!dbUrl) {
+    die(
+      `Usage: ${cyan("create-volt import-wp-db <mysql://user:pass@host/db>")} [--prefix wp_] [--out pages] [--drafts] [--force]\n` +
+        `  Tip: set ${cyan("WP_DB_URL")} instead of passing the URL, so credentials stay out of shell history.\n` +
+        `  WordPress DBs are usually firewalled to localhost — run this on the server or over an SSH tunnel. Requires ${cyan("mysql2")} (npm i mysql2).`,
+    );
+  }
+  const { runImportFromDB } = await import("./lib/import-wp-db.js");
+  console.log(dim(`Reading WordPress database (prefix ${prefixArg || "wp_"})…`));
+  let result;
+  try {
+    result = await runImportFromDB(dbUrl, { prefix: prefixArg || "wp_", drafts: flags.has("--drafts") });
+  } catch (e) {
+    die(e.message);
   }
   emitImported(result.imported, result.stats, path.resolve(outArg || "pages"));
   process.exit(0);

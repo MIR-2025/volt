@@ -29,6 +29,21 @@ If the REST API is disabled, export in WordPress (**Tools → Export → All con
 npx create-volt@latest import-wxr export.xml
 ```
 
+## From the database directly (REST off + you have DB access)
+
+If you can reach the WordPress MySQL/MariaDB database (on the server, or over an SSH tunnel):
+
+```
+WP_DB_URL="mysql://user:pass@127.0.0.1:3306/wordpress" \
+  npx create-volt@latest import-wp-db --prefix wp_
+```
+
+Reads `wp_posts` and the term tables directly. Pass `--prefix` if your install uses a non-default table prefix. Requires `mysql2` (`npm i mysql2`). WordPress databases are usually firewalled to localhost, so run this on the server or tunnel in first:
+
+```
+ssh -N -L 3306:localhost:3306 user@your-wp-server
+```
+
 ## What you get
 
 Each published page/post becomes `pages/<slug>.md` — front-matter `title` (plus `date`, `tags`), Gutenberg block comments stripped, body kept as HTML/markdown. Drafts and attachments are skipped.

@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-06-29
+
+### Added
+- **`import-wp-db`** — import WordPress content by reading its MySQL/MariaDB
+  database directly, for when the REST API is disabled but you have DB access
+  (on the server or via an SSH tunnel). `--prefix` for non-default table
+  prefixes (validated against SQL injection); creds via `WP_DB_URL` to keep them
+  out of shell history; `mysql2` loaded lazily. Reuses the WXR converter; unit
+  tested with an injected connection. Third migration path alongside
+  `import-wp` (REST) and `import-wxr` (file).
+
 ## [0.20.0] - 2026-06-29
 
 ### Added
@@ -290,6 +301,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.21.0]: https://github.com/MIR-2025/volt/releases/tag/v0.21.0
 [0.20.0]: https://github.com/MIR-2025/volt/releases/tag/v0.20.0
 [0.19.0]: https://github.com/MIR-2025/volt/releases/tag/v0.19.0
 [0.18.0]: https://github.com/MIR-2025/volt/releases/tag/v0.18.0
