@@ -4,11 +4,20 @@
 const base = window.__VOLT_BASE || location.pathname.replace(/\/+$/, "");
 const $ = (s) => document.querySelector(s);
 
+// Load the active theme's CSS so the editor preview matches the published page.
+let themeCss = "";
+try {
+  themeCss = await (await fetch("/_theme.css")).text();
+} catch {
+  /* no theme css */
+}
+
 const ed = RTEPro.init("#editor", {
   height: "62vh",
   placeholder: "Write…",
   aiProxy: base + "/api/ai",
   aiProvider: window.__VOLT_AI_PROVIDER || "anthropic",
+  exportCSS: themeCss,
 });
 
 async function refresh() {

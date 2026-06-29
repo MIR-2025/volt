@@ -151,6 +151,7 @@ const DOCS = [
   { id: "add-ons", title: "Add-ons" },
   { id: "plugins", title: "Add-ons & plugins (3rd-party)" },
   { id: "editor", title: "WYSIWYG editor" },
+  { id: "themes", title: "Themes" },
   { id: "pages", title: "Markdown pages" },
   { id: "migrate", title: "Migrate from WordPress" },
   { id: "media", title: "Media uploads" },

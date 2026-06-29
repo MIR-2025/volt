@@ -183,6 +183,54 @@ if (positionals[0] === "create-addon") {
   process.exit(0);
 }
 
+// --- `create-theme` subcommand: scaffold a publishable theme (shared layout) ---
+if (positionals[0] === "create-theme") {
+  const name = positionals[1];
+  if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) die(`Usage: ${cyan("create-volt create-theme <name>")} — name: lowercase letters, numbers, hyphens.`);
+  const dir = path.resolve(`volt-theme-${name}`);
+  if (fs.existsSync(dir) && !flags.has("--force")) die(`${cyan(dir)} already exists (use ${cyan("--force")}).`);
+  const THEME_INDEX = [
+    "// A Volt theme. layout(ctx) wraps page content in a full HTML document —",
+    "// this is your shared header/footer/styling for every page.",
+    "//   ctx = { title, head, content, meta }",
+    "//   - title:   page title (from front-matter)",
+    "//   - head:    SEO/social tags (OG, Twitter, canonical, JSON-LD) — put in <head>",
+    "//   - content: the rendered page HTML",
+    "//   - meta:    the front-matter object",
+    "// `css` is served at /_theme.css and shared with the WYSIWYG editor preview.",
+    "export const css = `body { font: 17px/1.7 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 1rem } header, footer { opacity: .75; padding: .5rem 0 }`;",
+    "",
+    "export function layout({ title, head, content }) {",
+    '  return `<!doctype html><html lang="en"><head><meta charset="utf-8" />',
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    "<title>${title}</title>",
+    "${head}",
+    '<link rel="stylesheet" href="/_theme.css" />',
+    "</head><body>",
+    '  <header><strong>__NAME__</strong> &middot; <a href="/">Home</a></header>',
+    "  <main>${content}</main>",
+    "  <footer><small>Built with Volt</small></footer>",
+    "</body></html>`;",
+    "}",
+    "",
+  ].join("\n");
+  const THEME_README = [
+    "# volt-theme-__NAME__", "", "A [Volt](https://voltjs.com) theme — a shared layout (header/footer/styling) for `pages`.", "",
+    "## Use (in a Volt app with the pages add-on)", "", "```", "npm install volt-theme-__NAME__", "```", "",
+    "Then set `THEME=__NAME__` in `.env` and restart. Every page renders inside this theme's `layout()`.", "",
+    "## Develop", "", "Edit `index.js` — `layout({ title, head, content, meta })` returns the full HTML document. Put `head` in `<head>` (it carries the SEO/OG/JSON-LD tags).", "", "```", "npm publish", "```", "",
+  ].join("\n");
+  fs.mkdirSync(dir, { recursive: true });
+  const pkgJson = { name: `volt-theme-${name}`, version: "0.1.0", description: `A Volt theme: ${name}`, type: "module", main: "index.js", keywords: ["volt", "volt-theme", "theme"], files: ["index.js"], license: "MIT" };
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(pkgJson, null, 2) + "\n");
+  fs.writeFileSync(path.join(dir, "index.js"), THEME_INDEX.replace(/__NAME__/g, name));
+  fs.writeFileSync(path.join(dir, "README.md"), THEME_README.replace(/__NAME__/g, name));
+  console.log(`${cyan("✓ created")} ${path.relative(process.cwd(), dir) || dir} — a Volt theme.`);
+  console.log(dim(`  edit index.js (layout), then publish:  cd volt-theme-${name} && npm publish`));
+  console.log(dim(`  use it:  npm install volt-theme-${name}  then set  THEME=${name}  in .env`));
+  process.exit(0);
+}
+
 // --- `update` subcommand: refresh public/volt.js in the current app to the
 // version bundled with this create-volt (so `npx create-volt@latest update`
 // pulls the latest library). Only touches the library file — never the user's

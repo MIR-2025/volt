@@ -49,7 +49,7 @@ const EDITOR_HTML = (base, provider) => `<!doctype html><html lang="en"><head>
   </div>
 </div></div>
 <script src="${base}/rte-pro.js"></script>
-<script src="${base}/editor.js"></script>
+<script type="module" src="${base}/editor.js"></script>
 </body></html>`;
 
 export function register({ app, express, env, requireAuth, log }) {

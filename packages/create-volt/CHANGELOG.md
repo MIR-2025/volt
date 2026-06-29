@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-06-29
+
+### Added
+- **Themes / shared layout for the `pages` add-on** — pages render into a layout:
+  (1) `pages/_header.html` + `_footer.html` partials (no code); (2) a local
+  `pages/_theme.js` exporting `layout({ title, head, content, meta })` (+ optional
+  `css`); (3) a third-party `volt-theme-<name>` package selected with
+  `THEME=<name>`. `create-volt create-theme <name>` scaffolds one. Resolution:
+  THEME → local `_theme.js` → built-in default.
+- **One stylesheet for page + editor** — the active theme's CSS is served at
+  `/_theme.css` (a theme's `export const css`, or `pages/_theme.css`, or the
+  default). Pages link it, and the WYSIWYG editor loads it into RTEPro's
+  `exportCSS`, so the preview matches the published page — CSS authored once.
+- **Site-wide OG image default** — `OG_IMAGE` in `.env` is the `og:image` for
+  pages without a per-page `image`.
+
 ## [0.25.0] - 2026-06-29
 
 ### Added
@@ -354,6 +370,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.26.0]: https://github.com/MIR-2025/volt/releases/tag/v0.26.0
 [0.25.0]: https://github.com/MIR-2025/volt/releases/tag/v0.25.0
 [0.24.0]: https://github.com/MIR-2025/volt/releases/tag/v0.24.0
 [0.23.0]: https://github.com/MIR-2025/volt/releases/tag/v0.23.0
