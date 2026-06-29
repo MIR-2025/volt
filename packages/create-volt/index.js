@@ -36,6 +36,7 @@ ${bold("Usage")}
   npx create-volt <project-directory> [options]
   npx create-volt@latest update              # refresh public/volt.js in an existing app
   npx create-volt@latest config              # open the app's setup wizard (edit add-ons + settings)
+  npx create-volt@latest studio              # browse your data — ephemeral, localhost (like Prisma Studio)
 
 ${bold("Options")}
   --template <name>  Starter template: default | guestbook  (default: default)
@@ -124,6 +125,21 @@ if (positionals[0] === "config") {
   }
   if (portArg) process.env.PORT = String(Number(portArg) || "");
   const res = spawnSync(process.execPath, ["server.js", "--edit"], {
+    cwd,
+    stdio: "inherit",
+    env: flags.has("--no-open") ? { ...process.env, VOLT_NO_OPEN: "1" } : process.env,
+  });
+  process.exit(res.status ?? 0);
+}
+
+// --- `studio` subcommand: ephemeral, localhost-only data browser (server.js --studio) ---
+if (positionals[0] === "studio") {
+  const cwd = process.cwd();
+  if (!fs.existsSync(path.join(cwd, "server.js"))) {
+    die(`No ${cyan("server.js")} here — run ${cyan("create-volt studio")} from inside a Volt app.`);
+  }
+  if (portArg) process.env.PORT = String(Number(portArg) || "");
+  const res = spawnSync(process.execPath, ["server.js", "--studio"], {
     cwd,
     stdio: "inherit",
     env: flags.has("--no-open") ? { ...process.env, VOLT_NO_OPEN: "1" } : process.env,

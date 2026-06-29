@@ -52,6 +52,9 @@ export async function createSqlStore({ dialect, uri }) {
          )`,
       );
     },
+    async collections() {
+      return (await run(`SELECT DISTINCT coll FROM documents`)).map((r) => r.coll);
+    },
     collection(n) {
       return {
         async put(id, doc) {

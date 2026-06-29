@@ -299,9 +299,95 @@ function readEnvFileLines() {
   return fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8").split("\n") : [];
 }
 
-// --- gate: setup on first run / --edit, otherwise the app ---
+// --- Studio: an ephemeral, localhost-only data browser (à la Prisma Studio).
+// Not a route in the running app — it only exists while you run `--studio`, on
+// loopback, and disappears on Ctrl-C. Shell/SSH access is the auth. ---
+const HIDDEN_COLLECTIONS = new Set(["auth_tokens", "auth_sessions", "__voltcheck"]);
+async function startStudio() {
+  loadEnv();
+  if (!enabledFrom(process.env).has("db")) {
+    console.error("Studio needs the db add-on. Enable it: npm run dev -- --edit");
+    process.exit(1);
+  }
+  let store;
+  try {
+    store = await (await addonMod("db")).createStore();
+  } catch (e) {
+    console.error("Studio: couldn't connect the store — " + e.message);
+    process.exit(1);
+  }
+  const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
+  const visible = (n) => n && !HIDDEN_COLLECTIONS.has(n);
+  const assets = {
+    "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
+    "/db-admin-ui.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(ADDONS_DIR, "db", "files", "public", "db-admin-ui.js"))],
+  };
+  const studioHtml = fs.readFileSync(path.join(__dirname, "setup", "studio.html"));
+  const json = (res, code, obj) => {
+    res.statusCode = code;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(obj));
+  };
+
+  const server = http.createServer(async (req, res) => {
+    const u = new URL(req.url, "http://localhost");
+    const p = u.pathname;
+    try {
+      if (req.method === "GET" && p === "/") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.end(studioHtml);
+      }
+      if (req.method === "GET" && assets[p]) {
+        res.setHeader("Content-Type", assets[p][0]);
+        return res.end(assets[p][1]);
+      }
+      if (req.method === "GET" && p === "/admin/db/collections") {
+        const all = (await store.collections()) || [];
+        return json(res, 200, { driver: store.name, collections: all.filter(visible) });
+      }
+      if (req.method === "GET" && p === "/admin/db/collection") {
+        const name = u.searchParams.get("name") || "";
+        if (!visible(name)) return json(res, 403, { ok: false, error: "hidden" });
+        const docs = (await store.collection(name).all()).slice(0, 500);
+        return json(res, 200, { ok: true, name, docs });
+      }
+      if (req.method === "DELETE" && p === "/admin/db/doc") {
+        const name = u.searchParams.get("name") || "";
+        const id = u.searchParams.get("id") || "";
+        if (!visible(name)) return json(res, 403, { ok: false, error: "hidden" });
+        if (!id) return json(res, 400, { ok: false, error: "missing id" });
+        await store.collection(name).delete(id);
+        return json(res, 200, { ok: true });
+      }
+      res.statusCode = 404;
+      res.end("not found");
+    } catch (e) {
+      json(res, 500, { ok: false, error: e.message });
+    }
+  });
+
+  server.listen(PORT, "127.0.0.1", () => {
+    const url = `http://localhost:${PORT}`;
+    console.log(`\n⚡ Volt Studio → ${url}   (${store.name})`);
+    console.log("  Browse your data. localhost-only, disposable — Ctrl-C when done.");
+    const ssh = process.env.SSH_CONNECTION;
+    if (ssh) {
+      const host = ssh.split(" ")[2];
+      const user = process.env.USER || process.env.USERNAME || "you";
+      console.log("  Remote box — from your LOCAL machine:");
+      console.log(`    ssh -N -L 127.0.0.1:${PORT}:localhost:${PORT} ${user}@${host}`);
+      console.log(`  …then open ${url}.`);
+    }
+    console.log("");
+    openBrowser(url);
+  });
+}
+
+// --- gate: studio / setup (first run, --edit) / the app ---
 const editMode = process.argv.includes("--edit") || process.argv.includes("-e");
-if (editMode || !fs.existsSync(ENV_PATH)) {
+if (process.argv.includes("--studio")) {
+  startStudio();
+} else if (editMode || !fs.existsSync(ENV_PATH)) {
   startSetup();
 } else {
   loadEnv();

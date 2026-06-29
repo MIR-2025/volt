@@ -66,6 +66,19 @@ SSH-tunnel hint on a remote box). Enabling an add-on wires its **backend**
 automatically — the **frontend** UI (login form, chat) is yours to build, or
 start from `--template guestbook`, which has it wired end-to-end.
 
+## Studio (data browser)
+
+Browse your database on demand — ephemeral and localhost-only, like Prisma Studio:
+
+```bash
+npm run dev -- --studio    # or: npx create-volt studio
+```
+
+It connects the DB in your `.env`, lets you view/delete documents across any
+driver, and is **never** a route in the running app (no standing `/admin` to
+attack — shell/SSH access is the gate). Needs a persistent driver (MongoDB /
+MySQL / Postgres) to show data; the memory driver is per-process.
+
 ## Updating Volt
 
 Volt is vendored as a single file (`public/volt.js`), not an npm dependency.

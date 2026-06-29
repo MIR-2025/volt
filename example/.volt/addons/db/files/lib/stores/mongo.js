@@ -39,5 +39,12 @@ export async function createMongoStore({ uri, dbName }) {
     };
   };
 
-  return { name: "mongodb", async init() {}, collection };
+  return {
+    name: "mongodb",
+    async init() {},
+    collection,
+    async collections() {
+      return (await db.listCollections().toArray()).map((c) => c.name);
+    },
+  };
 }

@@ -29,5 +29,5 @@ export function createMemoryStore() {
     },
   });
 
-  return { name: "memory", async init() {}, collection };
+  return { name: "memory", async init() {}, collection, async collections() { return [...cols.keys()]; } };
 }

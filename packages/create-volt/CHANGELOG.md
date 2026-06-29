@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-06-28
+
+### Added
+- **`create-volt studio`** (and `npm run dev -- --studio`) — an ephemeral,
+  localhost-only **data browser**, à la Prisma Studio. Browse collections and
+  documents across any driver (memory / MongoDB / MySQL / Postgres) and delete
+  docs. It's **never a route in the running app** — it exists only while you run
+  it, binds `127.0.0.1`, and disappears on Ctrl-C (shell/SSH access is the auth).
+  Internal collections (auth tokens/sessions) are hidden.
+- Stores gained `collections()` (enumerate collection names) on every adapter.
+
+### Security
+- Admin/data surfaces are **ephemeral by design** — no standing `/admin` route in
+  the running app to attack (verified: the app 404s admin routes). Same model as
+  the config editor: on-demand, loopback-only, gone when the app runs.
+
 ## [0.10.0] - 2026-06-28
 
 ### Added
@@ -146,6 +162,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.11.0]: https://github.com/MIR-2025/volt/releases/tag/v0.11.0
 [0.10.0]: https://github.com/MIR-2025/volt/releases/tag/v0.10.0
 [0.9.0]: https://github.com/MIR-2025/volt/releases/tag/v0.9.0
 [0.8.0]: https://github.com/MIR-2025/volt/releases/tag/v0.8.0
