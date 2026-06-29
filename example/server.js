@@ -87,6 +87,13 @@ async function startApp() {
   const PORT = Number(process.env.PORT) || DEFAULT_PORT;
   const enabled = enabledFrom(process.env);
   const app = express();
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "same-origin");
+    next();
+  });
   app.use(express.static(path.join(__dirname, "public")));
 
   let store = null;
@@ -94,6 +101,13 @@ async function startApp() {
   if (enabled.has("db")) store = await (await addonMod("db")).createStore();
   if (enabled.has("mailer")) mailer = await (await addonMod("mailer")).createMailer();
   if (enabled.has("auth") && store && mailer) app.use((await addonMod("auth")).authRouter({ store, mailer }));
+
+  // expose which add-ons are on, and serve each enabled add-on's frontend assets
+  app.get("/__volt/addons", (_req, res) => res.json([...enabled]));
+  for (const n of enabled) {
+    const pub = path.join(ADDONS_DIR, n, "files", "public");
+    if (fs.existsSync(pub)) app.use(express.static(pub));
+  }
 
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "views", "index.html")));
 

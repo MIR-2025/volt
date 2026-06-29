@@ -4,6 +4,23 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-06-28
+
+### Added
+- Frontend UI for the user-facing add-ons, auto-mounted when enabled:
+  - **auth** → a magic-link sign-in panel (email → link → signed-in state)
+  - **realtime** → a live chat panel (rooms, presence, typing, messages)
+  Each add-on serves its own `/<name>-ui.js` (only when enabled); `public/app.js`
+  mounts them alongside the demo. The server exposes `GET /__volt/addons`.
+
+### Security
+- Security headers on every response: `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin`, `X-Powered-By` off.
+- Hardened forms: typed / length-capped / autocompleted inputs; all user content
+  renders through Volt holes (text nodes — HTML-escaped, no innerHTML); server
+  validation + caps (email ≤ 320, chat ≤ 500); `.env` values stripped of newlines;
+  session cookies `HttpOnly` + `SameSite=Lax`.
+
 ## [0.9.0] - 2026-06-28
 
 ### Changed
@@ -129,6 +146,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.10.0]: https://github.com/MIR-2025/volt/releases/tag/v0.10.0
 [0.9.0]: https://github.com/MIR-2025/volt/releases/tag/v0.9.0
 [0.8.0]: https://github.com/MIR-2025/volt/releases/tag/v0.8.0
 [0.7.0]: https://github.com/MIR-2025/volt/releases/tag/v0.7.0

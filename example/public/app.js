@@ -63,4 +63,27 @@ function Todos() {
     </div>`;
 }
 
-mount("#app", Counter(), Todos());
+// Mount the demo, plus the UI for any enabled add-ons (auth, realtime, …).
+// Add-ons serve their own /…-ui.js when turned on in the setup wizard.
+const nodes = [Counter(), Todos()];
+let enabled = [];
+try {
+  enabled = await (await fetch("/__volt/addons")).json();
+} catch {
+  /* older app without the endpoint — just the demo */
+}
+if (enabled.includes("auth")) {
+  try {
+    nodes.unshift((await import("/auth-ui.js")).authPanel());
+  } catch {
+    /* auth UI unavailable */
+  }
+}
+if (enabled.includes("realtime")) {
+  try {
+    nodes.push((await import("/chat-ui.js")).chatPanel());
+  } catch {
+    /* realtime UI unavailable */
+  }
+}
+mount("#app", ...nodes);

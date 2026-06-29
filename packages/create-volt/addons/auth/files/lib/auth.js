@@ -72,7 +72,7 @@ export function authRouter({ store, mailer }) {
 
   router.post("/api/login", async (req, res) => {
     const email = normalize(req.body?.email);
-    if (!validEmail(email)) return res.status(400).json({ ok: false, error: "Enter a valid email." });
+    if (!validEmail(email) || email.length > 320) return res.status(400).json({ ok: false, error: "Enter a valid email." });
     const tok = token();
     await tokens.put(tok, { email, ua: req.headers["user-agent"] || "", expiresAt: Date.now() + TOKEN_TTL, used: false });
     const link = `${req.protocol}://${req.get("host")}/verify?token=${tok}`;

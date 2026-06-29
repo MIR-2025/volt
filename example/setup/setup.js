@@ -35,22 +35,23 @@ function effective(s) {
   return order.filter((n) => want.has(n));
 }
 
+const clean = (v) => String(v).replace(/[\r\n]/g, "").trim(); // one value per line; no injection
 function genEnv(s) {
   const eff = effective(s);
-  const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${s.port}`];
+  const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${clean(s.port)}`];
   if (eff.includes("db")) {
-    out.push(`DB_DRIVER=${s.dbDriver}`);
+    out.push(`DB_DRIVER=${clean(s.dbDriver)}`);
     if (s.dbDriver === "mongodb") {
-      out.push(`MONGODB_URI=${s.mongoUri}`);
-      if (s.mongoDb) out.push(`MONGODB_DATABASE=${s.mongoDb}`);
+      out.push(`MONGODB_URI=${clean(s.mongoUri)}`);
+      if (s.mongoDb) out.push(`MONGODB_DATABASE=${clean(s.mongoDb)}`);
     } else if (s.dbDriver === "mysql" || s.dbDriver === "postgres") {
-      out.push(`DATABASE_URL=${s.dbUrl}`);
+      out.push(`DATABASE_URL=${clean(s.dbUrl)}`);
     }
   }
   if (eff.includes("mailer")) {
-    if (s.smtpUrl) out.push(`SMTP_URL=${s.smtpUrl}`);
+    if (s.smtpUrl) out.push(`SMTP_URL=${clean(s.smtpUrl)}`);
     else out.push("# SMTP_URL=        # unset → emails print to the console");
-    if (s.mailFrom) out.push(`MAIL_FROM=${s.mailFrom}`);
+    if (s.mailFrom) out.push(`MAIL_FROM=${clean(s.mailFrom)}`);
   }
   return out.join("\n") + "\n";
 }
