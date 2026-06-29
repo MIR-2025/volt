@@ -1,6 +1,6 @@
 {
   "name": "volt-addon-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A standing, role-gated WYSIWYG editor for Volt (RTEPro) that writes markdown pages. The WordPress-editor experience, hardened: secret ADMIN_PATH + magic-link auth + an allowlist, content stays markdown-on-disk.",
   "type": "module",
   "main": "index.js",

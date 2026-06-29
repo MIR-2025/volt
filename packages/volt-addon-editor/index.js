@@ -81,22 +81,29 @@ export function register({ app, express, env, requireAuth, log }) {
     const src = fs.readFileSync(file, "utf8");
     const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
     let title = "";
+    let format = "";
     let body = src;
     if (m) {
       body = src.slice(m[0].length);
       const tm = m[1].match(/title:\s*(.+)/);
       if (tm) title = tm[1].trim();
+      const ff = m[1].match(/format:\s*(.+)/);
+      if (ff) format = ff[1].trim();
     }
-    res.json({ ok: true, slug, title, html: marked.parse(body) });
+    // editor loads HTML into RTEPro.setHTML(); html pages pass through verbatim,
+    // markdown pages are rendered so they show formatted in the editor.
+    res.json({ ok: true, slug, title, html: format === "html" ? body : marked.parse(body) });
   });
 
   app.post(base + "/api/page", gate, json, (req, res) => {
     const slug = String(req.body?.slug || "").toLowerCase();
     if (!isSafeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
     const title = String(req.body?.title || slug).replace(/[\r\n]+/g, " ").slice(0, 200);
-    const body = String(req.body?.markdown || "");
+    // Store the editor's HTML verbatim (format: html) so complex layouts survive
+    // losslessly — markdown can't represent multi-column/styled layouts.
+    const body = String(req.body?.html ?? req.body?.markdown ?? "");
     fs.mkdirSync(pagesDir, { recursive: true });
-    fs.writeFileSync(path.join(pagesDir, slug + ".md"), `---\ntitle: ${title}\n---\n\n${body}\n`);
+    fs.writeFileSync(path.join(pagesDir, slug + ".md"), `---\ntitle: ${title}\nformat: html\n---\n\n${body}\n`);
     res.json({ ok: true, url: "/" + slug });
   });
 

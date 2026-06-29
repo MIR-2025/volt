@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-06-29
+
+### Added
+- The `pages` add-on now supports **`format: html`** in front-matter — those
+  pages are served **verbatim** (no markdown processing), so rich/complex layouts
+  (e.g. from the WYSIWYG editor) are preserved losslessly. Plain markdown pages
+  are unchanged. (`volt-addon-editor` 0.2.0 now stores `getHTML()` with
+  `format: html` so editor layouts round-trip exactly.)
+
 ## [0.23.0] - 2026-06-29
 
 ### Added
@@ -334,6 +343,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.24.0]: https://github.com/MIR-2025/volt/releases/tag/v0.24.0
 [0.23.0]: https://github.com/MIR-2025/volt/releases/tag/v0.23.0
 [0.22.0]: https://github.com/MIR-2025/volt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/MIR-2025/volt/releases/tag/v0.21.0

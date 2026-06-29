@@ -49,7 +49,7 @@ async function save() {
     await fetch(base + "/api/page", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug, title: $("#title").value, markdown: ed.getMarkdown() }),
+      body: JSON.stringify({ slug, title: $("#title").value, html: ed.getHTML() }),
     })
   ).json();
   $("#msg").textContent = res.ok ? "Saved → " + res.url : "Error: " + (res.error || "?");

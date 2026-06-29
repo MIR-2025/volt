@@ -78,7 +78,10 @@ export async function pagesRouter({ dir }) {
     const file = path.join(dir, slug + ".md");
     if (!fs.existsSync(file)) return next();
     const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
-    res.type("html").send(shell(meta.title || slug, marked.parse(body)));
+    // `format: html` pages (e.g. from the WYSIWYG editor) are served verbatim to
+    // preserve complex layouts; everything else is markdown rendered with marked.
+    const inner = meta.format === "html" ? body : marked.parse(body);
+    res.type("html").send(shell(meta.title || slug, inner));
   });
   return r;
 }

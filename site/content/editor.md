@@ -17,7 +17,7 @@ AI_PROVIDER=anthropic            # anthropic | openai | gemini
 ANTHROPIC_API_KEY=sk-...
 ```
 
-Sign in (magic link), open your secret path, write, publish. Pages are saved as `pages/<slug>.md` — served by the pages add-on, and editable in the UI **or** by hand.
+Sign in (magic link), open your secret path, write, publish. Pages are saved as `pages/<slug>.md` with `format: html` (the editor stores HTML so **complex layouts are preserved losslessly** — markdown cannot represent multi-column/styled layouts). Served by the pages add-on; still editable by hand.
 
 ## Security
 
