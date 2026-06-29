@@ -147,7 +147,7 @@ const TABS = [
 const nav = () =>
   html`<nav class="navx py-2 mb-4">
     <div class="container d-flex align-items-center" style="max-width:760px">
-      <span class="brand me-3"><span class="accent">⚡ Volt</span></span>
+      <span class="brand me-3"><span class="accent"><img src="/logo.webp" alt="" style="height:1em;vertical-align:-.15em" /> Volt</span></span>
       ${TABS.map(([key, label]) => html`<button class=${() => "btn btn-link btn-sm " + (section() === key ? "active" : "")} onclick=${() => section(key)}>${label}</button>`)}
       <span class="ms-auto small text-muted">${() => (me() ? shortName(me()) : "guest")}</span>
     </div>

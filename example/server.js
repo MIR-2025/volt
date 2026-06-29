@@ -225,6 +225,8 @@ function startSetup() {
   const assets = {
     "/setup.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "setup", "setup.js"))],
     "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
+    "/logo.webp": ["image/webp", fs.readFileSync(path.join(__dirname, "public", "logo.webp"))],
+    "/favicon.webp": ["image/webp", fs.readFileSync(path.join(__dirname, "public", "favicon.webp"))],
   };
   const indexHtml = fs.readFileSync(path.join(__dirname, "setup", "index.html"));
 
@@ -381,6 +383,8 @@ async function startStudio() {
   const visible = (n) => n && !HIDDEN_COLLECTIONS.has(n);
   const assets = {
     "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
+    "/logo.webp": ["image/webp", fs.readFileSync(path.join(__dirname, "public", "logo.webp"))],
+    "/favicon.webp": ["image/webp", fs.readFileSync(path.join(__dirname, "public", "favicon.webp"))],
     "/db-admin-ui.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(ADDONS_DIR, "db", "files", "public", "db-admin-ui.js"))],
   };
   const studioHtml = fs.readFileSync(path.join(__dirname, "setup", "studio.html"));

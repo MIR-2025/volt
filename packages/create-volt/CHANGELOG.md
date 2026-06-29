@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-06-29
+
+### Changed
+- **Brand refresh:** the ⚡ glyph is replaced with the Volt logo across the demo
+  app, the setup wizard, and Studio; scaffolded apps now ship `logo.webp` +
+  `favicon.webp` and link a favicon (so apps get a real tab icon). README titles
+  keep the ⚡.
+
 ## [0.31.0] - 2026-06-29
 
 ### Added
@@ -424,6 +432,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.32.0]: https://github.com/MIR-2025/volt/releases/tag/v0.32.0
 [0.31.0]: https://github.com/MIR-2025/volt/releases/tag/v0.31.0
 [0.30.0]: https://github.com/MIR-2025/volt/releases/tag/v0.30.0
 [0.29.0]: https://github.com/MIR-2025/volt/releases/tag/v0.29.0

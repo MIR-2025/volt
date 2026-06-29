@@ -30,7 +30,7 @@ const nav = (active) => {
 };
 
 const footer = () => html`<footer class="py-4 mt-5"><div class="container d-flex flex-wrap gap-3 small" style="max-width:1000px">
-    <span>⚡ Volt — MIT licensed. This site is built with Volt (server-rendered via volt-ssr.js).</span>
+    <span><img src="/logo.webp" alt="" style="height:1em;vertical-align:-.15em;margin-right:.2em" />Volt — MIT licensed. This site is built with Volt (server-rendered via volt-ssr.js).</span>
     <a class="ms-auto" href="${GH}" rel="noopener">GitHub</a>
     <a href="${NPM}" rel="noopener">npm</a>
     <a href="/docs">Docs</a>
