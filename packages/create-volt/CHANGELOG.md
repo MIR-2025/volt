@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-06-29
+
+### Fixed
+- **Reactive crash on conditional re-render** (`volt.js`) — a signal write
+  notified a *snapshot* of subscribers, so a parent reactive block that disposed
+  a nested one mid-update would still run the stale nested effect on detached DOM
+  ("Cannot read properties of null (reading 'insertBefore')"). Disposed effects
+  now skip their queued run, and `renderRange` guards against a detached range.
+  Fixes the **setup wizard** crashing when toggling add-ons or changing the DB
+  driver. Regression-tested in the headless-browser suite.
+
 ## [0.26.0] - 2026-06-29
 
 ### Added
@@ -370,6 +381,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.27.0]: https://github.com/MIR-2025/volt/releases/tag/v0.27.0
 [0.26.0]: https://github.com/MIR-2025/volt/releases/tag/v0.26.0
 [0.25.0]: https://github.com/MIR-2025/volt/releases/tag/v0.25.0
 [0.24.0]: https://github.com/MIR-2025/volt/releases/tag/v0.24.0

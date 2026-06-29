@@ -81,6 +81,15 @@ const PROGRAM = `(() => {
   const d1 = document.getElementById("d1");
   check("interpolation escapes HTML (no element injected)", d1.querySelector("img") === null && window.__xss === undefined && d1.textContent.indexOf("<img") === 0);
 
+  // regression: a nested reactive block disposed by a parent re-render must not
+  // crash on the same signal write (the setup-wizard "insertBefore of null" bug).
+  reset();
+  const s = signal("a");
+  mount(app, html\`<div id="d3">\${() => (s() === "a" ? html\`<b>\${() => s()}</b>\` : html\`<i>other</i>\`)}</div>\`);
+  let crashed = false;
+  try { s("b"); } catch (e) { crashed = true; }
+  check("nested reactive dispose doesn't crash", !crashed && !!document.querySelector("#d3 i") && !document.querySelector("#d3 b"));
+
   return { results: r };
 })()`;
 

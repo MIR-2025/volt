@@ -47,7 +47,11 @@ export function effect(fn) {
     deps: new Set(),
     children: new Set(),
     parent: activeEffect,
+    disposed: false,
     run() {
+      // A signal write notifies a *snapshot* of subscribers; a parent re-render
+      // can dispose this effect before its turn in that snapshot — so skip if so.
+      if (eff.disposed) return;
       disposeChildren(eff);
       cleanupDeps(eff);
       const prev = activeEffect;
@@ -59,6 +63,7 @@ export function effect(fn) {
       }
     },
     dispose() {
+      eff.disposed = true;
       disposeChildren(eff);
       cleanupDeps(eff);
       if (eff.parent) eff.parent.children.delete(eff);
@@ -152,6 +157,7 @@ function appendChild(parent, child) {
 
 // Replace everything between the start/end anchors with `value`'s nodes.
 function renderRange(start, end, value) {
+  if (!end.parentNode) return; // range detached (parent re-rendered) — nothing to do
   let n = start.nextSibling;
   while (n && n !== end) {
     const t = n.nextSibling;
