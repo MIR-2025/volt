@@ -22,7 +22,7 @@ const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
 const PKG_VERSIONS = { mongodb: "^6.8.0", mysql2: "^3.11.0", pg: "^8.12.0", nodemailer: "^6.9.0" };
-const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js" };
+const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", admin: "admin.js" };
 
 // --- tiny .env loader (no dependency); never overrides an existing env var ---
 function readEnvFile() {
@@ -101,6 +101,11 @@ async function startApp() {
   if (enabled.has("db")) store = await (await addonMod("db")).createStore();
   if (enabled.has("mailer")) mailer = await (await addonMod("mailer")).createMailer();
   if (enabled.has("auth") && store && mailer) app.use((await addonMod("auth")).authRouter({ store, mailer }));
+  if (enabled.has("admin") && store && enabled.has("auth")) {
+    const adminEmails = String(process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const requireAuth = (await addonMod("auth")).requireAuth(store);
+    app.use((await addonMod("admin")).adminRouter({ store, requireAuth, adminEmails }));
+  }
 
   // expose which add-ons are on, and serve each enabled add-on's frontend assets
   app.get("/__volt/addons", (_req, res) => res.json([...enabled]));

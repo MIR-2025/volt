@@ -86,4 +86,11 @@ if (enabled.includes("realtime")) {
     /* realtime UI unavailable */
   }
 }
+if (enabled.includes("admin")) {
+  try {
+    nodes.push((await import("/admin-ui.js")).adminPanel());
+  } catch {
+    /* admin UI unavailable */
+  }
+}
 mount("#app", ...nodes);

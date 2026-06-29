@@ -17,6 +17,7 @@ const state = signal({
   dbUrl: current.DATABASE_URL || "",
   smtpUrl: current.SMTP_URL || "",
   mailFrom: current.MAIL_FROM || "",
+  adminEmails: current.ADMIN_EMAILS || "",
   port: current.PORT || String(defaultPort),
 });
 const set = (patch) => state({ ...state(), ...patch });
@@ -53,6 +54,7 @@ function genEnv(s) {
     else out.push("# SMTP_URL=        # unset → emails print to the console");
     if (s.mailFrom) out.push(`MAIL_FROM=${clean(s.mailFrom)}`);
   }
+  if (eff.includes("admin")) out.push(`ADMIN_EMAILS=${clean(s.adminEmails)}`);
   return out.join("\n") + "\n";
 }
 const env = computed(() => genEnv(state()));
@@ -148,6 +150,7 @@ mount(
     ${field("PORT", "port", String(defaultPort))}
     ${() => (eff().includes("db") ? dbSettings() : null)}
     ${() => (eff().includes("mailer") ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+    ${() => (eff().includes("admin") ? field("ADMIN_EMAILS (comma-separated)", "adminEmails", "you@example.com") : null)}
   </div>`,
   html`<div class="card-x p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">

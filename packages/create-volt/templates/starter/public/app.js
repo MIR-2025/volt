@@ -137,11 +137,21 @@ if (hasChat) {
     /* chat UI unavailable */
   }
 }
+// Admin tab appears only for users in the ADMIN_EMAILS allowlist.
+if (enabled.includes("admin")) {
+  try {
+    const r = await (await fetch("/admin/api/me")).json();
+    if (r.isAdmin) sections.admin = (await import("/admin-ui.js")).adminPanel();
+  } catch {
+    /* not signed in / not admin */
+  }
+}
 
 const TABS = [
   ["home", "Home"],
   ...(hasAuth ? [["notes", "Notes"]] : []),
   ...(sections.chat ? [["chat", "Chat"]] : []),
+  ...(sections.admin ? [["admin", "Admin"]] : []),
   ["account", "Account"],
 ];
 

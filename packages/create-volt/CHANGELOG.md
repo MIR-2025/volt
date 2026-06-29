@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-06-28
+
+### Added
+- Opt-in **`admin`** add-on: a persistent, role-gated web admin (data browser)
+  for browser-only admins. Gated by auth **and** an `ADMIN_EMAILS` allowlist;
+  the panel is hidden for non-admins and `/admin/api/*` returns 403. Internal
+  collections (auth tokens/sessions) hidden. Wired into the default + starter
+  templates and the setup wizard (ADMIN_EMAILS field).
+- `SECURITY.md` documenting the ephemeral-admin model and secure defaults.
+
+### Note
+- Prefer the ephemeral `--studio` (shell-gated) for admins with server access;
+  the `admin` add-on is the explicit standing-surface opt-in for non-shell admins.
+
 ## [0.12.0] - 2026-06-28
 
 ### Added
@@ -173,6 +187,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.13.0]: https://github.com/MIR-2025/volt/releases/tag/v0.13.0
 [0.12.0]: https://github.com/MIR-2025/volt/releases/tag/v0.12.0
 [0.11.0]: https://github.com/MIR-2025/volt/releases/tag/v0.11.0
 [0.10.0]: https://github.com/MIR-2025/volt/releases/tag/v0.10.0

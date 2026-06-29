@@ -1,0 +1,8 @@
+{
+  "description": "Opt-in role-gated web admin: a persistent /admin data browser for browser-only admins (auth + ADMIN_EMAILS allowlist). Adds a standing surface — prefer `--studio` unless you need non-shell admins.",
+  "dependsOn": ["db", "auth"],
+  "sentinel": "lib/admin.js",
+  "install": ["express"],
+  "optional": {},
+  "wiring": "Set ADMIN_EMAILS in .env to a comma-separated allowlist of admin emails. Only those signed-in users see the admin panel and can reach /admin/api/*."
+}
