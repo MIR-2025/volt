@@ -1,8 +1,10 @@
 // server.js — dev server with a built-in first-run setup wizard.
 //
 // First run (no .env) or `node server.js --edit` (-e) opens a disposable, local
-// config page; click Apply and it writes .env, loads it, and starts the app
-// in-process — then the setup page is gone. Normal runs just start the app.
+// config page: tick add-ons, fill settings, Apply. Apply writes .env (a
+// VOLT_ADDONS list + settings) and adds any needed packages to package.json,
+// runs npm install, then starts the app — which wires whatever .env enables.
+// Add-on code is bundled under .volt/addons; nothing is copied into your code.
 //
 // No build step, no env-file flag: .env is auto-loaded below.
 
@@ -16,7 +18,11 @@ import { Server as SocketServer } from "socket.io";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
+const PKG_PATH = path.join(__dirname, "package.json");
+const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
+const PKG_VERSIONS = { mongodb: "^6.8.0", mysql2: "^3.11.0", pg: "^8.12.0", nodemailer: "^6.9.0" };
+const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js" };
 
 // --- tiny .env loader (no dependency); never overrides an existing env var ---
 function readEnvFile() {
@@ -32,16 +38,34 @@ function loadEnv() {
   for (const [k, v] of Object.entries(readEnvFile())) if (!(k in process.env)) process.env[k] = v;
 }
 
-// Which add-ons are present? (detected by their files, so the wizard only asks
-// for settings that actually apply.)
-function presentAddons() {
-  const has = (f) => fs.existsSync(path.join(__dirname, f));
-  return { db: has("lib/store.js"), auth: has("lib/auth.js"), mailer: has("lib/mailer.js"), realtime: has("lib/realtime.js") };
+// Add-ons available to enable (bundled under .volt/addons by create-volt).
+function availableAddons() {
+  if (!fs.existsSync(ADDONS_DIR)) return [];
+  return fs
+    .readdirSync(ADDONS_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => {
+      const m = JSON.parse(fs.readFileSync(path.join(ADDONS_DIR, e.name, "meta.json"), "utf8"));
+      return { name: e.name, description: m.description, dependsOn: m.dependsOn || [] };
+    });
 }
 
-// Open the default browser at `url` — but only when there's a desktop to open
-// it on. Headless / remote (no DISPLAY) just keeps the printed link. Opt out
-// with VOLT_NO_OPEN=1 or --no-open.
+// Which add-ons does VOLT_ADDONS turn on (dependencies expanded)?
+function enabledFrom(env) {
+  const metas = Object.fromEntries(availableAddons().map((a) => [a.name, a]));
+  const out = new Set();
+  const visit = (n) => {
+    if (!metas[n] || out.has(n)) return;
+    out.add(n);
+    for (const d of metas[n].dependsOn) visit(d);
+  };
+  for (const n of String(env.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean)) visit(n);
+  return out;
+}
+
+const imp = (rel) => import(pathToFileURL(path.join(__dirname, rel)).href);
+const addonMod = (n) => imp(path.join(".volt", "addons", n, "files", "lib", LIB_FILE[n]));
+
 function openBrowser(url) {
   if (process.env.VOLT_NO_OPEN || process.argv.includes("--no-open")) return false;
   const plat = process.platform;
@@ -50,7 +74,7 @@ function openBrowser(url) {
   const args = plat === "win32" ? ["/c", "start", "", url] : [url];
   try {
     const child = spawn(cmd, args, { stdio: "ignore", detached: true });
-    child.on("error", () => {}); // launcher missing (e.g. no xdg-open) emits async — don't crash
+    child.on("error", () => {}); // launcher missing — emits async, don't crash
     child.unref();
     return true;
   } catch {
@@ -58,17 +82,25 @@ function openBrowser(url) {
   }
 }
 
-// --- the actual app ---
-function startApp() {
+// --- the actual app: wires whichever add-ons .env enables ---
+async function startApp() {
   const PORT = Number(process.env.PORT) || DEFAULT_PORT;
+  const enabled = enabledFrom(process.env);
   const app = express();
   app.use(express.static(path.join(__dirname, "public")));
+
+  let store = null;
+  let mailer = null;
+  if (enabled.has("db")) store = await (await addonMod("db")).createStore();
+  if (enabled.has("mailer")) mailer = await (await addonMod("mailer")).createMailer();
+  if (enabled.has("auth") && store && mailer) app.use((await addonMod("auth")).authRouter({ store, mailer }));
+
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "views", "index.html")));
 
   const server = http.createServer(app);
   const io = new SocketServer(server);
+  if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
 
-  // hot reload: watch views/ + public/, debounce, broadcast a reload
   let timer = null;
   const onChange = (file) => {
     clearTimeout(timer);
@@ -82,7 +114,7 @@ function startApp() {
       fs.watch(dir, { recursive: true }, (_e, f) => onChange(f));
       return;
     } catch {
-      /* fall back to per-directory watchers */
+      /* per-dir fallback */
     }
     const w = (d) => {
       try {
@@ -96,12 +128,26 @@ function startApp() {
   };
   for (const d of ["views", "public"]) watchRecursive(path.join(__dirname, d));
 
-  server.listen(PORT, () => console.log(`⚡ Volt → http://localhost:${PORT}`));
+  const on = [...enabled];
+  server.listen(PORT, () => console.log(`⚡ Volt → http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
+}
+
+// Packages an .env's selections need, beyond what package.json already has.
+function neededPackages(env) {
+  const pkg = JSON.parse(fs.readFileSync(PKG_PATH, "utf8"));
+  const deps = pkg.dependencies || {};
+  const want = [];
+  const driver = (env.match(/^\s*DB_DRIVER\s*=\s*(\w+)/m) || [])[1];
+  if (driver === "mongodb") want.push("mongodb");
+  if (driver === "mysql") want.push("mysql2");
+  if (driver === "postgres") want.push("pg");
+  if (/^\s*SMTP_URL\s*=\s*\S/m.test(env)) want.push("nodemailer");
+  return want.filter((p) => !deps[p]);
 }
 
 // --- the disposable setup wizard (localhost only) ---
 function startSetup() {
-  const PORT = Number(process.env.PORT) || DEFAULT_PORT;
+  const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
   const assets = {
     "/setup.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "setup", "setup.js"))],
     "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "volt.js"))],
@@ -121,7 +167,7 @@ function startSetup() {
     }
     if (req.method === "GET" && p === "/setup/state") {
       res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ present: presentAddons(), current: readEnvFile(), defaultPort: DEFAULT_PORT }));
+      return res.end(JSON.stringify({ available: availableAddons(), current: readEnvFile(), defaultPort: DEFAULT_PORT }));
     }
     if (req.method === "POST" && p === "/setup/test-db") {
       let body = "";
@@ -135,9 +181,8 @@ function startSetup() {
             if (env[k]) process.env[k] = env[k];
             else delete process.env[k];
           }
-          const { createStore } = await import(pathToFileURL(path.join(__dirname, "lib", "store.js")).href);
-          const store = await createStore();
-          await store.collection("__voltcheck").all(); // actually touch the connection
+          const store = await (await addonMod("db")).createStore();
+          await store.collection("__voltcheck").all();
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify({ ok: true, driver: store.name }));
         } catch (e) {
@@ -159,20 +204,54 @@ function startSetup() {
         try {
           const { env } = JSON.parse(body);
           if (typeof env !== "string") throw new Error("missing env");
-          fs.writeFileSync(ENV_PATH, env);
-          // The app binds process.env.PORT if it's already set (loadEnv won't
-          // override it), else the .env PORT, else the default — redirect there.
+
+          // 1) write .env, preserving any custom keys the form doesn't manage
+          let finalEnv = env;
+          if (fs.existsSync(ENV_PATH)) {
+            const managed = new Set([...env.matchAll(/^\s*([A-Za-z0-9_]+)\s*=/gm)].map((m) => m[1]));
+            const extra = readEnvFileLines().filter((line) => {
+              const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=/);
+              return m && !managed.has(m[1]);
+            });
+            if (extra.length) finalEnv = env.replace(/\n*$/, "\n") + extra.join("\n") + "\n";
+          }
+          fs.writeFileSync(ENV_PATH, finalEnv);
+
+          // 2) declare any needed packages in package.json
+          const added = neededPackages(env);
+          if (added.length) {
+            const pkg = JSON.parse(fs.readFileSync(PKG_PATH, "utf8"));
+            pkg.dependencies = pkg.dependencies || {};
+            for (const name of added) pkg.dependencies[name] = PKG_VERSIONS[name] || "latest";
+            fs.writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2) + "\n");
+          }
+
           const envPort = Number((env.match(/^\s*PORT\s*=\s*(\d+)/m) || [])[1]);
           const newPort = process.env.PORT ? Number(process.env.PORT) : envPort || DEFAULT_PORT;
           res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ ok: true, port: newPort }));
-          console.log("[volt] saved .env — starting the app…");
+          res.end(JSON.stringify({ ok: true, port: newPort, installing: added }));
+
+          // 3) install (if needed), then hand off to the app
           res.on("finish", () => {
-            server.close(() => {
-              loadEnv();
-              startApp();
-            });
-            server.closeIdleConnections?.(); // drop the keep-alive socket so close() fires now
+            const handoff = () => {
+              server.close(() => {
+                loadEnv();
+                startApp();
+              });
+              server.closeIdleConnections?.();
+            };
+            if (added.length) {
+              console.log(`[volt] installing ${added.join(", ")}…`);
+              const npm = spawn("npm", ["install"], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
+              npm.on("error", () => handoff());
+              npm.on("close", () => {
+                console.log("[volt] saved .env — starting the app…");
+                handoff();
+              });
+            } else {
+              console.log("[volt] saved .env — starting the app…");
+              handoff();
+            }
           });
         } catch (e) {
           res.statusCode = 400;
@@ -185,12 +264,11 @@ function startSetup() {
     res.end("not found");
   });
 
-  // localhost-only: an unauthenticated write endpoint shouldn't be on the network
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\n⚡ Volt setup → ${url}`);
     console.log("  Configure your app; it starts automatically on Apply. (reopen later: npm run dev -- --edit)");
-    const ssh = process.env.SSH_CONNECTION; // "clientIP clientPort serverIP serverPort"
+    const ssh = process.env.SSH_CONNECTION;
     if (ssh) {
       const host = ssh.split(" ")[2];
       const user = process.env.USER || process.env.USERNAME || "you";
@@ -201,6 +279,10 @@ function startSetup() {
     console.log("");
     if (openBrowser(url)) console.log("  (opening your browser…)\n");
   });
+}
+
+function readEnvFileLines() {
+  return fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8").split("\n") : [];
 }
 
 // --- gate: setup on first run / --edit, otherwise the app ---

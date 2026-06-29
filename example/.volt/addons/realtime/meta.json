@@ -1,0 +1,8 @@
+{
+  "description": "Socket.io live chat: rooms, presence (who's online), typing indicators. Persists messages via db; shows emails when auth is present.",
+  "dependsOn": ["db"],
+  "sentinel": "lib/realtime.js",
+  "install": ["socket.io"],
+  "optional": {},
+  "wiring": "import http from \"node:http\";\nimport { Server as SocketServer } from \"socket.io\";\nimport { createStore } from \"./lib/store.js\";\nimport { attachRealtime } from \"./lib/realtime.js\";\n\nconst server = http.createServer(app);   // wrap the Express app\nconst io = new SocketServer(server);\nattachRealtime(io, { store: await createStore() });\nserver.listen(PORT);                     // listen on `server`, not `app`\n\nIn the page: load /socket.io/socket.io.js, then in your module:\n  import { createChat } from \"/chat-client.js\";\n  const chat = createChat({ onMessage, onHistory, onPresence, onTyping });\n  chat.join(\"general\"); chat.send(\"general\", \"hi\");"
+}

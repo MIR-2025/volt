@@ -4,6 +4,27 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-06-28
+
+### Changed
+- The setup wizard is now the single place to configure an app, and it shows
+  **all** add-ons: tick db/auth/realtime/mailer + fill their settings. Enabling
+  is pure config — **Apply writes `.env`** (a `VOLT_ADDONS` list + settings) and
+  **adds any needed packages to `package.json` + runs `npm install`**, then
+  starts the app, which **auto-wires** whatever `.env` enables (auth routes,
+  realtime sockets, db). Add-on code ships bundled under `.volt/addons`; nothing
+  is copied into your `lib/`.
+- `create-volt config` now just opens that in-app wizard (`server.js --edit`) —
+  one implementation, localhost-only (shell/SSH access is the auth).
+
+### Removed
+- The standalone create-volt config page and its `--host`/key flags (superseded
+  by the in-app wizard, which is localhost-only + SSH-tunnel for remote).
+
+### Note
+- Backend of an enabled add-on is wired automatically; the frontend UI (login
+  form, chat) is yours to build — or start from `--template guestbook`.
+
 ## [0.8.0] - 2026-06-28
 
 ### Added
@@ -108,6 +129,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.9.0]: https://github.com/MIR-2025/volt/releases/tag/v0.9.0
 [0.8.0]: https://github.com/MIR-2025/volt/releases/tag/v0.8.0
 [0.7.0]: https://github.com/MIR-2025/volt/releases/tag/v0.7.0
 [0.6.0]: https://github.com/MIR-2025/volt/releases/tag/v0.6.0

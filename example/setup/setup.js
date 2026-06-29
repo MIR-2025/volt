@@ -1,24 +1,44 @@
-// setup.js — the first-run / --edit settings wizard, built with Volt. Asks only
-// for the settings the present add-ons need, writes .env, then the app starts.
+// setup.js — first-run / --edit wizard, built with Volt. Tick add-ons + fill
+// settings → writes .env (a VOLT_ADDONS list + settings), adds any needed
+// packages, installs, and starts the app. Add-on code is bundled; enabling is
+// just config.
 import { signal, computed, html, mount } from "/volt.js";
 
-const { present, current, defaultPort } = await (await fetch("/setup/state")).json();
+const { available, current, defaultPort } = await (await fetch("/setup/state")).json();
+const depsOf = Object.fromEntries(available.map((a) => [a.name, a.dependsOn || []]));
+const order = available.map((a) => a.name);
+const enabledNow = new Set(String(current.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean));
 
 const state = signal({
-  port: current.PORT || String(defaultPort),
+  addons: Object.fromEntries(available.map((a) => [a.name, enabledNow.has(a.name)])),
   dbDriver: current.DB_DRIVER || "memory",
   mongoUri: current.MONGODB_URI || "",
   mongoDb: current.MONGODB_DATABASE || "",
   dbUrl: current.DATABASE_URL || "",
   smtpUrl: current.SMTP_URL || "",
   mailFrom: current.MAIL_FROM || "",
+  port: current.PORT || String(defaultPort),
 });
 const set = (patch) => state({ ...state(), ...patch });
+const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
 const status = signal("");
 
+// selected add-ons, dependencies expanded, in display order
+function effective(s) {
+  const want = new Set();
+  const visit = (n) => {
+    if (want.has(n)) return;
+    want.add(n);
+    (depsOf[n] || []).forEach(visit);
+  };
+  for (const n of order) if (s.addons[n]) visit(n);
+  return order.filter((n) => want.has(n));
+}
+
 function genEnv(s) {
-  const out = [`PORT=${s.port}`];
-  if (present.db) {
+  const eff = effective(s);
+  const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${s.port}`];
+  if (eff.includes("db")) {
     out.push(`DB_DRIVER=${s.dbDriver}`);
     if (s.dbDriver === "mongodb") {
       out.push(`MONGODB_URI=${s.mongoUri}`);
@@ -27,7 +47,7 @@ function genEnv(s) {
       out.push(`DATABASE_URL=${s.dbUrl}`);
     }
   }
-  if (present.mailer) {
+  if (eff.includes("mailer")) {
     if (s.smtpUrl) out.push(`SMTP_URL=${s.smtpUrl}`);
     else out.push("# SMTP_URL=        # unset → emails print to the console");
     if (s.mailFrom) out.push(`MAIL_FROM=${s.mailFrom}`);
@@ -35,53 +55,64 @@ function genEnv(s) {
   return out.join("\n") + "\n";
 }
 const env = computed(() => genEnv(state()));
-
-async function apply() {
-  status("Saving & starting…");
-  try {
-    const r = await fetch("/setup/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: env() }) });
-    const d = await r.json();
-    if (!d.ok) return status("Error: " + d.error);
-    status("Starting the app…");
-    const target = `http://localhost:${d.port}/`;
-    const go = async (n) => {
-      try {
-        await fetch(target, { mode: "no-cors" }); // app is listening
-        location.href = target;
-      } catch {
-        if (n > 0) setTimeout(() => go(n - 1), 400);
-        else location.href = target;
-      }
-    };
-    setTimeout(() => go(20), 500);
-  } catch {
-    status("Network error — try again.");
-  }
-}
+const eff = computed(() => effective(state()));
 
 async function testDb() {
   const s = state();
-  const env = { DB_DRIVER: s.dbDriver };
+  const e = { DB_DRIVER: s.dbDriver };
   if (s.dbDriver === "mongodb") {
-    env.MONGODB_URI = s.mongoUri;
-    env.MONGODB_DATABASE = s.mongoDb;
+    e.MONGODB_URI = s.mongoUri;
+    e.MONGODB_DATABASE = s.mongoDb;
   } else if (s.dbDriver === "mysql" || s.dbDriver === "postgres") {
-    env.DATABASE_URL = s.dbUrl;
+    e.DATABASE_URL = s.dbUrl;
   }
   status("Testing connection…");
   try {
-    const r = await fetch("/setup/test-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env }) });
-    const d = await r.json();
-    status(d.ok ? `✓ Connected (${d.driver}).` : `✗ ${d.error}`);
+    const r = await (await fetch("/setup/test-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: e }) })).json();
+    status(r.ok ? `✓ Connected (${r.driver}).` : `✗ ${r.error}`);
   } catch {
     status("Network error testing connection.");
   }
 }
 
+async function apply() {
+  status("Saving…");
+  let d;
+  try {
+    d = await (await fetch("/setup/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addons: eff(), env: env() }) })).json();
+  } catch {
+    return status("Network error.");
+  }
+  if (!d.ok) return status("Error: " + d.error);
+  status(d.installing?.length ? `Installing ${d.installing.join(", ")}, then starting…` : "Starting the app…");
+  const target = `http://localhost:${d.port}/`;
+  const tries = d.installing?.length ? 90 : 20; // npm install can take a while
+  const go = async (n) => {
+    try {
+      await fetch(target, { mode: "no-cors" });
+      location.href = target;
+    } catch {
+      if (n > 0) setTimeout(() => go(n - 1), 500);
+      else location.href = target;
+    }
+  };
+  setTimeout(() => go(tries), 600);
+}
+
+// --- views ---
 const field = (label, key, placeholder = "") =>
   html`<div class="mb-2">
     <label class="form-label small mb-1">${label}</label>
     <input class="form-control" placeholder=${placeholder} value=${() => state()[key]} oninput=${(e) => set({ [key]: e.target.value })} />
+  </div>`;
+
+const addonRow = (a) =>
+  html`<div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" id=${"x-" + a.name} checked=${() => state().addons[a.name]} onchange=${() => toggle(a.name)} />
+    <label class="form-check-label" for=${"x-" + a.name}>
+      <span class="accent">${a.name}</span>${a.dependsOn?.length ? html` <span class="text-muted small">(needs ${a.dependsOn.join(", ")})</span>` : ""}
+      <div class="small text-muted">${a.description}</div>
+    </label>
   </div>`;
 
 const dbSettings = () =>
@@ -104,11 +135,18 @@ const dbSettings = () =>
 
 mount(
   "#app",
+  available.length
+    ? html`<div class="card-x p-4 mb-3">
+        <h2 class="h6 mb-3">Features</h2>
+        ${available.map(addonRow)}
+        <p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p>
+      </div>`
+    : null,
   html`<div class="card-x p-4 mb-3">
     <h2 class="h6 mb-3">Settings</h2>
     ${field("PORT", "port", String(defaultPort))}
-    ${() => (present.db ? dbSettings() : null)}
-    ${() => (present.mailer ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+    ${() => (eff().includes("db") ? dbSettings() : null)}
+    ${() => (eff().includes("mailer") ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
   </div>`,
   html`<div class="card-x p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">

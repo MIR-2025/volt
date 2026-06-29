@@ -42,27 +42,29 @@ Edit `public/app.js` and save — the page hot-reloads itself.
 
 ## Add-on integrations
 
-Layer features into an existing app from a disposable local page — pick the
-add-ons, fill in their settings, and it copies the files **and** writes your
-`.env`. Run from the app directory:
+Apps ship with the add-ons **bundled** (under `.volt/addons`) but off. The
+**setup wizard** turns them on — it opens on first run, or anytime with:
 
 ```bash
-npx create-volt@latest config
+npm run dev -- --edit      # or: npx create-volt config
 ```
 
-It prints a `localhost` link (plus LAN links and an SSH-tunnel hint for remote
-boxes), key-gated for safety. Available add-ons:
+Tick the features you want, fill in their settings, and **Apply**. Enabling is
+pure config: it writes `.env` (a `VOLT_ADDONS` list + settings) and adds any
+needed packages to `package.json` + runs `npm install`. The app then auto-wires
+whatever's enabled. Available add-ons:
 
 | Add-on     | What it gives you                                                    |
 | ---------- | ------------------------------------------------------------------- |
 | `db`       | document store: memory / MongoDB / MySQL / Postgres, one interface  |
 | `mailer`   | console (dev) / SMTP (prod) email                                   |
-| `auth`     | magic-link login + sessions (uses db + mailer)                      |
-| `realtime` | Socket.io chat: rooms, presence, typing (uses db)                  |
+| `auth`     | magic-link login + sessions (pulls in db + mailer)                  |
+| `realtime` | Socket.io chat: rooms, presence, typing (pulls in db)              |
 
-Tick **All** to add the whole stack at once. The page only writes into the
-current folder, applies once, and disappears when you Ctrl-C it. Afterwards run
-your app with `node --env-file=.env server.js`.
+The wizard is localhost-only (shell/SSH access is the auth; it prints an
+SSH-tunnel hint on a remote box). Enabling an add-on wires its **backend**
+automatically — the **frontend** UI (login form, chat) is yours to build, or
+start from `--template guestbook`, which has it wired end-to-end.
 
 ## Updating Volt
 

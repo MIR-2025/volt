@@ -10,9 +10,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import http from "node:http";
-import os from "node:os";
-import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -38,7 +35,7 @@ ${bold("Usage")}
   npm create volt@latest <project-directory> [options]
   npx create-volt <project-directory> [options]
   npx create-volt@latest update              # refresh public/volt.js in an existing app
-  npx create-volt@latest config              # disposable page: add db/auth/realtime/mailer + write .env
+  npx create-volt@latest config              # open the app's setup wizard (edit add-ons + settings)
 
 ${bold("Options")}
   --template <name>  Starter template: default | guestbook  (default: default)
@@ -63,15 +60,12 @@ const flags = new Set();
 const positionals = [];
 let portArg = null;
 let templateArg = null;
-let hostArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
   else if (a.startsWith("--port=")) portArg = a.slice("--port=".length);
   else if (a === "--template") templateArg = argv[++i];
   else if (a.startsWith("--template=")) templateArg = a.slice("--template=".length);
-  else if (a === "--host") hostArg = argv[++i];
-  else if (a.startsWith("--host=")) hostArg = a.slice("--host=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -121,163 +115,20 @@ if (positionals[0] === "update") {
   process.exit(0);
 }
 
-// --- `config` subcommand: a disposable local page to configure add-ons and
-// write a .env. Dependency-free (node:http); the page is built with Volt. ---
+// --- `config` subcommand: open the app's setup wizard to edit add-ons/settings.
+// One implementation — delegates to the in-app wizard via `server.js --edit`. ---
 if (positionals[0] === "config") {
   const cwd = process.cwd();
-  const addonsDir = path.join(__dirname, "addons");
-  const addonList = fs
-    .readdirSync(addonsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const m = JSON.parse(fs.readFileSync(path.join(addonsDir, e.name, "meta.json"), "utf8"));
-      return {
-        name: e.name,
-        description: m.description,
-        install: m.install || [],
-        dependsOn: m.dependsOn || [],
-        wiring: m.wiring,
-        installed: fs.existsSync(path.join(cwd, m.sentinel)),
-      };
-    });
-  const assets = {
-    "/config-app.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "config", "config-app.js"))],
-    "/volt.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "templates", "default", "public", "volt.js"))],
-  };
-  const indexHtml = fs.readFileSync(path.join(__dirname, "config", "index.html"));
-  // localhost by default — shell/SSH access is the auth. --host exposes it on the
-  // network, and only then do we mint a random key to gate it.
-  const host = hostArg || "127.0.0.1";
-  const exposed = host !== "127.0.0.1" && host !== "localhost";
-  const key = exposed ? crypto.randomBytes(12).toString("hex") : null;
-
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url, "http://localhost");
-    const p = u.pathname;
-    if (req.method === "GET" && p === "/") {
-      if (key && u.searchParams.get("key") !== key) {
-        res.statusCode = 403;
-        return res.end("Forbidden — open the ?key=… link printed in the terminal.");
-      }
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.end(indexHtml);
-    }
-    if (req.method === "GET" && assets[p]) {
-      res.setHeader("Content-Type", assets[p][0]);
-      return res.end(assets[p][1]);
-    }
-    if (req.method === "GET" && p === "/addons.json") {
-      res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify(addonList));
-    }
-    if (req.method === "GET" && p === "/current.json") {
-      const current = {};
-      const envPath = path.join(cwd, ".env");
-      if (fs.existsSync(envPath)) {
-        for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-          const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
-          if (m) current[m[1]] = m[2];
-        }
-      }
-      res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify(current));
-    }
-    if (req.method === "POST" && p === "/apply") {
-      if (key && req.headers["x-config-key"] !== key) {
-        res.statusCode = 403;
-        return res.end(JSON.stringify({ ok: false, error: "bad or missing key" }));
-      }
-      let body = "";
-      req.on("data", (c) => (body += c));
-      req.on("end", () => {
-        try {
-          const { addons = [], env } = JSON.parse(body);
-          const valid = new Set(addonList.map((a) => a.name));
-          const depsOf = Object.fromEntries(addonList.map((a) => [a.name, a.dependsOn]));
-          // expand selection to include required dependencies (deps before dependents)
-          const want = [];
-          const seen = new Set();
-          const visit = (n) => {
-            if (!valid.has(n) || seen.has(n)) return;
-            seen.add(n);
-            for (const d of depsOf[n] || []) visit(d);
-            want.push(n);
-          };
-          for (const n of addons) visit(n);
-
-          const copied = [];
-          const skipped = [];
-          for (const n of want) {
-            const filesDir = path.join(addonsDir, n, "files");
-            for (const f of listTemplateFiles(filesDir)) {
-              const dest = path.join(cwd, f);
-              if (fs.existsSync(dest)) {
-                skipped.push(f);
-                continue;
-              }
-              fs.mkdirSync(path.dirname(dest), { recursive: true });
-              fs.copyFileSync(path.join(filesDir, f), dest);
-              copied.push(f);
-            }
-          }
-          if (typeof env === "string") {
-            // preserve any custom keys already in .env that this form doesn't manage
-            const envPath = path.join(cwd, ".env");
-            let finalEnv = env;
-            if (fs.existsSync(envPath)) {
-              const managed = new Set([...env.matchAll(/^\s*([A-Za-z0-9_]+)\s*=/gm)].map((m) => m[1]));
-              const extra = fs
-                .readFileSync(envPath, "utf8")
-                .split("\n")
-                .filter((line) => {
-                  const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=/);
-                  return m && !managed.has(m[1]);
-                });
-              if (extra.length) finalEnv = env.replace(/\n*$/, "\n") + extra.join("\n") + "\n";
-            }
-            fs.writeFileSync(envPath, finalEnv);
-          }
-          console.log(`${green("✔")} applied [${want.join(", ")}] — ${copied.length} file(s) copied, .env written`);
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ ok: true, copied, skipped, applied: want }));
-        } catch (e) {
-          res.statusCode = 400;
-          res.end(JSON.stringify({ ok: false, error: e.message }));
-        }
-      });
-      return;
-    }
-    res.statusCode = 404;
-    res.end("not found");
+  if (!fs.existsSync(path.join(cwd, "server.js"))) {
+    die(`No ${cyan("server.js")} here — run ${cyan("create-volt config")} from inside a Volt app.`);
+  }
+  if (portArg) process.env.PORT = String(Number(portArg) || "");
+  const res = spawnSync(process.execPath, ["server.js", "--edit"], {
+    cwd,
+    stdio: "inherit",
+    env: flags.has("--no-open") ? { ...process.env, VOLT_NO_OPEN: "1" } : process.env,
   });
-
-  const wanted = portArg ? Number(portArg) : 0;
-  server.listen(Number.isInteger(wanted) && wanted > 0 ? wanted : 0, host, () => {
-    const port = server.address().port;
-    const q = key ? `/?key=${key}` : "/";
-    console.log(`\n${bold("⚡ create-volt config")} — add-ons for ${dim(cwd)}\n`);
-    if (exposed) {
-      const lan = [];
-      for (const iface of Object.values(os.networkInterfaces())) {
-        for (const a of iface || []) if (a.family === "IPv4" && !a.internal) lan.push(a.address);
-      }
-      console.log("  Open (key-gated, reachable on your network):");
-      for (const ip of lan) console.log("    " + cyan(`http://${ip}:${port}${q}`));
-      console.log("    " + cyan(`http://localhost:${port}${q}`) + dim("   (this box)"));
-    } else {
-      const url = `http://localhost:${port}${q}`;
-      console.log("  Open: " + cyan(url));
-      const ssh = process.env.SSH_CONNECTION; // "clientIP clientPort serverIP serverPort"
-      const user = process.env.USER || process.env.USERNAME || "you";
-      const sshHost = ssh ? ssh.split(" ")[2] : os.hostname();
-      console.log(`  ${dim(ssh ? "Remote box — the server is up here; from your LOCAL machine run:" : "Remote box? from your local machine run:")}`);
-      console.log("    " + dim(`ssh -N -L 127.0.0.1:${port}:localhost:${port} ${user}@${sshHost}`));
-      console.log(`  ${dim(`…then open ${url} on your machine — shell access is the auth.`)}`);
-      console.log(`  ${dim("(LAN access instead: --host 0.0.0.0 — adds a key)")}`);
-    }
-    console.log(`\n  ${dim("Applies add-ons + writes .env here · Ctrl-C when done (disposable).")}\n`);
-  });
-  await new Promise(() => {}); // keep the server up; never fall through to scaffolding
+  process.exit(res.status ?? 0);
 }
 
 // Resolve the dev port: --port wins, else derive it from today's date as
@@ -377,6 +228,12 @@ fs.cpSync(templateDir, targetDir, { recursive: true });
 const shippedGitignore = path.join(targetDir, "gitignore");
 if (fs.existsSync(shippedGitignore)) {
   fs.renameSync(shippedGitignore, path.join(targetDir, ".gitignore"));
+}
+
+// Bundle the add-on sources so the app's setup wizard can enable them later
+// (only for templates that ship the wizard, i.e. have a setup/ dir).
+if (fs.existsSync(path.join(targetDir, "setup"))) {
+  fs.cpSync(path.join(__dirname, "addons"), path.join(targetDir, ".volt", "addons"), { recursive: true });
 }
 
 // --- stamp the project name into package.json ---
