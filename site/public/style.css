@@ -1,6 +1,7 @@
 :root { --bg:#0f1115; --panel:#161a22; --line:#232a36; --ink:#e7e9ee; --muted:#9aa4b2; --accent:#ffd24a; }
 body { background: var(--bg); color: var(--ink); }
 .brand { font-weight: 800; letter-spacing: -.02em; }
+.brand-logo { height: 24px; width: auto; margin-right: .4rem; }
 .accent { color: var(--accent); }
 .navx { background: rgba(17,21,28,.9); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
 .navx a { color: var(--muted); text-decoration: none; }

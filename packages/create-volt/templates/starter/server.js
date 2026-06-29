@@ -44,7 +44,7 @@ function availableAddons() {
   if (!fs.existsSync(ADDONS_DIR)) return [];
   return fs
     .readdirSync(ADDONS_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(ADDONS_DIR, e.name, "meta.json"))) // skip local 3rd-party add-ons (no meta)
     .map((e) => {
       const m = JSON.parse(fs.readFileSync(path.join(ADDONS_DIR, e.name, "meta.json"), "utf8"));
       return { name: e.name, description: m.description, dependsOn: m.dependsOn || [] };
@@ -56,9 +56,9 @@ function enabledFrom(env) {
   const metas = Object.fromEntries(availableAddons().map((a) => [a.name, a]));
   const out = new Set();
   const visit = (n) => {
-    if (!metas[n] || out.has(n)) return;
+    if (out.has(n)) return; // include third-party names too, not just bundled ones
     out.add(n);
-    for (const d of metas[n].dependsOn) visit(d);
+    for (const d of metas[n]?.dependsOn || []) visit(d);
   };
   for (const n of String(env.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean)) visit(n);
   return out;
@@ -66,6 +66,23 @@ function enabledFrom(env) {
 
 const imp = (rel) => import(pathToFileURL(path.join(__dirname, rel)).href);
 const addonMod = (n) => imp(path.join(".volt", "addons", n, "files", "lib", LIB_FILE[n]));
+
+// Built-in add-ons are wired explicitly below; everything else in VOLT_ADDONS is
+// a third-party add-on — a local .volt/addons/<name>/index.js or an installed
+// npm package "volt-addon-<name>" exporting register(ctx). See /docs/plugins.
+const BUILTINS = new Set(Object.keys(LIB_FILE));
+async function loadAddon(name) {
+  const local = path.join(__dirname, ".volt", "addons", name, "index.js");
+  if (fs.existsSync(local)) return imp(path.join(".volt", "addons", name, "index.js"));
+  for (const id of [`volt-addon-${name}`, name]) {
+    try {
+      return await import(id);
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
 
 function openBrowser(url) {
   if (process.env.VOLT_NO_OPEN || process.argv.includes("--no-open")) return false;
@@ -149,6 +166,18 @@ async function startApp() {
   const server = http.createServer(app);
   const io = new SocketServer(server);
   if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
+
+  // third-party add-ons — register(ctx) gets the app, io, store, mailer, and env
+  for (const name of enabled) {
+    if (BUILTINS.has(name)) continue;
+    const mod = await loadAddon(name);
+    const register = mod && (mod.register || mod.default);
+    if (typeof register === "function") {
+      await register({ app, express, io, store, mailer, env: process.env, log: (...a) => console.log(`[${name}]`, ...a) });
+    } else {
+      console.warn(`[volt] add-on "${name}" not found or missing a register() export — skipped`);
+    }
+  }
 
   let timer = null;
   const onChange = (file) => {

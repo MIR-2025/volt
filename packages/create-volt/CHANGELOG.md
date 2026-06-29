@@ -4,6 +4,23 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-06-29
+
+### Added
+- **Third-party add-ons (plugins) — the WordPress-plugin equivalent.** Any
+  `VOLT_ADDONS` entry that is not built-in is loaded from a local
+  `.volt/addons/<name>/index.js` or an installed npm package
+  `volt-addon-<name>`, and wired via a single `register(ctx)` export
+  (ctx = app, express, io, store, mailer, env, log). Install functionality as
+  small, owned packages instead of dashboard plugins.
+  - `create-volt add <name>` — install `volt-addon-<name>` and enable it.
+  - `create-volt create-addon <name>` — scaffold a publishable add-on package.
+  - New `/docs/plugins`.
+
+### Fixed
+- `availableAddons()` tolerates add-on directories without `meta.json` (so
+  local third-party add-ons do not break the wizard).
+
 ## [0.21.0] - 2026-06-29
 
 ### Added
@@ -301,6 +318,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.22.0]: https://github.com/MIR-2025/volt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/MIR-2025/volt/releases/tag/v0.21.0
 [0.20.0]: https://github.com/MIR-2025/volt/releases/tag/v0.20.0
 [0.19.0]: https://github.com/MIR-2025/volt/releases/tag/v0.19.0

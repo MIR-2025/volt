@@ -94,9 +94,93 @@ const force = flags.has("--force");
 const dryRun = flags.has("--dry-run");
 const noGit = flags.has("--no-git");
 
-// The `add` command was replaced by `config` — catch old muscle memory.
+// Scaffolded files for `create-addon` (a publishable third-party add-on).
+const ADDON_INDEX = [
+  'import path from "node:path";',
+  'import { fileURLToPath } from "node:url";',
+  "",
+  "const __dirname = path.dirname(fileURLToPath(import.meta.url));",
+  "",
+  "// A Volt add-on. register(ctx) runs once at startup.",
+  "//   ctx = { app, io, store, mailer, env, log, express }",
+  "//   - app:     the Express app (add routes)",
+  "//   - io:      Socket.io server (if the realtime add-on is on)",
+  "//   - store:   the database store (collection(name).{put,get,all,find,delete}) (if db is on)",
+  "//   - mailer:  send mail (if the mailer add-on is on)",
+  "//   - express: the host's Express — use express.static / express.Router without installing it",
+  "export function register({ app, express, store, log }) {",
+  '  // serve this add-on\'s frontend assets (public/) at /__NAME__',
+  '  app.use("/__NAME__", express.static(path.join(__dirname, "public")));',
+  "",
+  "  // a tiny example API",
+  '  app.get("/api/__NAME__/ping", (_req, res) => res.json({ ok: true, addon: "__NAME__" }));',
+  "",
+  '  log("ready");',
+  "}",
+  "",
+].join("\n");
+
+const ADDON_README = [
+  "# volt-addon-__NAME__",
+  "",
+  "A [Volt](https://voltjs.com) add-on.",
+  "",
+  "## Install (inside a Volt app)",
+  "",
+  "```",
+  "npx create-volt add __NAME__",
+  "```",
+  "",
+  "That installs this package and adds `__NAME__` to `VOLT_ADDONS` in `.env`.",
+  "",
+  "## Develop",
+  "",
+  "Edit `index.js` — implement `register(ctx)` (see the context it receives). Then:",
+  "",
+  "```",
+  "npm publish",
+  "```",
+  "",
+].join("\n");
+
+// --- `add` subcommand: install a third-party add-on and enable it ---
 if (positionals[0] === "add") {
-  die(`${cyan("add")} was replaced by ${cyan("create-volt config")} — run that to add integrations.`);
+  const name = positionals[1];
+  if (!name) die(`Usage: ${cyan("create-volt add <name>")} — installs ${cyan("volt-addon-<name>")} and enables it (run inside a Volt app).`);
+  const cwd = process.cwd();
+  if (!fs.existsSync(path.join(cwd, "server.js"))) die(`Run ${cyan("create-volt add")} from inside a Volt app (no ${cyan("server.js")} here).`);
+  const pkg = /^(@|volt-addon-)/.test(name) ? name : `volt-addon-${name}`;
+  const short = pkg.replace(/^@[^/]+\//, "").replace(/^volt-addon-/, "");
+  console.log(dim(`Installing ${pkg}…`));
+  const res = spawnSync("npm", ["install", pkg], { cwd, stdio: "inherit", shell: process.platform === "win32" });
+  if (res.status) die(`npm install ${pkg} failed.`);
+  const envPath = path.join(cwd, ".env");
+  let env = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : "";
+  const m = env.match(/^\s*VOLT_ADDONS\s*=(.*)$/m);
+  const list = (m ? m[1] : "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!list.includes(short)) list.push(short);
+  const line = `VOLT_ADDONS=${list.join(",")}`;
+  env = m ? env.replace(/^\s*VOLT_ADDONS\s*=.*$/m, line) : env.replace(/\n*$/, env ? "\n" : "") + line + "\n";
+  fs.writeFileSync(envPath, env);
+  console.log(`${cyan("✓ added")} ${short} — restart with ${cyan("npm run dev")}`);
+  process.exit(0);
+}
+
+// --- `create-addon` subcommand: scaffold a publishable third-party add-on ---
+if (positionals[0] === "create-addon") {
+  const name = positionals[1];
+  if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) die(`Usage: ${cyan("create-volt create-addon <name>")} — name: lowercase letters, numbers, hyphens.`);
+  const dir = path.resolve(`volt-addon-${name}`);
+  if (fs.existsSync(dir) && !flags.has("--force")) die(`${cyan(dir)} already exists (use ${cyan("--force")}).`);
+  fs.mkdirSync(path.join(dir, "public"), { recursive: true });
+  const pkgJson = { name: `volt-addon-${name}`, version: "0.1.0", description: `A Volt add-on: ${name}`, type: "module", main: "index.js", keywords: ["volt", "volt-addon"], files: ["index.js", "public"], license: "MIT" };
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(pkgJson, null, 2) + "\n");
+  fs.writeFileSync(path.join(dir, "index.js"), ADDON_INDEX.replace(/__NAME__/g, name));
+  fs.writeFileSync(path.join(dir, "README.md"), ADDON_README.replace(/__NAME__/g, name));
+  console.log(`${cyan("✓ created")} ${path.relative(process.cwd(), dir) || dir} — a Volt add-on.`);
+  console.log(dim(`  edit index.js (register), then publish:  cd volt-addon-${name} && npm publish`));
+  console.log(dim(`  users install with:  npx create-volt add ${name}`));
+  process.exit(0);
 }
 
 // --- `update` subcommand: refresh public/volt.js in the current app to the

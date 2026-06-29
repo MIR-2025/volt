@@ -13,12 +13,12 @@ import { home, build, compare, DOCS, docsPage, GH, NPM } from "./content.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 26628;
 const HOST = process.env.HOST || "127.0.0.1";
-const SITE_URL = process.env.SITE_URL || "https://volt.whitneys.co";
+const SITE_URL = process.env.SITE_URL || "https://voltjs.com";
 
 const nav = (active) => {
   const link = (href, label) => html`<a class="${active === href || (href !== "/" && active.startsWith(href)) ? "active" : ""}" href="${href}">${label}</a>`;
   return html`<nav class="navx py-2"><div class="container navbar-row" style="max-width:1000px">
-      <a class="brand h5 mb-0 accent" href="/">⚡ Volt</a>
+      <a class="brand h5 mb-0 accent d-inline-flex align-items-center" href="/"><img src="/logo.webp" alt="" class="brand-logo" />Volt</a>
       <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
       <label for="nav-toggle" class="nav-burger" aria-label="Toggle menu">☰</label>
       <div class="nav-links">
@@ -53,7 +53,8 @@ const doc = (page) => {
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="${page.title}" />
 <meta name="twitter:description" content="${page.desc}" />
-<link rel="icon" href="/favicon.svg" />
+<link rel="icon" type="image/webp" href="/favicon.webp" />
+<link rel="apple-touch-icon" href="/favicon.webp" />
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
 <link href="/style.css" rel="stylesheet" />
 </head><body>${nav(page.path)}<main class="container py-4" style="max-width:1000px">${page.body}</main>${footer()}<script type="module" src="/enhance.js"></script></body></html>`;

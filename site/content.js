@@ -149,6 +149,7 @@ const DOCS = [
   { id: "ssr", title: "Server rendering" },
   { id: "customize-with-ai", title: "Customize with AI" },
   { id: "add-ons", title: "Add-ons" },
+  { id: "plugins", title: "Add-ons & plugins (3rd-party)" },
   { id: "pages", title: "Markdown pages" },
   { id: "migrate", title: "Migrate from WordPress" },
   { id: "media", title: "Media uploads" },
