@@ -13,6 +13,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { datePort } from "./lib/date-port.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -364,12 +365,6 @@ if (positionals[0] === "studio") {
 // Resolve the dev port: --port wins, else derive it from today's date as
 // two-digit-year + month (no leading zero) + two-digit-day (house convention),
 // so apps scaffolded on different days don't collide on the same port.
-function datePort(d) {
-  const yy = String(d.getFullYear()).slice(-2);
-  const mm = String(d.getMonth() + 1);
-  const dd = String(d.getDate()).padStart(2, "0");
-  return Number(`${yy}${mm}${dd}`);
-}
 let port;
 if (portArg != null) {
   port = Number(portArg);
@@ -377,10 +372,7 @@ if (portArg != null) {
     die(`Invalid --port "${portArg}" — use a whole number between 1 and 65535.`);
   }
 } else {
-  port = datePort(new Date());
-  if (port > 65535) {
-    die(`The date-derived port (${port}) is above 65535 — pass --port <1-65535>.`);
-  }
+  port = datePort(new Date()); // always 1–65535 (see lib/date-port.js)
 }
 
 const rawName = positionals[0];

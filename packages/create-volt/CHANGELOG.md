@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-06-29
+
+### Fixed
+- **Date-derived default port is now valid year-round.** For Oct–Dec the
+  readable YY+M+DD form is 6 digits (e.g. `261010`) and exceeds the max TCP port
+  65535, so create-volt previously refused to scaffold without `--port`. It now
+  falls back to a deterministic in-range port `1024 + (YYYYMMDD % 64512)` when the
+  readable form overflows; Jan–Sep keep the readable port unchanged. Extracted to
+  `lib/date-port.js` and unit-tested.
+
 ## [0.28.0] - 2026-06-29
 
 ### Fixed
@@ -389,6 +399,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.29.0]: https://github.com/MIR-2025/volt/releases/tag/v0.29.0
 [0.28.0]: https://github.com/MIR-2025/volt/releases/tag/v0.28.0
 [0.27.0]: https://github.com/MIR-2025/volt/releases/tag/v0.27.0
 [0.26.0]: https://github.com/MIR-2025/volt/releases/tag/v0.26.0
