@@ -27,6 +27,7 @@ addEventListener("hashchange", () => {
   scrollTo(0, 0);
 });
 const inDocs = () => route().startsWith("#/docs");
+const inBuild = () => route().startsWith("#/build");
 
 // --- docs content ---
 const SECTIONS = [
@@ -183,7 +184,8 @@ const navbar = () =>
   html`<nav class="navx py-2">
     <div class="container d-flex align-items-center gap-3" style="max-width:1000px">
       <a class="brand h5 mb-0 accent" href="#/">⚡ Volt</a>
-      <a class=${() => (inDocs() ? "active ms-2" : "ms-2")} href="#/docs">Docs</a>
+      <a class=${() => (inBuild() ? "active ms-2" : "ms-2")} href="#/build">10-min demo</a>
+      <a class=${() => (inDocs() ? "active" : "")} href="#/docs">Docs</a>
       <a class="ms-auto" href=${GH} target="_blank" rel="noopener">GitHub</a>
       <a href=${NPM} target="_blank" rel="noopener">npm</a>
     </div>
@@ -198,8 +200,8 @@ const home = () =>
       <p class="lead2 fs-5 mb-4" style="max-width:680px;margin:0 auto">Scaffold an app in one command. Toggle auth, realtime, and a database from a config wizard. Ship — <strong>more secure than WordPress, simpler than the React stacks.</strong></p>
       <div style="max-width:520px;margin:0 auto">${cmd("npm create volt@latest my-app")}</div>
       <div class="mt-3">
-        <a class="btn btn-primary" href="#/docs">Read the docs →</a>
-        <a class="btn btn-outline-secondary ms-2" href=${GH} target="_blank" rel="noopener">Star on GitHub</a>
+        <a class="btn btn-primary" href="#/build">Build a login-protected CRUD app in 10 min →</a>
+        <a class="btn btn-outline-secondary ms-2" href="#/docs">Docs</a>
       </div>
     </div>
 
@@ -259,4 +261,75 @@ const footer = () =>
     </div>
   </footer>`;
 
-mount("#app", navbar(), () => (inDocs() ? docs() : home()), footer());
+const buildDemo = () =>
+  html`<div class="container py-5" style="max-width:820px">
+    <span class="badge-soft px-2 py-1 rounded small">the killer demo</span>
+    <h1 class="display-6 mt-2 mb-2">Build a <span class="accent">login-protected CRUD app</span><br />in 10 minutes — no build step.</h1>
+    <p class="lead2 fs-5">Magic-link auth, a per-user database, and a working CRUD UI. One command to a running app; the rest is just reading the ~40 lines that power it.</p>
+
+    <h2 class="h5 mt-4">1 · Scaffold it <span class="lead2 small">(~30s)</span></h2>
+    ${cmd("npm create volt@latest tasks -- --template starter")}
+    <p class="lead2">The <code>starter</code> ships with auth + a per-user CRUD already wired (the <strong>Account</strong> and <strong>Notes</strong> tabs). No build tool, no config to hand-write.</p>
+
+    <h2 class="h5 mt-4">2 · Run it <span class="lead2 small">(~1 min)</span></h2>
+    ${cmd("cd tasks && npm install && npm run dev")}
+    <p class="lead2">Open the app, click <strong>Account</strong>, enter your email. In dev the magic link is printed to your terminal — open it, confirm, and you're signed in. Now the <strong>Notes</strong> tab is your login-protected, per-user CRUD. <strong>That's a working app, ~90 seconds in.</strong></p>
+
+    <h2 class="h5 mt-4">3 · The entire backend <span class="lead2 small">(it's this small)</span></h2>
+    <p class="lead2">Auth is already on, so every route is one <code>guard</code> away from login-protected. The whole CRUD:</p>
+    ${codeblock(`import crypto from "node:crypto";
+
+const tasks = store.collection("tasks");   // memory · Mongo · MySQL · Postgres
+const guard = requireAuth(store);          // 401 unless signed in
+
+app.get("/api/tasks", guard, async (req, res) =>
+  res.json({ tasks: await tasks.find({ owner: req.user.email }) }));
+
+app.post("/api/tasks", guard, async (req, res) => {
+  const text = String(req.body.text || "").trim().slice(0, 500);
+  const t = { id: crypto.randomBytes(8).toString("hex"),
+              owner: req.user.email, text, done: false };
+  await tasks.put(t.id, t);
+  res.json({ ok: true, task: t });
+});
+
+app.delete("/api/tasks/:id", guard, async (req, res) => {
+  const t = await tasks.get(req.params.id);
+  if (t?.owner === req.user.email) await tasks.delete(req.params.id);
+  res.json({ ok: true });
+});`)}
+
+    <h2 class="h5 mt-4">4 · The entire frontend <span class="lead2 small">(no build, no JSX)</span></h2>
+    ${codeblock(`import { signal, html, mount } from "/volt.js";
+
+const tasks = signal([]), draft = signal("");
+const load = async () => tasks((await (await fetch("/api/tasks")).json()).tasks);
+const add  = async () => {
+  await fetch("/api/tasks", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: draft() }) });
+  draft(""); load();
+};
+const del = (id) => fetch("/api/tasks/" + id, { method: "DELETE" }).then(load);
+load();
+
+mount("#app", html\`
+  <input value=\${draft} oninput=\${(e) => draft(e.target.value)} placeholder="New task…" />
+  <button onclick=\${add}>Add</button>
+  \${() => tasks().map((t) => html\`<div>\${t.text} <button onclick=\${() => del(t.id)}>✕</button></div>\`)}
+\`);`)}
+    <p class="lead2">User input renders as escaped text nodes, so there's no XSS to think about. Edit, save — it hot-reloads. No bundler ran.</p>
+
+    <h2 class="h5 mt-4">5 · Make it production-grade <span class="lead2 small">(~2 min)</span></h2>
+    <p class="lead2">Swap the in-memory store for a real database from the wizard, and inspect your data — both are ephemeral, localhost-only tools:</p>
+    ${cmd("npm run dev -- --edit     # pick Postgres / MySQL / Mongo, set the URL")}
+    ${cmd("npm run dev -- --studio   # browse + edit your data")}
+    <p class="lead2">No code changes — the same <code>store.collection("tasks")</code> now talks to Postgres.</p>
+
+    <div class="card-x p-4 mt-4 text-center">
+      <p class="mb-2">That's a login-protected, per-user CRUD app over a real database — <strong>no build step, ~40 lines you can read.</strong></p>
+      <div style="max-width:520px;margin:0 auto">${cmd("npm create volt@latest tasks -- --template starter")}</div>
+    </div>
+  </div>`;
+
+mount("#app", navbar(), () => (inBuild() ? buildDemo() : inDocs() ? docs() : home()), footer());
