@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-06-29
+
+### Fixed
+- Wizard **Test connection** now installs the selected DB driver on demand
+  (mongodb / mysql2 / pg, at the pinned version) before testing — it used to fail
+  with "<driver> isn't installed" because the package is only added on Apply.
+  Also adds the missing `spawnSync` import.
+
 ## [0.27.0] - 2026-06-29
 
 ### Fixed
@@ -381,6 +389,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.28.0]: https://github.com/MIR-2025/volt/releases/tag/v0.28.0
 [0.27.0]: https://github.com/MIR-2025/volt/releases/tag/v0.27.0
 [0.26.0]: https://github.com/MIR-2025/volt/releases/tag/v0.26.0
 [0.25.0]: https://github.com/MIR-2025/volt/releases/tag/v0.25.0

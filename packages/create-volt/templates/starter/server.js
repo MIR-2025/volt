@@ -12,7 +12,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import express from "express";
 import { Server as SocketServer } from "socket.io";
@@ -234,6 +234,15 @@ function neededPackages(env) {
   return want.filter((p) => !deps[p]);
 }
 
+// Install a DB driver's package on demand (pinned), so the wizard's "Test
+// connection" works before Apply has installed it.
+function ensureDriverInstalled(driver) {
+  const pkg = { mongodb: "mongodb", mongo: "mongodb", mysql: "mysql2", postgres: "pg", postgresql: "pg", pg: "pg" }[String(driver || "").toLowerCase()];
+  if (!pkg || fs.existsSync(path.join(__dirname, "node_modules", pkg))) return;
+  console.log(`[volt] installing ${pkg} for the connection test…`);
+  spawnSync("npm", ["install", `${pkg}@${PKG_VERSIONS[pkg] || "latest"}`], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
+}
+
 // --- the disposable setup wizard (localhost only) ---
 function startSetup() {
   const PORT = Number(process.env.PORT) || Number(readEnvFile().PORT) || DEFAULT_PORT;
@@ -270,6 +279,7 @@ function startSetup() {
             if (env[k]) process.env[k] = env[k];
             else delete process.env[k];
           }
+          ensureDriverInstalled(process.env.DB_DRIVER); // install the driver first, so the test can connect
           const store = await (await addonMod("db")).createStore();
           await store.collection("__voltcheck").all();
           res.setHeader("Content-Type", "application/json");
