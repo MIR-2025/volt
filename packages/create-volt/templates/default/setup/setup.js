@@ -25,6 +25,9 @@ const state = signal({
   s3Secret: current.S3_SECRET || "",
   s3PublicBase: current.S3_PUBLIC_BASE || "",
   port: current.PORT || String(defaultPort),
+  // detect the admin's timezone from their browser (the wizard runs here), so
+  // dates render in their zone — not the server's (usually UTC on a host).
+  tz: current.SITE_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -46,6 +49,7 @@ const clean = (v) => String(v).replace(/[\r\n]/g, "").trim(); // one value per l
 function genEnv(s) {
   const eff = effective(s);
   const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${clean(s.port)}`];
+  if (s.tz) out.push(`SITE_TZ=${clean(s.tz)}`); // admin's timezone, for date display
   if (eff.includes("db")) {
     out.push(`DB_DRIVER=${clean(s.dbDriver)}`);
     if (s.dbDriver === "mongodb") {

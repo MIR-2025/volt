@@ -17,11 +17,15 @@ const tagsOf = (meta) => String(meta.tags || "").split(",").map((s) => s.trim())
 
 function fmtDate(d) {
   if (!d) return "";
-  // parse YYYY-MM-DD as *local* midnight (new Date("2026-06-28") is UTC → off by a
-  // day in negative-offset zones); fall back to Date() for full timestamps.
+  const opts = { year: "numeric", month: "long", day: "numeric" };
+  // A date-only value (YYYY-MM-DD) is a calendar day with no timezone — parse it
+  // as local midnight and render that day (new Date("2026-06-28") would be UTC →
+  // off by a day in negative-offset zones). A full timestamp is rendered in the
+  // admin's timezone (SITE_TZ, detected by the setup wizard), not the server's.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d).trim());
-  const t = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
-  return isNaN(t.getTime()) ? esc(d) : t.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("en-US", opts);
+  const t = new Date(d);
+  return isNaN(t.getTime()) ? esc(d) : t.toLocaleDateString("en-US", process.env.SITE_TZ ? { ...opts, timeZone: process.env.SITE_TZ } : opts);
 }
 
 function excerpt(p) {
