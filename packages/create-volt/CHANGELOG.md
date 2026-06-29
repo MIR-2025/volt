@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-06-29
+
+### Added
+- Plugin context now includes **`requireAuth`** and **`sessionFromReq`** (when the
+  auth add-on is on) so third-party add-ons can gate routes by login. Purely
+  additive — no change to defaults or security posture.
+
+### Note
+- New companion package **`volt-addon-editor`** (separate npm package): a
+  standing, role-gated RTEPro WYSIWYG editor that writes markdown pages. Mounts
+  only if `ADMIN_PATH` is set (**fail-closed**), behind magic-link auth + an
+  `ADMIN_EMAILS` allowlist; the secret path is obscurity *on top of* auth, never
+  instead. The AI key stays server-side via a key-injecting proxy. The core stays
+  no-standing-admin by default — install only where you want it
+  (`npx create-volt add editor`). See `/docs/editor`.
+
 ## [0.22.0] - 2026-06-29
 
 ### Added
@@ -318,6 +334,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.23.0]: https://github.com/MIR-2025/volt/releases/tag/v0.23.0
 [0.22.0]: https://github.com/MIR-2025/volt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/MIR-2025/volt/releases/tag/v0.21.0
 [0.20.0]: https://github.com/MIR-2025/volt/releases/tag/v0.20.0

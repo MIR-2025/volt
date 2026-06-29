@@ -167,13 +167,21 @@ async function startApp() {
   const io = new SocketServer(server);
   if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
 
-  // third-party add-ons — register(ctx) gets the app, io, store, mailer, and env
+  // third-party add-ons — register(ctx). When auth is on, requireAuth/sessionFromReq
+  // are provided so add-ons can gate routes by login.
+  let requireAuth = null;
+  let sessionFromReq = null;
+  if (enabled.has("auth") && store) {
+    const a = await addonMod("auth");
+    requireAuth = a.requireAuth(store);
+    sessionFromReq = (req) => a.sessionFromReq(store, req);
+  }
   for (const name of enabled) {
     if (BUILTINS.has(name)) continue;
     const mod = await loadAddon(name);
     const register = mod && (mod.register || mod.default);
     if (typeof register === "function") {
-      await register({ app, express, io, store, mailer, env: process.env, log: (...a) => console.log(`[${name}]`, ...a) });
+      await register({ app, express, io, store, mailer, env: process.env, requireAuth, sessionFromReq, log: (...a) => console.log(`[${name}]`, ...a) });
     } else {
       console.warn(`[volt] add-on "${name}" not found or missing a register() export — skipped`);
     }
