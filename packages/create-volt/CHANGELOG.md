@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-06-29
+
+### Added
+- **Per-page SEO on the `pages` add-on** — front-matter now drives the page head:
+  `description` (meta description + og:description), `image` (og:image), `type`
+  (og:type), `canonical`, and **`jsonld`** (a one-line JSON string rendered into a
+  validated `<script type="application/ld+json">` block, with `<` escaped to
+  prevent breakout). Open Graph + Twitter + JSON-LD per page — the Yoast-style SEO
+  a migrated WordPress site expects. `volt-addon-editor` 0.4.0 adds a SEO panel to
+  set these from the editor.
+
 ## [0.24.0] - 2026-06-29
 
 ### Added
@@ -343,6 +354,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.25.0]: https://github.com/MIR-2025/volt/releases/tag/v0.25.0
 [0.24.0]: https://github.com/MIR-2025/volt/releases/tag/v0.24.0
 [0.23.0]: https://github.com/MIR-2025/volt/releases/tag/v0.23.0
 [0.22.0]: https://github.com/MIR-2025/volt/releases/tag/v0.22.0

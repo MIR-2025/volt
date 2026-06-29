@@ -32,6 +32,9 @@ async function load(slug) {
   $("#slug").value = slug;
   $("#title").value = d.title || slug;
   if (d.format) $("#fmt").value = d.format;
+  $("#desc").value = d.description || "";
+  $("#img").value = d.image || "";
+  $("#jsonld").value = d.jsonld || "";
   ed.setHTML(d.html || "");
   $("#msg").textContent = "Editing " + slug;
 }
@@ -39,6 +42,9 @@ async function load(slug) {
 function newPage() {
   $("#slug").value = "";
   $("#title").value = "";
+  $("#desc").value = "";
+  $("#img").value = "";
+  $("#jsonld").value = "";
   ed.setHTML("");
   $("#msg").textContent = "New page";
 }
@@ -47,7 +53,8 @@ async function save() {
   const slug = ($("#slug").value || "").trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return ($("#msg").textContent = "Slug must be lowercase letters, numbers, hyphens.");
   const fmt = ($("#fmt") || {}).value || "html";
-  const payload = fmt === "markdown" ? { slug, title: $("#title").value, markdown: ed.getMarkdown() } : { slug, title: $("#title").value, html: ed.getHTML() };
+  const seo = { description: $("#desc").value, image: $("#img").value, jsonld: $("#jsonld").value };
+  const payload = fmt === "markdown" ? { slug, title: $("#title").value, markdown: ed.getMarkdown(), ...seo } : { slug, title: $("#title").value, html: ed.getHTML(), ...seo };
   const res = await (
     await fetch(base + "/api/page", {
       method: "POST",

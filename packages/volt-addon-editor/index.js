@@ -39,6 +39,11 @@ const EDITOR_HTML = (base, provider) => `<!doctype html><html lang="en"><head>
       </select>
       <button id="save" class="btn btn-primary">Save</button>
     </div>
+    <details class="mb-2"><summary class="text-muted small" style="cursor:pointer">SEO &amp; social — Open Graph + JSON-LD</summary>
+      <input id="desc" class="form-control my-1" placeholder="Meta description (og:description)" />
+      <input id="img" class="form-control my-1" placeholder="og:image URL — e.g. /media/og.webp" />
+      <textarea id="jsonld" class="form-control my-1" rows="4" placeholder='JSON-LD, e.g. {"@context":"https://schema.org","@type":"Article","headline":"…"}'></textarea>
+    </details>
     <div id="editor"></div>
     <p id="msg" class="small text-muted mt-2"></p>
   </div>
@@ -84,19 +89,16 @@ export function register({ app, express, env, requireAuth, log }) {
     if (!fs.existsSync(file)) return res.json({ ok: true, slug, title: "", html: "" });
     const src = fs.readFileSync(file, "utf8");
     const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
-    let title = "";
-    let format = "";
-    let body = src;
-    if (m) {
-      body = src.slice(m[0].length);
-      const tm = m[1].match(/title:\s*(.+)/);
-      if (tm) title = tm[1].trim();
-      const ff = m[1].match(/format:\s*(.+)/);
-      if (ff) format = ff[1].trim();
-    }
+    const body = m ? src.slice(m[0].length) : src;
+    const fmText = m ? m[1] : "";
+    const field = (k) => {
+      const mm = fmText.match(new RegExp("^" + k + ":\\s*(.+)$", "m"));
+      return mm ? mm[1].trim() : "";
+    };
+    const format = field("format") === "html" ? "html" : "markdown";
     // editor loads HTML into RTEPro.setHTML(); html pages pass through verbatim,
     // markdown pages are rendered so they show formatted in the editor.
-    res.json({ ok: true, slug, title, format: format === "html" ? "html" : "markdown", html: format === "html" ? body : marked.parse(body) });
+    res.json({ ok: true, slug, title: field("title"), format, description: field("description"), image: field("image"), jsonld: field("jsonld"), html: format === "html" ? body : marked.parse(body) });
   });
 
   app.post(base + "/api/page", gate, json, (req, res) => {
@@ -108,9 +110,20 @@ export function register({ app, express, env, requireAuth, log }) {
     // multi-column/styled layouts.
     const isHtml = typeof req.body?.html === "string";
     const body = String(isHtml ? req.body.html : (req.body?.markdown ?? ""));
-    const fm = isHtml ? `---\ntitle: ${title}\nformat: html\n---\n\n` : `---\ntitle: ${title}\n---\n\n`;
+    const oneLine = (v, n) => String(v).replace(/[\r\n]+/g, " ").trim().slice(0, n);
+    const fmLines = [`title: ${title}`];
+    if (req.body?.description) fmLines.push(`description: ${oneLine(req.body.description, 300)}`);
+    if (req.body?.image) fmLines.push(`image: ${oneLine(req.body.image, 500)}`);
+    if (req.body?.jsonld) {
+      try {
+        fmLines.push(`jsonld: ${JSON.stringify(JSON.parse(req.body.jsonld))}`); // validated + collapsed to one line
+      } catch {
+        return res.status(400).json({ ok: false, error: "JSON-LD is not valid JSON" });
+      }
+    }
+    if (isHtml) fmLines.push("format: html");
     fs.mkdirSync(pagesDir, { recursive: true });
-    fs.writeFileSync(path.join(pagesDir, slug + ".md"), fm + body + "\n");
+    fs.writeFileSync(path.join(pagesDir, slug + ".md"), `---\n${fmLines.join("\n")}\n---\n\n${body}\n`);
     res.json({ ok: true, url: "/" + slug, format: isHtml ? "html" : "markdown" });
   });
 

@@ -50,10 +50,39 @@ export function parseFrontMatter(src) {
 // slugs are restricted to a safe charset — no dots/slashes → no path traversal
 export const isSafeSlug = (s) => /^[a-z0-9][a-z0-9-]*$/i.test(s);
 
-function shell(title, inner) {
+// SEO/social head from front-matter: description, image, type, canonical, jsonld.
+function metaHead(meta) {
+  const t = [];
+  const title = meta.title || "";
+  const desc = meta.description || "";
+  if (title) t.push(`<meta property="og:title" content="${esc(title)}" />`);
+  if (desc) {
+    t.push(`<meta name="description" content="${esc(desc)}" />`);
+    t.push(`<meta property="og:description" content="${esc(desc)}" />`);
+  }
+  t.push(`<meta property="og:type" content="${esc(meta.type || "website")}" />`);
+  if (meta.image) t.push(`<meta property="og:image" content="${esc(meta.image)}" />`);
+  if (meta.url || meta.canonical) t.push(`<meta property="og:url" content="${esc(meta.url || meta.canonical)}" />`);
+  if (meta.canonical) t.push(`<link rel="canonical" href="${esc(meta.canonical)}" />`);
+  t.push(`<meta name="twitter:card" content="${meta.image ? "summary_large_image" : "summary"}" />`);
+  if (meta.jsonld) {
+    let ok = false;
+    try {
+      JSON.parse(meta.jsonld);
+      ok = true;
+    } catch {
+      /* invalid JSON-LD → skip */
+    }
+    if (ok) t.push(`<script type="application/ld+json">${meta.jsonld.replace(/</g, "\\u003c")}</script>`);
+  }
+  return t.join("\n");
+}
+
+function shell(meta, inner) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(title)}</title>
+<title>${esc(meta.title || "")}</title>
+${metaHead(meta)}
 <style>
 :root { color-scheme: light dark }
 body { max-width: 720px; margin: 2.5rem auto; padding: 0 1.1rem; font: 17px/1.7 system-ui, -apple-system, sans-serif; }
@@ -81,7 +110,7 @@ export async function pagesRouter({ dir }) {
     // `format: html` pages (e.g. from the WYSIWYG editor) are served verbatim to
     // preserve complex layouts; everything else is markdown rendered with marked.
     const inner = meta.format === "html" ? body : marked.parse(body);
-    res.type("html").send(shell(meta.title || slug, inner));
+    res.type("html").send(shell({ ...meta, title: meta.title || slug }, inner));
   });
   return r;
 }
