@@ -23,3 +23,17 @@ jobs:
         run: npm test
       - name: Smoke test (scaffold → install → boot → serve)
         run: npm run smoke
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: DOM tests in a real headless browser
+        run: node scripts/browser-test.mjs
+        env:
+          BROWSER: ${{ steps.chrome.outputs.chrome-path }}
