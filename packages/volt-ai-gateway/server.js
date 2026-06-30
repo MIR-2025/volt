@@ -203,6 +203,28 @@ app.delete("/admin/tokens/:token", admin, (req, res) => {
   res.json({ ok: true, removed: n - tokens.length });
 });
 
+// --- public self-service registration: any app can mint a free-tier token from
+// its config wizard. Rate-limited per IP; the global daily cap bounds total spend
+// regardless of how many tokens exist. (Revoke abusers via /admin.) ---
+const regHits = new Map();
+function regAllowed(ip) {
+  const now = Date.now();
+  const cut = now - 60000;
+  const a = (regHits.get(ip) || []).filter((t) => t > cut);
+  a.push(now);
+  regHits.set(ip, a);
+  if (regHits.size > 5000) for (const [k, v] of regHits) if (!v.some((t) => t > cut)) regHits.delete(k);
+  return a.length <= 5;
+}
+app.post("/api/register", (req, res) => {
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
+  if (!regAllowed(ip)) return res.status(429).json({ ok: false, error: "rate limit — try again shortly" });
+  const rec = { token: "volt_" + crypto.randomBytes(24).toString("base64url"), app: String(req.body?.app || "app").slice(0, 64), dailyCap: DEFAULT_APP_DAILY_CAP, tier: "free", creditBalanceUsd: 0, disabled: false, createdAt: today() };
+  tokens.push(rec);
+  save(TOK_FILE, tokens);
+  res.json({ ok: true, token: rec.token, tier: "free", dailyCap: rec.dailyCap });
+});
+
 // --- the proxy: validate token → check caps → forward → stream → meter ---
 app.post("/api/ai", async (req, res) => {
   const auth = req.headers.authorization || "";
