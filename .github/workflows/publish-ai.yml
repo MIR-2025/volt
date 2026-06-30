@@ -1,0 +1,27 @@
+name: Publish volt-addon-ai to npm
+
+# Publishes volt-addon-ai on an ai tag (e.g. ai-v0.1.0).
+#   git tag ai-v0.1.0 && git push origin ai-v0.1.0
+# Configure a Trusted Publisher on npmjs.com for volt-addon-ai:
+#   owner MIR-2025 · repository volt · workflow publish-ai.yml · environment (blank)
+on:
+  push:
+    tags:
+      - "ai-v*"
+
+permissions:
+  contents: read
+  id-token: write # npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Upgrade npm (Trusted Publishing needs >= 11.5)
+        run: npm install -g npm@latest
+      - name: Publish
+        run: npm publish -w volt-addon-ai --provenance --access public

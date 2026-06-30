@@ -1,0 +1,15 @@
+{
+  "name": "volt-addon-ai",
+  "version": "0.1.0",
+  "description": "Server-side AI proxy for Volt — the key never reaches the browser. BYO Anthropic key, or proxy through the voltjs.com hosted gateway with a revocable per-app token. Rate-limited, max_tokens-capped, optional auth gate.",
+  "type": "module",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MIR-2025/volt.git",
+    "directory": "packages/volt-addon-ai"
+  },
+  "keywords": ["volt", "volt-addon", "ai", "anthropic", "claude", "proxy", "gateway"],
+  "files": ["index.js"],
+  "license": "MIT"
+}
