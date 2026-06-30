@@ -1,0 +1,13 @@
+{
+  "name": "volt-addon-logs",
+  "version": "0.1.0",
+  "description": "A gated log viewer for Volt: tail pm2 stdout/stderr, and (with mir-sentinel) parse Apache/nginx access logs into analytics. Behind a secret ADMIN_PATH + magic-link auth + an allowlist.",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["volt", "volt-addon", "logs", "pm2", "log-viewer", "mir-sentinel"],
+  "files": ["index.js", "public"],
+  "optionalDependencies": {
+    "mir-sentinel": "^1.0.0"
+  },
+  "license": "MIT"
+}

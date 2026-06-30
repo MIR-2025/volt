@@ -1,0 +1,27 @@
+name: Publish volt-addon-logs to npm
+
+# Publishes volt-addon-logs on a logs tag (e.g. logs-v0.1.0).
+#   git tag logs-v0.1.0 && git push origin logs-v0.1.0
+# Configure a Trusted Publisher on npmjs.com for volt-addon-logs:
+#   owner MIR-2025 · repo volt · workflow publish-logs.yml · environment (blank)
+on:
+  push:
+    tags:
+      - "logs-v*"
+
+permissions:
+  contents: read
+  id-token: write # npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Upgrade npm (Trusted Publishing needs >= 11.5)
+        run: npm install -g npm@latest
+      - name: Publish
+        run: npm publish -w volt-addon-logs --provenance --access public
