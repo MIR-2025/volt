@@ -210,6 +210,13 @@ async function startApp() {
   const io = new SocketServer(server);
   if (enabled.has("realtime") && store) (await addonMod("realtime")).attachRealtime(io, { store });
 
+  // Reload connected browsers on demand — used when a second `npm run dev` finds
+  // the app already running (see the EADDRINUSE handler below) instead of crashing.
+  app.get("/__volt/reload", (_req, res) => {
+    io.emit("volt:reload", { file: "__manual__" });
+    res.json({ ok: true });
+  });
+
   // third-party add-ons Ã¢ÂÂ register(ctx). When auth is on, requireAuth/sessionFromReq
   // are provided so add-ons can gate routes by login.
   let requireAuth = null;
@@ -263,6 +270,20 @@ async function startApp() {
   }
 
   const on = [...enabled];
+  // If the port's taken, the app is likely already running — reload it (tell the
+  // running instance to refresh browsers) and exit, instead of an EADDRINUSE crash.
+  server.on("error", async (e) => {
+    if (e.code === "EADDRINUSE") {
+      try {
+        await fetch(`http://localhost:${PORT}/__volt/reload`);
+      } catch {
+        /* old instance without the reload route, or not ours */
+      }
+      console.log(`\n[volt] already running at http://localhost:${PORT} — reloaded it. (Stop that process, or use pm2, to restart.)`);
+      process.exit(0);
+    }
+    throw e;
+  });
   server.listen(PORT, () => console.log(`Ã¢ÂÂ¡ Volt Ã¢ÂÂ http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
 }
 

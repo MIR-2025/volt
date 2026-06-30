@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.41.0] - 2026-06-30
+
+### Added
+- **PM2 support.** Scaffolds ship `ecosystem.config.cjs` + scripts: `npm run pm2`
+  (start under pm2 — fetched via npx if not installed, or uses your global pm2),
+  `pm2:restart` (clean reload, no port clash), `pm2:logs`, `pm2:stop`.
+- **`npm run dev` on an already-running app reloads it instead of crashing.** A
+  second start detects the in-use port, pings the running instance's new
+  `/__volt/reload` route to refresh browsers, prints a note, and exits 0 — no
+  more `EADDRINUSE` stack trace.
+
 ## [0.40.0] - 2026-06-30
 
 ### Added
@@ -537,6 +548,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.41.0]: https://github.com/MIR-2025/volt/releases/tag/v0.41.0
 [0.40.0]: https://github.com/MIR-2025/volt/releases/tag/v0.40.0
 [0.39.1]: https://github.com/MIR-2025/volt/releases/tag/v0.39.1
 [0.39.0]: https://github.com/MIR-2025/volt/releases/tag/v0.39.0
