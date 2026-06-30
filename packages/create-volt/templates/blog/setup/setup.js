@@ -284,6 +284,21 @@ async function doUpgrade() {
     status("Upgrade request failed.");
   }
 }
+
+// AI credits — config-only purchase flow (gateway mode). Hidden unless a
+// VOLT_AI_TOKEN is set and the gateway answers.
+const aiCredits = signal(null); // { ok, tier, creditBalanceUsd, payments } | { ok:false }
+fetch("/setup/ai-credits").then((r) => r.json()).then((c) => aiCredits(c)).catch(() => {});
+async function buyCredits(amountUsd) {
+  status("Starting checkout…");
+  try {
+    const r = await (await fetch("/setup/ai-credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd }) })).json();
+    if (r.ok && r.url) window.open(r.url, "_blank");
+    else status("Checkout failed: " + (r.error || "?"));
+  } catch {
+    status("Checkout request failed.");
+  }
+}
 const items = signal({ pages: [], posts: [] });
 const editing = signal(null); // { type, slug, body, isNew } — set only on open/save/close, so typing doesn't re-render
 const loadItems = async () => items(await (await fetch("/setup/content")).json());
@@ -339,6 +354,7 @@ const manageView = () =>
 
 const configView = () =>
   html`${() => (upgrade()?.available ? html`<div class="card-x p-3 mb-3 d-flex justify-content-between align-items-center"><span class="small">⬆ <strong>create-volt ${upgrade().latest}</strong> is available — you have ${upgrade().current}.</span><button class="btn btn-sm btn-primary" onclick=${doUpgrade}>Upgrade</button></div>` : "")}
+    ${() => (aiCredits()?.ok ? html`<div class="card-x p-3 mb-3"><div class="d-flex justify-content-between align-items-center mb-2"><strong>AI credits</strong><span class="small text-muted">${aiCredits().tier}${typeof aiCredits().creditBalanceUsd === "number" ? ` · $${aiCredits().creditBalanceUsd.toFixed(2)} left` : ""}</span></div>${aiCredits().payments ? html`<div class="d-flex gap-2 align-items-center"><span class="small text-muted me-1">Top up:</span>${[10, 25, 50].map((a) => html`<button class="btn btn-sm btn-outline-primary" onclick=${() => buyCredits(a)}>$${a}</button>`)}</div>` : html`<div class="small text-muted">Pay-as-you-go isn't enabled on the gateway yet — using the free tier.</div>`}</div>` : "")}
     ${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
     <div class="card-x p-4 mb-3">
       <h2 class="h6 mb-3">Settings</h2>

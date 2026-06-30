@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.45.0] - 2026-06-29
+
+### Added
+- **Buy AI credits from the config wizard.** When an app uses the hosted gateway
+  (`VOLT_AI_TOKEN` set), the `--edit` wizard shows an **AI credits** card — live
+  balance + tier, and top-up buttons that open Stripe Checkout. The purchase flow
+  lives in the (shell-gated) config only; the running app never exposes it.
+  Proxied via `/setup/ai-credits` + `/setup/ai-credits/checkout` to the gateway.
+
 ## [0.44.0] - 2026-06-29
 
 ### Added
@@ -584,6 +593,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.45.0]: https://github.com/MIR-2025/volt/releases/tag/v0.45.0
 [0.44.0]: https://github.com/MIR-2025/volt/releases/tag/v0.44.0
 [0.43.0]: https://github.com/MIR-2025/volt/releases/tag/v0.43.0
 [0.42.0]: https://github.com/MIR-2025/volt/releases/tag/v0.42.0

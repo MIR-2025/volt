@@ -367,6 +367,42 @@ function startSetup() {
       }
       return;
     }
+    // --- AI credits: in-config purchase flow. Proxies the hosted gateway with
+    // the app's VOLT_AI_TOKEN — the buy flow lives here in the (shell-gated)
+    // config only, never in the running app. ---
+    if (req.method === "GET" && p === "/setup/ai-credits") {
+      const env = readEnvFile();
+      res.setHeader("Content-Type", "application/json");
+      if (!env.VOLT_AI_TOKEN) return res.end(JSON.stringify({ ok: false, error: "no VOLT_AI_TOKEN (BYO or unset)" }));
+      const base = (env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai").replace(/\/api\/ai\/?$/, "");
+      fetch(base + "/api/credits", { headers: { authorization: "Bearer " + env.VOLT_AI_TOKEN } })
+        .then((r) => r.json())
+        .then((j) => res.end(JSON.stringify(j)))
+        .catch(() => res.end(JSON.stringify({ ok: false, error: "gateway unreachable" })));
+      return;
+    }
+    if (req.method === "POST" && p === "/setup/ai-credits/checkout") {
+      let cbody = "";
+      req.on("data", (c) => (cbody += c));
+      req.on("end", () => {
+        const env = readEnvFile();
+        res.setHeader("Content-Type", "application/json");
+        if (!env.VOLT_AI_TOKEN) return res.end(JSON.stringify({ ok: false, error: "no VOLT_AI_TOKEN" }));
+        const base = (env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai").replace(/\/api\/ai\/?$/, "");
+        let amountUsd = 0;
+        try {
+          amountUsd = Number(JSON.parse(cbody || "{}").amountUsd) || 0;
+        } catch {
+          /* bad json */
+        }
+        const baseUrl = env.SITE_URL || `http://localhost:${configPort()}`;
+        fetch(base + "/api/credits/checkout", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.VOLT_AI_TOKEN }, body: JSON.stringify({ amountUsd, baseUrl }) })
+          .then((r) => r.json())
+          .then((j) => res.end(JSON.stringify(j)))
+          .catch(() => res.end(JSON.stringify({ ok: false, error: "gateway unreachable" })));
+      });
+      return;
+    }
     // --- content manager: list / read / write / delete pages + posts ---
     if (req.method === "GET" && p === "/setup/content") {
       const list = (type) => {
