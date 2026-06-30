@@ -1,0 +1,177 @@
+// volt-ai-gateway — the voltjs.com hosted AI gateway.
+//
+// The real Anthropic key lives ONLY here (a capped Workspace key). Volt apps send
+// a per-app Bearer token (VOLT_AI_TOKEN); the gateway validates it, checks the
+// app's daily cap and a global daily cap, forwards to Anthropic with the real key,
+// streams the SSE back, and meters tokens used. Apps never see the key; you can
+// revoke any app's token without touching it.
+//
+// Admin (issue/list/disable/revoke tokens) is behind ADMIN_TOKEN.
+//
+// .env (see .env.example):
+//   ANTHROPIC_API_KEY        the capped Workspace key (server-side, here only)
+//   ADMIN_TOKEN              bearer for /admin/* (issue + revoke app tokens)
+//   GLOBAL_DAILY_TOKEN_CAP   hard ceiling across all apps/day (default 5,000,000)
+//   DEFAULT_APP_DAILY_CAP    default per-app tokens/day when issuing (default 100,000)
+//   AI_MODEL                 default model (default claude-haiku-4-5)
+//   AI_MAX_TOKENS            per-request max_tokens clamp (default 1024)
+//   PORT                     listen port (default 8787)
+//   DATA_DIR                 token/usage store dir (default ./data)
+//   ANTHROPIC_URL            override upstream (tests only)
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import express from "express";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT) || 8787;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+const GLOBAL_DAILY_TOKEN_CAP = Number(process.env.GLOBAL_DAILY_TOKEN_CAP) || 5_000_000;
+const DEFAULT_APP_DAILY_CAP = Number(process.env.DEFAULT_APP_DAILY_CAP) || 100_000;
+const MODEL_DEFAULT = process.env.AI_MODEL || "claude-haiku-4-5";
+const MAX_TOKENS_CAP = Number(process.env.AI_MAX_TOKENS) || 1024;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const ANTHROPIC_URL = process.env.ANTHROPIC_URL || "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+
+if (!ANTHROPIC_API_KEY) {
+  console.error("volt-ai-gateway: set ANTHROPIC_API_KEY (the capped Workspace key).");
+  process.exit(1);
+}
+if (!ADMIN_TOKEN) {
+  console.error("volt-ai-gateway: set ADMIN_TOKEN (to issue/revoke app tokens).");
+  process.exit(1);
+}
+
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const TOK_FILE = path.join(DATA_DIR, "tokens.json");
+const USE_FILE = path.join(DATA_DIR, "usage.json");
+const load = (f, d) => {
+  try {
+    return JSON.parse(fs.readFileSync(f, "utf8"));
+  } catch {
+    return d;
+  }
+};
+const save = (f, v) => fs.writeFileSync(f, JSON.stringify(v, null, 2));
+let tokens = load(TOK_FILE, []); // [{ token, app, dailyCap, disabled, createdAt }]
+let usage = load(USE_FILE, { global: { day: "", tokens: 0 }, perToken: {} });
+
+const today = () => new Date().toISOString().slice(0, 10);
+function rollDay() {
+  const d = today();
+  if (usage.global.day !== d) usage.global = { day: d, tokens: 0 };
+  for (const t of Object.keys(usage.perToken)) if (usage.perToken[t].day !== d) usage.perToken[t] = { day: d, tokens: 0 };
+}
+function record(token, n) {
+  if (!n) return;
+  rollDay();
+  usage.global.tokens += n;
+  usage.perToken[token] = usage.perToken[token] || { day: today(), tokens: 0 };
+  usage.perToken[token].tokens += n;
+  save(USE_FILE, usage);
+}
+const usedToday = (token) => (usage.perToken[token]?.day === today() ? usage.perToken[token].tokens : 0);
+
+const app = express();
+app.disable("x-powered-by");
+app.use(express.json({ limit: "256kb" }));
+
+// --- admin: issue / list / disable / revoke app tokens ---
+const admin = (req, res, next) => {
+  if ((req.headers.authorization || "") !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: "admin token required" });
+  next();
+};
+app.post("/admin/tokens", admin, (req, res) => {
+  const { app: appName, dailyCap } = req.body || {};
+  if (!appName) return res.status(400).json({ error: "app name required" });
+  const rec = { token: "volt_" + crypto.randomBytes(24).toString("base64url"), app: String(appName), dailyCap: Number(dailyCap) || DEFAULT_APP_DAILY_CAP, disabled: false, createdAt: today() };
+  tokens.push(rec);
+  save(TOK_FILE, tokens);
+  res.json({ ok: true, ...rec });
+});
+app.get("/admin/tokens", admin, (_req, res) => {
+  rollDay();
+  res.json({
+    tokens: tokens.map((t) => ({ app: t.app, token: t.token, dailyCap: t.dailyCap, disabled: t.disabled, createdAt: t.createdAt, usedToday: usedToday(t.token) })),
+    global: { day: usage.global.day, tokens: usage.global.tokens, cap: GLOBAL_DAILY_TOKEN_CAP },
+  });
+});
+app.post("/admin/tokens/:token/:action(disable|enable)", admin, (req, res) => {
+  const t = tokens.find((x) => x.token === req.params.token);
+  if (!t) return res.status(404).json({ error: "not found" });
+  t.disabled = req.params.action === "disable";
+  save(TOK_FILE, tokens);
+  res.json({ ok: true, disabled: t.disabled });
+});
+app.delete("/admin/tokens/:token", admin, (req, res) => {
+  const n = tokens.length;
+  tokens = tokens.filter((x) => x.token !== req.params.token);
+  save(TOK_FILE, tokens);
+  res.json({ ok: true, removed: n - tokens.length });
+});
+
+// --- the proxy: validate token → check caps → forward → stream → meter ---
+app.post("/api/ai", async (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const rec = tokens.find((t) => t.token === token);
+  if (!rec) return res.status(401).json({ error: "invalid token" });
+  if (rec.disabled) return res.status(403).json({ error: "token disabled" });
+  rollDay();
+  if (usage.global.tokens >= GLOBAL_DAILY_TOKEN_CAP) return res.status(503).json({ error: "global daily cap reached — try later" });
+  if (usedToday(token) >= rec.dailyCap) return res.status(429).json({ error: "app daily cap reached" });
+
+  const { messages, system, max_tokens, model } = req.body || {};
+  if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: "messages[] required" });
+  const payload = {
+    model: model || MODEL_DEFAULT,
+    max_tokens: Math.min(Number(max_tokens) || MAX_TOKENS_CAP, MAX_TOKENS_CAP),
+    messages,
+    ...(system ? { system } : {}),
+    stream: true,
+  };
+
+  try {
+    const up = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": ANTHROPIC_VERSION },
+      body: JSON.stringify(payload),
+    });
+    if (!up.ok || !up.body) {
+      const detail = await up.text().catch(() => "");
+      return res.status(up.status || 502).type("application/json").send(detail || JSON.stringify({ error: "upstream error" }));
+    }
+    res.setHeader("Content-Type", up.headers.get("content-type") || "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    const reader = up.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = dec.decode(value, { stream: true });
+      buf += chunk;
+      res.write(chunk);
+    }
+    res.end();
+    // meter from Anthropic's SSE usage fields (input from message_start, last
+    // cumulative output from message_delta).
+    const inTok = Number((buf.match(/"input_tokens":\s*(\d+)/) || [])[1] || 0);
+    const outs = [...buf.matchAll(/"output_tokens":\s*(\d+)/g)];
+    const outTok = outs.length ? Number(outs[outs.length - 1][1]) : 0;
+    record(token, inTok + outTok);
+  } catch {
+    if (!res.headersSent) res.status(502).json({ error: "proxy failed" });
+    else res.end();
+  }
+});
+
+app.get("/health", (_req, res) => {
+  rollDay();
+  res.json({ ok: true, model: MODEL_DEFAULT, globalUsed: usage.global.tokens, globalCap: GLOBAL_DAILY_TOKEN_CAP, apps: tokens.length, maxTokens: MAX_TOKENS_CAP });
+});
+
+app.listen(PORT, () => console.log(`volt-ai-gateway on :${PORT} — model ${MODEL_DEFAULT}, global cap ${GLOBAL_DAILY_TOKEN_CAP}/day, max_tokens<=${MAX_TOKENS_CAP}, ${tokens.length} app token(s)`));
