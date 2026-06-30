@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -31,7 +31,7 @@
     (function () {
       const root = document.documentElement;
       const btn = document.getElementById("theme-toggle");
-      const apply = (t) => { root.setAttribute("data-theme", t); btn.textContent = t === "light" ? "Dark mode" : "Light mode"; };
+      const apply = (t) => { root.setAttribute("data-theme", t); root.setAttribute("data-bs-theme", t); btn.textContent = t === "light" ? "Dark mode" : "Light mode"; };
       apply(localStorage.getItem("volt-setup-theme") || "dark");
       btn.addEventListener("click", () => {
         const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";

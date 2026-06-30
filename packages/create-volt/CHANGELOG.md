@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.48.3] - 2026-06-29
+
+### Fixed
+- **Unreadable text in the dark config.** The wizard never set Bootstrap's
+  `data-bs-theme`, so muted/secondary text (feature descriptions, hints) was
+  colored for a light background and vanished on the dark cards. It now tracks the
+  light/dark toggle, so all Bootstrap text is readable in both modes.
+
 ## [0.48.2] - 2026-06-29
 
 ### Changed
@@ -641,6 +649,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.48.3]: https://github.com/MIR-2025/volt/releases/tag/v0.48.3
 [0.48.2]: https://github.com/MIR-2025/volt/releases/tag/v0.48.2
 [0.48.1]: https://github.com/MIR-2025/volt/releases/tag/v0.48.1
 [0.48.0]: https://github.com/MIR-2025/volt/releases/tag/v0.48.0
