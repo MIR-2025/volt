@@ -38,6 +38,7 @@ const EDITOR_HTML = (base, provider) => `<!doctype html><html lang="en"><head>
         <option value="markdown">Markdown</option>
       </select>
       <button id="save" class="btn btn-primary">Save</button>
+      <button id="export" class="btn btn-outline-secondary" title="Write a standalone file to exports/">Export</button>
     </div>
     <details class="mb-2"><summary class="text-muted small" style="cursor:pointer">SEO &amp; social — Open Graph + JSON-LD</summary>
       <input id="desc" class="form-control my-1" placeholder="Meta description (og:description)" />
@@ -125,6 +126,28 @@ export function register({ app, express, env, requireAuth, log }) {
     fs.mkdirSync(pagesDir, { recursive: true });
     fs.writeFileSync(path.join(pagesDir, slug + ".md"), `---\n${fmLines.join("\n")}\n---\n\n${body}\n`);
     res.json({ ok: true, url: "/" + slug, format: isHtml ? "html" : "markdown" });
+  });
+
+  // Export a standalone file to exports/ (separate from the live page in pages/):
+  // a self-contained themed .html (theme CSS inlined — opens without the server)
+  // or plain .md (no front-matter). Format follows the editor's save-format select.
+  app.post(base + "/api/export", gate, json, (req, res) => {
+    const slug = String(req.body?.slug || "").toLowerCase();
+    if (!isSafeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
+    const exportsDir = path.join(process.cwd(), "exports");
+    fs.mkdirSync(exportsDir, { recursive: true });
+    let file, contents;
+    if (req.body?.format === "markdown") {
+      file = slug + ".md";
+      contents = String(req.body?.markdown ?? "") + "\n";
+    } else {
+      const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+      const css = String(req.body?.css || "").replace(/<\/(style)/gi, "<\\/$1"); // prevent </style> breakout
+      file = slug + ".html";
+      contents = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${esc(req.body?.title || slug)}</title><style>${css}</style></head><body>${String(req.body?.html ?? "")}</body></html>\n`;
+    }
+    fs.writeFileSync(path.join(exportsDir, file), contents);
+    res.json({ ok: true, path: "exports/" + file });
   });
 
   app.post(base + "/api/ai", gate, json, aiProxyHandler(env));

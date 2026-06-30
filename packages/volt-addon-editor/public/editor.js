@@ -100,7 +100,19 @@ async function save() {
   if (res.ok) refresh();
 }
 
+// Export a standalone file to exports/ — themed .html (CSS inlined) or plain .md,
+// per the save-format select. Separate from Save (which writes the live page).
+async function exportFile() {
+  const slug = ($("#slug").value || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return ($("#msg").textContent = "Set a slug first, then Export.");
+  const format = (fmtSel || {}).value || "html";
+  const payload = { slug, format, title: $("#title").value, html: ed.getHTML(), markdown: ed.getMarkdown(), css: themeCss };
+  const res = await (await fetch(base + "/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })).json();
+  $("#msg").textContent = res.ok ? "Exported → " + res.path : "Error: " + (res.error || "?");
+}
+
 $("#save").onclick = save;
+$("#export").onclick = exportFile;
 $("#new").onclick = newPage;
 refresh();
 updateFmtLock();
