@@ -27,13 +27,18 @@ import { paymentsEnabled, createCheckoutSession, constructWebhookEvent } from ".
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Quoted values are literal; unquoted values have a trailing ` # comment` stripped.
+function unquote(v) {
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
+  return v.replace(/(?:^|\s+)#.*$/, "");
+}
 // Load shared secrets from the repo-root .env (websites/volt/.env), then an
 // optional local .env override. Real process.env (pm2/shell) always wins.
 function loadEnvFile(file) {
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    if (m && !(m[1] in process.env)) process.env[m[1]] = unquote(m[2]);
   }
 }
 loadEnvFile(path.join(__dirname, ".env")); // optional per-deploy override
