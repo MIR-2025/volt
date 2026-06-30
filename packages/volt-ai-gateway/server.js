@@ -23,6 +23,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import { paymentsEnabled, createCheckoutSession, constructWebhookEvent } from "./payments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;
@@ -36,6 +37,27 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const ANTHROPIC_URL = process.env.ANTHROPIC_URL || "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
+// Pay-as-you-go: usage beyond the free daily cap is billed against prepaid USD
+// credits at MARKUP times the underlying Anthropic cost. PRICING is $/Mtok
+// (input,output) per model — defaults are placeholders; verify against current
+// Anthropic pricing or override with PRICING_JSON.
+const MARKUP = Number(process.env.AI_MARKUP) || 8;
+const DEFAULT_PRICING = {
+  "claude-haiku-4-5": { in: 1, out: 5 },
+  "claude-sonnet-4-6": { in: 3, out: 15 },
+  "claude-opus-4-8": { in: 15, out: 75 },
+};
+let PRICING = DEFAULT_PRICING;
+try {
+  if (process.env.PRICING_JSON) PRICING = { ...DEFAULT_PRICING, ...JSON.parse(process.env.PRICING_JSON) };
+} catch {
+  /* keep defaults */
+}
+const costUsd = (model, inTok, outTok) => {
+  const p = PRICING[model] || PRICING[MODEL_DEFAULT] || { in: 1, out: 5 };
+  return ((inTok * p.in + outTok * p.out) / 1e6) * MARKUP;
+};
+
 if (!ANTHROPIC_API_KEY) {
   console.error("volt-ai-gateway: set ANTHROPIC_API_KEY (the capped Workspace key).");
   process.exit(1);
@@ -48,6 +70,7 @@ if (!ADMIN_TOKEN) {
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const TOK_FILE = path.join(DATA_DIR, "tokens.json");
 const USE_FILE = path.join(DATA_DIR, "usage.json");
+const CHG_FILE = path.join(DATA_DIR, "charges.json");
 const load = (f, d) => {
   try {
     return JSON.parse(fs.readFileSync(f, "utf8"));
@@ -56,8 +79,9 @@ const load = (f, d) => {
   }
 };
 const save = (f, v) => fs.writeFileSync(f, JSON.stringify(v, null, 2));
-let tokens = load(TOK_FILE, []); // [{ token, app, dailyCap, disabled, createdAt }]
+let tokens = load(TOK_FILE, []); // [{ token, app, dailyCap, tier, creditBalanceUsd, disabled, createdAt }]
 let usage = load(USE_FILE, { global: { day: "", tokens: 0 }, perToken: {} });
+let charges = load(CHG_FILE, []); // [{ stripeSessionId, token, amountUsd, at }] — webhook idempotency
 
 const today = () => new Date().toISOString().slice(0, 10);
 function rollDay() {
@@ -77,6 +101,36 @@ const usedToday = (token) => (usage.perToken[token]?.day === today() ? usage.per
 
 const app = express();
 app.disable("x-powered-by");
+
+// Stripe webhook — needs the RAW body for signature verification, so it must be
+// registered before express.json(). Credits are added here, after Stripe confirms
+// payment; idempotent via the charges store (a session can never credit twice).
+app.post("/webhooks/stripe", express.raw({ type: "application/json" }), (req, res) => {
+  let event;
+  try {
+    event = constructWebhookEvent(req.body, req.get("stripe-signature"));
+  } catch (e) {
+    return res.status(400).send(`Webhook signature error: ${e.message}`);
+  }
+  if (event.type === "checkout.session.completed") {
+    const s = event.data.object;
+    const token = s.metadata?.token;
+    const amountUsd = Number(s.metadata?.amountUsd || 0);
+    if (token && amountUsd > 0 && !charges.find((c) => c.stripeSessionId === s.id)) {
+      const rec = tokens.find((t) => t.token === token);
+      if (rec) {
+        rec.creditBalanceUsd = (rec.creditBalanceUsd || 0) + amountUsd;
+        rec.tier = "payg";
+        save(TOK_FILE, tokens);
+        charges.push({ stripeSessionId: s.id, token, amountUsd, at: new Date().toISOString() });
+        save(CHG_FILE, charges);
+        console.log(`[credit] +$${amountUsd} → ${rec.app} (balance $${rec.creditBalanceUsd.toFixed(2)})`);
+      }
+    }
+  }
+  res.json({ received: true });
+});
+
 app.use(express.json({ limit: "256kb" }));
 
 // --- admin: issue / list / disable / revoke app tokens ---
@@ -85,9 +139,17 @@ const admin = (req, res, next) => {
   next();
 };
 app.post("/admin/tokens", admin, (req, res) => {
-  const { app: appName, dailyCap } = req.body || {};
+  const { app: appName, dailyCap, tier, creditUsd } = req.body || {};
   if (!appName) return res.status(400).json({ error: "app name required" });
-  const rec = { token: "volt_" + crypto.randomBytes(24).toString("base64url"), app: String(appName), dailyCap: Number(dailyCap) || DEFAULT_APP_DAILY_CAP, disabled: false, createdAt: today() };
+  const rec = {
+    token: "volt_" + crypto.randomBytes(24).toString("base64url"),
+    app: String(appName),
+    dailyCap: Number(dailyCap) || DEFAULT_APP_DAILY_CAP,
+    tier: tier === "payg" ? "payg" : "free",
+    creditBalanceUsd: Number(creditUsd) || 0,
+    disabled: false,
+    createdAt: today(),
+  };
   tokens.push(rec);
   save(TOK_FILE, tokens);
   res.json({ ok: true, ...rec });
@@ -95,9 +157,19 @@ app.post("/admin/tokens", admin, (req, res) => {
 app.get("/admin/tokens", admin, (_req, res) => {
   rollDay();
   res.json({
-    tokens: tokens.map((t) => ({ app: t.app, token: t.token, dailyCap: t.dailyCap, disabled: t.disabled, createdAt: t.createdAt, usedToday: usedToday(t.token) })),
+    tokens: tokens.map((t) => ({ app: t.app, token: t.token, dailyCap: t.dailyCap, tier: t.tier || "free", creditBalanceUsd: Number((t.creditBalanceUsd || 0).toFixed(4)), disabled: t.disabled, createdAt: t.createdAt, usedToday: usedToday(t.token) })),
     global: { day: usage.global.day, tokens: usage.global.tokens, cap: GLOBAL_DAILY_TOKEN_CAP },
+    markup: MARKUP,
   });
+});
+// manually add credits / set tier (comps, refunds, testing — payments add credits via the webhook)
+app.post("/admin/tokens/:token/credit", admin, (req, res) => {
+  const t = tokens.find((x) => x.token === req.params.token);
+  if (!t) return res.status(404).json({ error: "not found" });
+  t.creditBalanceUsd = Math.max(0, (t.creditBalanceUsd || 0) + Number(req.body?.amountUsd || 0));
+  if (t.creditBalanceUsd > 0) t.tier = "payg";
+  save(TOK_FILE, tokens);
+  res.json({ ok: true, tier: t.tier, creditBalanceUsd: t.creditBalanceUsd });
 });
 app.post("/admin/tokens/:token/:action(disable|enable)", admin, (req, res) => {
   const t = tokens.find((x) => x.token === req.params.token);
@@ -122,7 +194,13 @@ app.post("/api/ai", async (req, res) => {
   if (rec.disabled) return res.status(403).json({ error: "token disabled" });
   rollDay();
   if (usage.global.tokens >= GLOBAL_DAILY_TOKEN_CAP) return res.status(503).json({ error: "global daily cap reached — try later" });
-  if (usedToday(token) >= rec.dailyCap) return res.status(429).json({ error: "app daily cap reached" });
+  // Free allowance up to dailyCap. Beyond it: payg apps with credits keep going
+  // (billed at MARKUP× cost); free apps (or payg out of credits) are capped.
+  const overFree = usedToday(token) >= rec.dailyCap;
+  if (overFree) {
+    if (rec.tier !== "payg") return res.status(429).json({ error: "free daily cap reached — switch to pay-as-you-go" });
+    if ((rec.creditBalanceUsd || 0) <= 0) return res.status(402).json({ error: "out of credits — top up at POST /api/credits/checkout" });
+  }
 
   const { messages, system, max_tokens, model } = req.body || {};
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: "messages[] required" });
@@ -163,15 +241,38 @@ app.post("/api/ai", async (req, res) => {
     const outs = [...buf.matchAll(/"output_tokens":\s*(\d+)/g)];
     const outTok = outs.length ? Number(outs[outs.length - 1][1]) : 0;
     record(token, inTok + outTok);
+    // bill payg usage beyond the free cap against credits, at MARKUP× cost
+    if (overFree && rec.tier === "payg") {
+      rec.creditBalanceUsd = Math.max(0, (rec.creditBalanceUsd || 0) - costUsd(payload.model, inTok, outTok));
+      save(TOK_FILE, tokens);
+    }
   } catch {
     if (!res.headersSent) res.status(502).json({ error: "proxy failed" });
     else res.end();
   }
 });
 
-app.get("/health", (_req, res) => {
-  rollDay();
-  res.json({ ok: true, model: MODEL_DEFAULT, globalUsed: usage.global.tokens, globalCap: GLOBAL_DAILY_TOKEN_CAP, apps: tokens.length, maxTokens: MAX_TOKENS_CAP });
+// pay-as-you-go: an app buys credits with its own token → Stripe Checkout URL.
+app.post("/api/credits/checkout", async (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const rec = tokens.find((t) => t.token === token);
+  if (!rec) return res.status(401).json({ error: "invalid token" });
+  if (!paymentsEnabled()) return res.status(503).json({ error: "payments not configured" });
+  const amountUsd = Number(req.body?.amountUsd) || 0;
+  if (amountUsd < 1) return res.status(400).json({ error: "amountUsd >= 1 required" });
+  const baseUrl = req.body?.baseUrl || `${req.protocol}://${req.get("host")}`;
+  try {
+    const url = await createCheckoutSession({ token, amountUsd, baseUrl });
+    res.json({ ok: true, url });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
+  }
 });
 
-app.listen(PORT, () => console.log(`volt-ai-gateway on :${PORT} — model ${MODEL_DEFAULT}, global cap ${GLOBAL_DAILY_TOKEN_CAP}/day, max_tokens<=${MAX_TOKENS_CAP}, ${tokens.length} app token(s)`));
+app.get("/health", (_req, res) => {
+  rollDay();
+  res.json({ ok: true, model: MODEL_DEFAULT, globalUsed: usage.global.tokens, globalCap: GLOBAL_DAILY_TOKEN_CAP, apps: tokens.length, maxTokens: MAX_TOKENS_CAP, markup: MARKUP, payments: paymentsEnabled() });
+});
+
+app.listen(PORT, () => console.log(`volt-ai-gateway on :${PORT} — model ${MODEL_DEFAULT}, global cap ${GLOBAL_DAILY_TOKEN_CAP}/day, max_tokens<=${MAX_TOKENS_CAP}, markup ${MARKUP}x, payments ${paymentsEnabled() ? "on" : "off"}, ${tokens.length} app token(s)`));

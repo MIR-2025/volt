@@ -45,6 +45,35 @@ curl -X DELETE .../admin/tokens/<token>         -H "Authorization: Bearer $ADMIN
 So a free tier on your key can never run away: it hits a token cap here long before
 it hits the dollar cap there.
 
+## Tiers & pay-as-you-go
+
+Three ways an app gets AI:
+
+| Tier | Where the key is | Who pays | Cap |
+| --- | --- | --- | --- |
+| **free** | gateway | you (capped) | `dailyCap` tokens/day, then 429 |
+| **payg** | gateway | the app, prepaid | free cap, then billed from credits |
+| **BYO** | the app's own `.env` | the app | their Anthropic account |
+
+Beyond the free daily cap, **payg** apps keep going — each request is billed
+against prepaid USD credits at **`AI_MARKUP`× (default 8×)** the underlying
+Anthropic cost (from `PRICING`). Out of credits → `402`, back to the free cap.
+
+Apps buy credits with their own token:
+
+```
+curl -X POST https://voltjs.com/api/credits/checkout \
+  -H "Authorization: Bearer $VOLT_AI_TOKEN" -H "Content-Type: application/json" \
+  -d '{"amountUsd":20}'
+# → { "url": "https://checkout.stripe.com/..." }   send the user there
+```
+
+On Stripe's `checkout.session.completed` webhook (`POST /webhooks/stripe`) the
+gateway adds the credits and flips the token to `payg` — idempotent, so a session
+never credits twice. Set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, and point
+a Stripe webhook at `/webhooks/stripe`. You can also comp credits directly:
+`POST /admin/tokens/<token>/credit {"amountUsd":5}`.
+
 ## Notes
 
 - Storage is a JSON file store (`data/tokens.json`, `data/usage.json`), fine for a
