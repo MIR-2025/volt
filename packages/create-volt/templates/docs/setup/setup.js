@@ -249,21 +249,41 @@ const themePicker = () =>
   </div>`;
 
 // AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.
+const AI_KEY_URL = {
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  gemini: "https://aistudio.google.com/app/apikey",
+};
 const aiSettings = () =>
-  html`<details class="mb-2"><summary class="form-label small mb-0" style="cursor:pointer">AI keys (optional) — for the editor's assistant</summary>
+  html`<details class="mb-2"><summary class="form-label small mb-0" style="cursor:pointer">AI assistant for the editor (optional)</summary>
     <div class="mt-2">
-      <label class="form-label small mb-1">Provider (AI_PROVIDER)</label>
-      <select class="form-select mb-2" value=${() => state().aiProvider} onchange=${(e) => set({ aiProvider: e.target.value })}>
+      <p class="small text-muted mb-2">Powers the WYSIWYG editor's "write with AI" button. <strong>Totally optional</strong> — leave the key blank and the editor still works, just without AI.</p>
+      <label class="form-label small mb-1">Provider</label>
+      <select class="form-select mb-1" value=${() => state().aiProvider} onchange=${(e) => set({ aiProvider: e.target.value })}>
         <option value="anthropic">Anthropic (Claude)</option>
         <option value="openai">OpenAI</option>
         <option value="gemini">Google Gemini</option>
       </select>
-      ${field("API key — stays server-side, written to .env", "aiKey", "sk-…")}
+      ${() => html`<a class="small d-inline-block mb-1" href=${AI_KEY_URL[state().aiProvider] || AI_KEY_URL.anthropic} target="_blank" rel="noopener">Get a ${state().aiProvider} key → paste it below (stays server-side in .env)</a>`}
+      ${field("API key", "aiKey", "sk-…")}
     </div>
   </details>`;
 
 // --- Manage content (a second screen reached via "Manage content →") ---
 const view = signal("config"); // "config" | "manage"
+// upgrade check: compare bundled version to npm latest; offer a one-click upgrade
+const upgrade = signal(null); // { current, latest, available }
+fetch("/setup/upgrade-check").then((r) => r.json()).then((u) => upgrade(u)).catch(() => {});
+async function doUpgrade() {
+  status("Upgrading via npx create-volt@latest update…");
+  try {
+    const r = await (await fetch("/setup/upgrade", { method: "POST" })).json();
+    status(r.ok ? "Upgraded — restart the wizard/app to load the new version." : "Upgrade failed (see terminal).");
+    if (r.ok) upgrade({ ...upgrade(), available: false });
+  } catch {
+    status("Upgrade request failed.");
+  }
+}
 const items = signal({ pages: [], posts: [] });
 const editing = signal(null); // { type, slug, body, isNew } — set only on open/save/close, so typing doesn't re-render
 const loadItems = async () => items(await (await fetch("/setup/content")).json());
@@ -318,7 +338,8 @@ const manageView = () =>
   </div>`;
 
 const configView = () =>
-  html`${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
+  html`${() => (upgrade()?.available ? html`<div class="card-x p-3 mb-3 d-flex justify-content-between align-items-center"><span class="small">⬆ <strong>create-volt ${upgrade().latest}</strong> is available — you have ${upgrade().current}.</span><button class="btn btn-sm btn-primary" onclick=${doUpgrade}>Upgrade</button></div>` : "")}
+    ${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
     <div class="card-x p-4 mb-3">
       <h2 class="h6 mb-3">Settings</h2>
       ${field("PORT", "port", String(defaultPort))}

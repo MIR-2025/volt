@@ -237,24 +237,41 @@ if (positionals[0] === "create-theme") {
 // pulls the latest library). Only touches the library file — never the user's
 // app.js, server.js, or port. ---
 if (positionals[0] === "update") {
-  const target = path.join(process.cwd(), "public", "volt.js");
-  if (!fs.existsSync(target)) {
+  const cwd = process.cwd();
+  if (!fs.existsSync(path.join(cwd, "public", "volt.js"))) {
     die(`No ${cyan("public/volt.js")} here — run ${cyan("create-volt update")} from inside a Volt app.`);
   }
-  const latest = fs.readFileSync(path.join(__dirname, "templates", "default", "public", "volt.js"), "utf8");
-  const current = fs.readFileSync(target, "utf8");
-  if (current === latest) {
-    console.log(`\n${green("✔")} ${bold("public/volt.js")} is already current (create-volt ${pkg.version}).\n`);
-    process.exit(0);
-  }
   if (dryRun) {
-    console.log(`\n${yellow("!")} An update is available for ${bold("public/volt.js")} (create-volt ${pkg.version}).`);
+    console.log(`\n${yellow("!")} Would refresh the vendored runtime + bundled add-ons/themes to create-volt ${pkg.version}.`);
     console.log(`  Re-run without ${cyan("--dry-run")} to apply.\n`);
     process.exit(0);
   }
-  fs.writeFileSync(target, latest);
-  console.log(`\n${green("✔")} Updated ${bold("public/volt.js")} to the version in create-volt ${pkg.version}.`);
-  console.log(`  Review the change with ${cyan("git diff public/volt.js")}.\n`);
+  // Refresh the framework-owned files (not your server.js / content): the vendored
+  // runtime, the setup wizard, and the bundled add-ons + themes.
+  const T = path.join(__dirname, "templates", "default");
+  const done = [];
+  const copyFile = (rel, src) => {
+    if (fs.existsSync(src) && fs.existsSync(path.dirname(path.join(cwd, rel)))) {
+      fs.copyFileSync(src, path.join(cwd, rel));
+      done.push(rel);
+    }
+  };
+  copyFile("public/volt.js", path.join(T, "public", "volt.js"));
+  copyFile("public/volt-ssr.js", path.join(T, "public", "volt-ssr.js"));
+  if (fs.existsSync(path.join(cwd, "setup"))) {
+    fs.cpSync(path.join(T, "setup"), path.join(cwd, "setup"), { recursive: true });
+    done.push("setup/ (wizard)");
+  }
+  if (fs.existsSync(path.join(cwd, ".volt"))) {
+    for (const d of ["addons", "themes"]) {
+      fs.cpSync(path.join(__dirname, d), path.join(cwd, ".volt", d), { recursive: true });
+      done.push(".volt/" + d);
+    }
+  }
+  fs.mkdirSync(path.join(cwd, ".volt"), { recursive: true });
+  fs.writeFileSync(path.join(cwd, ".volt", "version"), pkg.version + "\n");
+  console.log(`\n${green("✔")} Updated to create-volt ${pkg.version}: ${done.join(", ")}.`);
+  console.log(dim(`  Your server.js + content are untouched (re-scaffold to adopt entry-point changes). Restart the app.`));
   process.exit(0);
 }
 
@@ -471,6 +488,7 @@ if (fs.existsSync(path.join(targetDir, "setup"))) {
     const src = path.join(__dirname, name);
     if (fs.existsSync(src)) fs.cpSync(src, path.join(targetDir, ".volt", name), { recursive: true });
   }
+  fs.writeFileSync(path.join(targetDir, ".volt", "version"), pkg.version + "\n"); // for the wizard's upgrade check
 }
 
 // --- stamp the project name into package.json ---

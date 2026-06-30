@@ -4,6 +4,19 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.43.0] - 2026-06-30
+
+### Added
+- **Upgrade from the wizard.** Scaffolds record their version in `.volt/version`;
+  the `--edit` wizard checks npm and shows an "create-volt X available" notice with
+  a one-click **Upgrade** button (runs `npx create-volt@latest update`).
+- **`update` refreshes everything framework-owned** — vendored runtime
+  (`volt.js`, `volt-ssr.js`), the setup wizard, and bundled add-ons + themes (was
+  just `volt.js`). Your `server.js` + content are left untouched.
+- **Simpler AI setup.** The wizard AI section is clearly optional with a
+  per-provider **Get a key →** link (Anthropic / OpenAI / Gemini); leave it blank
+  and the editor works without AI.
+
 ## [0.42.0] - 2026-06-30
 
 ### Added
@@ -561,6 +574,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.43.0]: https://github.com/MIR-2025/volt/releases/tag/v0.43.0
 [0.42.0]: https://github.com/MIR-2025/volt/releases/tag/v0.42.0
 [0.41.0]: https://github.com/MIR-2025/volt/releases/tag/v0.41.0
 [0.40.0]: https://github.com/MIR-2025/volt/releases/tag/v0.40.0

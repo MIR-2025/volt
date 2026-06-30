@@ -338,6 +338,34 @@ function startSetup() {
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT }));
     }
+    // --- upgrade: compare .volt/version to npm latest, and run the update ---
+    if (req.method === "GET" && p === "/setup/upgrade-check") {
+      const vf = path.join(__dirname, ".volt", "version");
+      const current = (fs.existsSync(vf) ? fs.readFileSync(vf, "utf8").trim() : "") || "?";
+      fetch("https://registry.npmjs.org/create-volt/latest")
+        .then((r) => r.json())
+        .then((j) => {
+          const latest = j.version || "?";
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ current, latest, available: latest !== "?" && current !== "?" && latest !== current }));
+        })
+        .catch(() => {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ current, latest: "?", available: false }));
+        });
+      return;
+    }
+    if (req.method === "POST" && p === "/setup/upgrade") {
+      res.setHeader("Content-Type", "application/json");
+      try {
+        const r = spawnSync("npx", ["--yes", "create-volt@latest", "update"], { cwd: __dirname, encoding: "utf8", shell: process.platform === "win32" });
+        res.end(JSON.stringify({ ok: r.status === 0, output: ((r.stdout || "") + (r.stderr || "")).slice(-2000) }));
+      } catch (e) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+      return;
+    }
     // --- content manager: list / read / write / delete pages + posts ---
     if (req.method === "GET" && p === "/setup/content") {
       const list = (type) => {
