@@ -52,7 +52,10 @@ function readEnvFile() {
   if (!fs.existsSync(ENV_PATH)) return out;
   for (const line of fs.readFileSync(ENV_PATH, "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m) out[m[1]] = m[2];
+    if (m) {
+      const v = m[2];
+      out[m[1]] = (v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")) ? v.slice(1, -1) : v.replace(/(?:^|\s+)#.*$/, "");
+    }
   }
   return out;
 }
