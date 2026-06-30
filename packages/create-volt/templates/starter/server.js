@@ -1,9 +1,9 @@
-// server.js Ã¢ÂÂ dev server with a built-in first-run setup wizard.
+// server.js — dev server with a built-in first-run setup wizard.
 //
 // First run (no .env) or `node server.js --edit` (-e) opens a disposable, local
 // config page: tick add-ons, fill settings, Apply. Apply writes .env (a
 // VOLT_ADDONS list + settings) and adds any needed packages to package.json,
-// runs npm install, then starts the app Ã¢ÂÂ which wires whatever .env enables.
+// runs npm install, then starts the app — which wires whatever .env enables.
 // Add-on code is bundled under .volt/addons; nothing is copied into your code.
 //
 // No build step, no env-file flag: .env is auto-loaded below.
@@ -25,7 +25,7 @@ const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes th
 const DEFAULT_PORT = 26628; // create-volt stamps this with the project's date-port
 const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
-// `--port <n>` (or --port=<n>) overrides the listen port for this run â lets
+// `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
 // --edit/--studio dodge a port the running app already holds, and runs the app
 // itself on a one-off port. Explicit flag wins over PORT in .env.
 function cliPort() {
@@ -105,7 +105,7 @@ const imp = (rel) => import(pathToFileURL(path.join(__dirname, rel)).href);
 const addonMod = (n) => imp(path.join(".volt", "addons", n, "files", "lib", LIB_FILE[n]));
 
 // Built-in add-ons are wired explicitly below; everything else in VOLT_ADDONS is
-// a third-party add-on Ã¢ÂÂ a local .volt/addons/<name>/index.js or an installed
+// a third-party add-on — a local .volt/addons/<name>/index.js or an installed
 // npm package "volt-addon-<name>" exporting register(ctx). See /docs/plugins.
 const BUILTINS = new Set(Object.keys(LIB_FILE));
 async function loadAddon(name) {
@@ -129,7 +129,7 @@ function openBrowser(url) {
   const args = plat === "win32" ? ["/c", "start", "", url] : [url];
   try {
     const child = spawn(cmd, args, { stdio: "ignore", detached: true });
-    child.on("error", () => {}); // launcher missing Ã¢ÂÂ emits async, don't crash
+    child.on("error", () => {}); // launcher missing — emits async, don't crash
     child.unref();
     return true;
   } catch {
@@ -157,7 +157,7 @@ async function startApp() {
   if (enabled.has("mailer")) mailer = await (await addonMod("mailer")).createMailer();
   if (enabled.has("auth") && store && mailer) app.use((await addonMod("auth")).authRouter({ store, mailer }));
 
-  // notes Ã¢ÂÂ a per-user CRUD example (auth-gated, owner-scoped, db-backed)
+  // notes — a per-user CRUD example (auth-gated, owner-scoped, db-backed)
   if (enabled.has("db") && enabled.has("auth") && store) {
     const guard = (await addonMod("auth")).requireAuth(store);
     const notes = store.collection("notes");
@@ -201,8 +201,8 @@ async function startApp() {
     app.use(await (await addonMod("media")).mediaRouter({ requireAuth, dir: path.join(__dirname, "media") }));
   }
 
-  // markdown pages (/<slug> Ã¢ÂÂ pages/<slug>.md) Ã¢ÂÂ mounted last, so app routes win
-  // blog posts (/blog, /blog/<slug>, /category, /tag, /feed.xml) â before pages so /blog wins; renders in the same theme.
+  // markdown pages (/<slug> → pages/<slug>.md) — mounted last, so app routes win
+  // blog posts (/blog, /blog/<slug>, /category, /tag, /feed.xml) — before pages so /blog wins; renders in the same theme.
   if (enabled.has("posts")) app.use(await (await addonMod("posts")).postsRouter({ dir: path.join(__dirname, "posts"), themeDir: path.join(__dirname, "pages") }));
   if (enabled.has("pages")) app.use(await (await addonMod("pages")).pagesRouter({ dir: path.join(__dirname, "pages") }));
 
@@ -217,7 +217,7 @@ async function startApp() {
     res.json({ ok: true });
   });
 
-  // third-party add-ons Ã¢ÂÂ register(ctx). When auth is on, requireAuth/sessionFromReq
+  // third-party add-ons — register(ctx). When auth is on, requireAuth/sessionFromReq
   // are provided so add-ons can gate routes by login.
   let requireAuth = null;
   let sessionFromReq = null;
@@ -233,7 +233,7 @@ async function startApp() {
     if (typeof register === "function") {
       await register({ app, express, io, store, mailer, env: process.env, requireAuth, sessionFromReq, log: (...a) => console.log(`[${name}]`, ...a) });
     } else {
-      console.warn(`[volt] add-on "${name}" not found or missing a register() export Ã¢ÂÂ skipped`);
+      console.warn(`[volt] add-on "${name}" not found or missing a register() export — skipped`);
     }
   }
 
@@ -241,7 +241,7 @@ async function startApp() {
   const onChange = (file) => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      console.log(`[volt] change: ${file ?? "?"} Ã¢ÂÂ reload`);
+      console.log(`[volt] change: ${file ?? "?"} → reload`);
       io.emit("volt:reload", { file });
     }, 80);
   };
@@ -284,7 +284,7 @@ async function startApp() {
     }
     throw e;
   });
-  server.listen(PORT, () => console.log(`Ã¢ÂÂ¡ Volt Ã¢ÂÂ http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
+  server.listen(PORT, () => console.log(`Volt at http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
 }
 
 // Packages an .env's selections need, beyond what package.json already has.
@@ -308,7 +308,7 @@ function neededPackages(env) {
 function ensureDriverInstalled(driver) {
   const pkg = { mongodb: "mongodb", mongo: "mongodb", mysql: "mysql2", postgres: "pg", postgresql: "pg", pg: "pg" }[String(driver || "").toLowerCase()];
   if (!pkg || fs.existsSync(path.join(__dirname, "node_modules", pkg))) return;
-  console.log(`[volt] installing ${pkg} for the connection testÃ¢ÂÂ¦`);
+  console.log(`[volt] installing ${pkg} for the connection test…`);
   spawnSync("npm", ["install", `${pkg}@${PKG_VERSIONS[pkg] || "latest"}`], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
 }
 
@@ -337,6 +337,55 @@ function startSetup() {
     if (req.method === "GET" && p === "/setup/state") {
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT }));
+    }
+    // --- content manager: list / read / write / delete pages + posts ---
+    if (req.method === "GET" && p === "/setup/content") {
+      const list = (type) => {
+        const dir = path.join(__dirname, type === "post" ? "posts" : "pages");
+        if (!fs.existsSync(dir)) return [];
+        return fs
+          .readdirSync(dir)
+          .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+          .map((f) => {
+            const slug = f.replace(/\.md$/, "");
+            const title = (fs.readFileSync(path.join(dir, f), "utf8").match(/^title:\s*(.+)$/m) || [])[1];
+            return { type, slug, title: (title || slug).trim() };
+          });
+      };
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ pages: list("page"), posts: list("post") }));
+    }
+    if (req.method === "GET" && p === "/setup/content/raw") {
+      const type = u.searchParams.get("type") === "post" ? "posts" : "pages";
+      const slug = u.searchParams.get("slug") || "";
+      res.setHeader("Content-Type", "application/json");
+      if (!/^[a-z0-9][a-z0-9-]*$/i.test(slug)) return res.end(JSON.stringify({ ok: false, error: "invalid slug" }));
+      const file = path.join(__dirname, type, slug + ".md");
+      return res.end(JSON.stringify({ ok: true, body: fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "" }));
+    }
+    if (req.method === "POST" && (p === "/setup/content/save" || p === "/setup/content/delete")) {
+      let cbody = "";
+      req.on("data", (c) => (cbody += c));
+      req.on("end", () => {
+        res.setHeader("Content-Type", "application/json");
+        try {
+          const { type, slug, body } = JSON.parse(cbody || "{}");
+          if (!/^[a-z0-9][a-z0-9-]*$/i.test(slug || "")) throw new Error("slug: lowercase letters, numbers, hyphens");
+          const dir = path.join(__dirname, type === "post" ? "posts" : "pages");
+          const file = path.join(dir, slug + ".md");
+          if (p === "/setup/content/delete") {
+            if (fs.existsSync(file)) fs.unlinkSync(file);
+            return res.end(JSON.stringify({ ok: true }));
+          }
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(file, String(body ?? ""));
+          res.end(JSON.stringify({ ok: true, file: (type === "post" ? "posts/" : "pages/") + slug + ".md" }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
     }
     // "Customize": copy a bundled theme into pages/_theme.js so it can be edited.
     if (req.method === "POST" && p === "/setup/eject-theme") {
@@ -431,15 +480,15 @@ function startSetup() {
               server.closeIdleConnections?.();
             };
             if (added.length) {
-              console.log(`[volt] installing ${added.join(", ")}Ã¢ÂÂ¦`);
+              console.log(`[volt] installing ${added.join(", ")}…`);
               const npm = spawn("npm", ["install"], { cwd: __dirname, stdio: "inherit", shell: process.platform === "win32" });
               npm.on("error", () => handoff());
               npm.on("close", () => {
-                console.log("[volt] saved .env Ã¢ÂÂ starting the appÃ¢ÂÂ¦");
+                console.log("[volt] saved .env — starting the app…");
                 handoff();
               });
             } else {
-              console.log("[volt] saved .env Ã¢ÂÂ starting the appÃ¢ÂÂ¦");
+              console.log("[volt] saved .env — starting the app…");
               handoff();
             }
           });
@@ -457,18 +506,18 @@ function startSetup() {
   server.on("error", (e) => { if (e.code === "EADDRINUSE") { console.error(`\n[volt] Config UI port ${PORT} is in use (is the app already running?). Set CONFIG_PORT in .env or pass --port <n>.\n`); process.exit(1); } throw e; });
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
-    console.log(`\nÃ¢ÂÂ¡ Volt setup Ã¢ÂÂ ${url}`);
+    console.log(`\nVolt setup at ${url}`);
     console.log("  Configure your app; it starts automatically on Apply. (reopen later: npm run dev -- --edit)");
     const ssh = process.env.SSH_CONNECTION;
     if (ssh) {
       const host = ssh.split(" ")[2];
       const user = process.env.USER || process.env.USERNAME || "you";
-      console.log("  Remote box Ã¢ÂÂ the server is up here; bridge it from your LOCAL machine:");
+      console.log("  Remote box — the server is up here; bridge it from your LOCAL machine:");
       console.log(`    ssh -N -L 127.0.0.1:${PORT}:localhost:${PORT} ${user}@${host}`);
-      console.log(`  Ã¢ÂÂ¦then open ${url} on your machine (the tunnel points it here).`);
+      console.log(`  …then open ${url} on your machine (the tunnel points it here).`);
     }
     console.log("");
-    if (openBrowser(url)) console.log("  (opening your browserÃ¢ÂÂ¦)\n");
+    if (openBrowser(url)) console.log("  (opening your browser…)\n");
   });
 }
 
@@ -476,8 +525,8 @@ function readEnvFileLines() {
   return fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8").split("\n") : [];
 }
 
-// --- Studio: an ephemeral, localhost-only data browser (ÃÂ  la Prisma Studio).
-// Not a route in the running app Ã¢ÂÂ it only exists while you run `--studio`, on
+// --- Studio: an ephemeral, localhost-only data browser (— la Prisma Studio).
+// Not a route in the running app — it only exists while you run `--studio`, on
 // loopback, and disappears on Ctrl-C. Shell/SSH access is the auth. ---
 const HIDDEN_COLLECTIONS = new Set(["auth_tokens", "auth_sessions", "__voltcheck"]);
 async function startStudio() {
@@ -490,7 +539,7 @@ async function startStudio() {
   try {
     store = await (await addonMod("db")).createStore();
   } catch (e) {
-    console.error("Studio: couldn't connect the store Ã¢ÂÂ " + e.message);
+    console.error("Studio: couldn't connect the store — " + e.message);
     process.exit(1);
   }
   const PORT = configPort();
@@ -548,15 +597,15 @@ async function startStudio() {
   server.on("error", (e) => { if (e.code === "EADDRINUSE") { console.error(`\n[volt] Config UI port ${PORT} is in use (is the app already running?). Set CONFIG_PORT in .env or pass --port <n>.\n`); process.exit(1); } throw e; });
   server.listen(PORT, "127.0.0.1", () => {
     const url = `http://localhost:${PORT}`;
-    console.log(`\nÃ¢ÂÂ¡ Volt Studio Ã¢ÂÂ ${url}   (${store.name})`);
-    console.log("  Browse your data. localhost-only, disposable Ã¢ÂÂ Ctrl-C when done.");
+    console.log(`\nVolt Studio at ${url}   (${store.name})`);
+    console.log("  Browse your data. localhost-only, disposable — Ctrl-C when done.");
     const ssh = process.env.SSH_CONNECTION;
     if (ssh) {
       const host = ssh.split(" ")[2];
       const user = process.env.USER || process.env.USERNAME || "you";
-      console.log("  Remote box Ã¢ÂÂ from your LOCAL machine:");
+      console.log("  Remote box — from your LOCAL machine:");
       console.log(`    ssh -N -L 127.0.0.1:${PORT}:localhost:${PORT} ${user}@${host}`);
-      console.log(`  Ã¢ÂÂ¦then open ${url}.`);
+      console.log(`  …then open ${url}.`);
     }
     console.log("");
     openBrowser(url);

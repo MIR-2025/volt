@@ -262,33 +262,82 @@ const aiSettings = () =>
     </div>
   </details>`;
 
+// --- Manage content (a second screen reached via "Manage content →") ---
+const view = signal("config"); // "config" | "manage"
+const items = signal({ pages: [], posts: [] });
+const editing = signal(null); // { type, slug, body, isNew } — set only on open/save/close, so typing doesn't re-render
+const loadItems = async () => items(await (await fetch("/setup/content")).json());
+async function editItem(type, slug) {
+  const d = await (await fetch(`/setup/content/raw?type=${type}&slug=${encodeURIComponent(slug)}`)).json();
+  editing({ type, slug, body: d.body || "", isNew: false });
+}
+function newItem(type) {
+  const body = type === "post" ? "---\ntitle: New Post\ndate: 2026-01-01\ncategory: \ntags: \n---\n\nWrite your post here.\n" : "---\ntitle: New Page\n---\n\nWrite your page here.\n";
+  editing({ type, slug: "", body, isNew: true });
+}
+async function saveItem() {
+  const e = editing();
+  const slug = (document.querySelector("#mg-slug").value || "").trim().toLowerCase();
+  const body = document.querySelector("#mg-body").value;
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return status("Slug must be lowercase letters, numbers, hyphens.");
+  const r = await (await fetch("/setup/content/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: e.type, slug, body }) })).json();
+  if (!r.ok) return status("Error: " + (r.error || "?"));
+  status("Saved → " + r.file);
+  editing(null);
+  loadItems();
+}
+async function delItem(type, slug) {
+  if (typeof confirm === "function" && !confirm(`Delete ${slug}?`)) return;
+  await fetch("/setup/content/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, slug }) });
+  status("Deleted " + slug);
+  loadItems();
+}
+
+const itemRow = (it) =>
+  html`<li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center py-1 px-2">
+    <span><a href=${"http://localhost:" + state().port + (it.type === "post" ? "/blog/" : "/") + it.slug} target="_blank" rel="noopener">${it.title}</a> <span class="text-muted small">/${it.type === "post" ? "blog/" : ""}${it.slug}</span></span>
+    <span><button class="btn btn-sm btn-link p-0 me-3" onclick=${() => editItem(it.type, it.slug)}>edit</button><button class="btn btn-sm btn-link p-0 text-danger" onclick=${() => delItem(it.type, it.slug)}>delete</button></span>
+  </li>`;
+const section = (label, type, key) =>
+  html`<div class="mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-1"><strong>${label}</strong><button class="btn btn-sm btn-outline-secondary" onclick=${() => newItem(type)}>+ New</button></div>
+    ${() => (items()[key].length ? html`<ul class="list-group">${items()[key].map(itemRow)}</ul>` : html`<div class="small text-muted">No ${key} yet.</div>`)}
+  </div>`;
+const editorPanel = () => {
+  const e = editing(); // inputs are uncontrolled (read on Save) so typing never re-renders
+  return html`<div class="p-3 mb-2" style="border:1px solid #232a36;border-radius:10px">
+    <div class="d-flex gap-2 mb-2"><input id="mg-slug" class="form-control" placeholder="slug" value=${e.slug} readonly=${!e.isNew} /><span class="align-self-center small text-muted">${e.type === "post" ? "posts/" : "pages/"}</span></div>
+    <textarea id="mg-body" class="form-control" rows="16" style="font-family:ui-monospace,monospace;font-size:13px">${e.body}</textarea>
+    <div class="mt-2 d-flex gap-2"><button class="btn btn-primary btn-sm" onclick=${saveItem}>Save</button><button class="btn btn-outline-secondary btn-sm" onclick=${() => editing(null)}>Cancel</button></div>
+  </div>`;
+};
+const manageView = () =>
+  html`<div class="card-x p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h6 mb-0">Manage content</h2><button class="btn btn-sm btn-outline-secondary" onclick=${() => view("config")}>← Settings</button></div>
+    ${() => (editing() ? editorPanel() : html`${section("Pages", "page", "pages")}${section("Posts", "post", "posts")}<p class="small text-muted mb-0">Pages → <code>/slug</code>, posts → <code>/blog/slug</code>; <code>index</code> page is your home. All rendered in your theme. Edits hot-reload the running app.</p>`)}
+  </div>`;
+
+const configView = () =>
+  html`${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
+    <div class="card-x p-4 mb-3">
+      <h2 class="h6 mb-3">Settings</h2>
+      ${field("PORT", "port", String(defaultPort))}
+      ${field("SITE_NAME", "siteName", "My Site")}
+      ${() => (hasContent() ? themePicker() : null)}
+      ${() => (hasDb() ? dbSettings() : null)}
+      ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+      ${() => (hasMedia() ? mediaSettings() : null)}
+      ${aiSettings()}
+      ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
+      ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
+    </div>
+    <div class="card-x p-4 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-light btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
+      <pre class="mb-0" style="background:#0b0d11;border:1px solid #232a36;border-radius:10px;padding:12px;color:#cfe3ff;white-space:pre-wrap">${env}</pre>
+    </div>`;
+
 mount(
   "#app",
-  available.length
-    ? html`<div class="card-x p-4 mb-3">
-        <h2 class="h6 mb-3">Features</h2>
-        ${available.map(addonRow)}
-        <p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p>
-      </div>`
-    : null,
-  html`<div class="card-x p-4 mb-3">
-    <h2 class="h6 mb-3">Settings</h2>
-    ${field("PORT", "port", String(defaultPort))}
-    ${field("SITE_NAME", "siteName", "My Site")}
-    ${() => (hasContent() ? themePicker() : null)}
-    ${() => (hasDb() ? dbSettings() : null)}
-    ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
-    ${() => (hasMedia() ? mediaSettings() : null)}
-    ${aiSettings()}
-    ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
-    ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
-  </div>`,
-  html`<div class="card-x p-4 mb-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h2 class="h6 mb-0">.env</h2>
-      <button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button>
-    </div>
-    <pre class="mb-0" style="background:#0b0d11;border:1px solid #232a36;border-radius:10px;padding:12px;color:#cfe3ff;white-space:pre-wrap">${env}</pre>
-  </div>`,
+  () => (view() === "config" ? configView() : manageView()),
   () => (status() ? html`<p class="small accent">${status}</p>` : null),
 );

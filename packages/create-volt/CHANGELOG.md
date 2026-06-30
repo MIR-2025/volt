@@ -4,6 +4,19 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.42.0] - 2026-06-30
+
+### Added
+- **Content manager in the config wizard.** `npm run dev -- --edit` has a
+  **Manage content →** view: list, create, edit (raw markdown), and delete pages
+  + posts, via new slug-validated `/setup/content*` endpoints. The config page is
+  a content dashboard now, not just settings.
+
+### Fixed
+- **Garbled characters in startup logs.** The `⚡`/`→`/`…`/`—` in server logs and
+  source comments had been byte-corrupted (mojibake) by an earlier tooling pass.
+  Console output is now clean ASCII ("Volt at http://…", "Volt setup at …").
+
 ## [0.41.0] - 2026-06-30
 
 ### Added
@@ -548,6 +561,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.42.0]: https://github.com/MIR-2025/volt/releases/tag/v0.42.0
 [0.41.0]: https://github.com/MIR-2025/volt/releases/tag/v0.41.0
 [0.40.0]: https://github.com/MIR-2025/volt/releases/tag/v0.40.0
 [0.39.1]: https://github.com/MIR-2025/volt/releases/tag/v0.39.1
