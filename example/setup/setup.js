@@ -303,28 +303,28 @@ const items = signal({ pages: [], posts: [] });
 const editing = signal(null); // { type, slug, title, isNew } — set only on open/save/close
 let ed = null; // live RTEPro instance for the open editor
 const loadItems = async () => items(await (await fetch("/setup/content")).json());
-// raw .md → { title, bodyHtml } for the WYSIWYG (markdown rendered to HTML)
+// raw .md → { title, body, isHtml }; RTEPro takes markdown directly (setMarkdown),
+// so no markdown library is needed.
 function parseDoc(raw) {
   const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
   const front = fm ? fm[1] : "";
   const title = ((front.match(/^title:\s*(.+)$/m) || [])[1] || "").trim();
-  const body = fm ? raw.slice(fm[0].length) : raw;
-  const bodyHtml = /^format:\s*html\s*$/m.test(front) ? body : window.marked.parse(body);
-  return { title, bodyHtml };
+  return { title, body: fm ? raw.slice(fm[0].length) : raw, isHtml: /^format:\s*html\s*$/m.test(front) };
 }
-function mountEditor(bodyHtml) {
+function mountEditor(doc) {
   ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…" });
-  ed.setHTML(bodyHtml || "");
+  if (doc && doc.isHtml) ed.setHTML(doc.body || "");
+  else ed.setMarkdown((doc && doc.body) || "");
 }
 async function editItem(type, slug) {
   const d = await (await fetch(`/setup/content/raw?type=${type}&slug=${encodeURIComponent(slug)}`)).json();
-  const { title, bodyHtml } = parseDoc(d.body || "");
-  editing({ type, slug, title, isNew: false });
-  queueMicrotask(() => mountEditor(bodyHtml));
+  const doc = parseDoc(d.body || "");
+  editing({ type, slug, title: doc.title, isNew: false });
+  queueMicrotask(() => mountEditor(doc));
 }
 function newItem(type) {
   editing({ type, slug: "", title: "", isNew: true });
-  queueMicrotask(() => mountEditor(""));
+  queueMicrotask(() => mountEditor({ body: "", isHtml: false }));
 }
 // markdown can't round-trip complex layouts (columns, inline styles, merged cells,
 // embeds) — save those as HTML so they aren't flattened.
