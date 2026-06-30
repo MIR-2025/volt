@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.51.0] - 2026-06-30
+
+### Added
+- **Generate a hosted-AI token from the config.** The wizard's AI section has a
+  **Generate a free hosted token** button: it self-registers with the voltjs.com
+  gateway (new public, rate-limited `POST /api/register`) and writes
+  `VOLT_AI_TOKEN` to `.env` on Apply. One click to the free-capped/pay-as-you-go
+  hosted tier when you have no key of your own.
+
 ## [0.50.0] - 2026-06-30
 
 ### Added
@@ -666,6 +675,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.51.0]: https://github.com/MIR-2025/volt/releases/tag/v0.51.0
 [0.50.0]: https://github.com/MIR-2025/volt/releases/tag/v0.50.0
 [0.49.0]: https://github.com/MIR-2025/volt/releases/tag/v0.49.0
 [0.48.3]: https://github.com/MIR-2025/volt/releases/tag/v0.48.3

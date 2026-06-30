@@ -344,6 +344,17 @@ function startSetup() {
       }
       return;
     }
+    // --- generate a free hosted-AI token from the gateway (self-service) ---
+    if (req.method === "POST" && p === "/setup/gen-token") {
+      res.setHeader("Content-Type", "application/json");
+      const env = readEnvFile();
+      const base = (env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai").replace(/\/api\/ai\/?$/, "");
+      fetch(base + "/api/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app: env.SITE_NAME || "volt-app" }) })
+        .then((r) => r.json())
+        .then((j) => res.end(JSON.stringify(j)))
+        .catch(() => res.end(JSON.stringify({ ok: false, error: "gateway unreachable" })));
+      return;
+    }
     // --- AI proxy for the in-config editor (RTEPro). Uses a local provider key
     // (BYO) when set; otherwise falls back to the voltjs.com gateway via
     // VOLT_AI_TOKEN (free-capped, then pay-as-you-go on the host's key). The

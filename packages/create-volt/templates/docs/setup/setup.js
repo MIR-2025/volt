@@ -34,6 +34,7 @@ const state = signal({
   theme: current.THEME || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
+  aiToken: current.VOLT_AI_TOKEN || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -82,6 +83,7 @@ function genEnv(s) {
     const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
     out.push(`${keyVar}=${clean(s.aiKey)}`);
   }
+  if (s.aiToken) out.push(`VOLT_AI_TOKEN=${clean(s.aiToken)}`); // hosted-tier token (used when no local key)
   if (eff.includes("db")) {
     out.push(`DB_DRIVER=${clean(s.dbDriver)}`);
     if (s.dbDriver === "mongodb") {
@@ -266,6 +268,8 @@ const aiSettings = () =>
       </select>
       ${() => html`<a class="small d-inline-block mb-1" href=${AI_KEY_URL[state().aiProvider] || AI_KEY_URL.anthropic} target="_blank" rel="noopener">Get a ${state().aiProvider} key → paste it below (stays server-side in .env)</a>`}
       ${field("API key", "aiKey", "sk-…")}
+      <div class="small text-muted mt-2 mb-1">— or — no key? Use the hosted tier (free, capped, then pay-as-you-go):</div>
+      ${() => (state().aiToken ? html`<div class="small">Hosted token: <code>${state().aiToken.slice(0, 14)}…</code> <button class="btn btn-sm btn-link p-0 ms-1" onclick=${() => set({ aiToken: "" })}>clear</button></div>` : html`<button class="btn btn-sm btn-outline-secondary" onclick=${genToken}>Generate a free hosted token</button>`)}
     </div>
   </details>`;
 
@@ -302,6 +306,18 @@ async function buyCredits(amountUsd) {
     else status("Checkout failed: " + (r.error || "?"));
   } catch {
     status("Checkout request failed.");
+  }
+}
+async function genToken() {
+  status("Requesting a hosted token…");
+  try {
+    const r = await (await fetch("/setup/gen-token", { method: "POST" })).json();
+    if (r.ok && r.token) {
+      set({ aiToken: r.token });
+      status("Hosted token generated — click Apply to save it.");
+    } else status("Could not get a token: " + (r.error || "?"));
+  } catch {
+    status("Token request failed.");
   }
 }
 const items = signal({ pages: [], posts: [] });
