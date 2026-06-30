@@ -116,3 +116,35 @@ $("#export").onclick = exportFile;
 $("#new").onclick = newPage;
 refresh();
 updateFmtLock();
+
+// AI credits widget (gateway mode only). Shows balance + Stripe top-up, top-right.
+// Hidden when there's no VOLT_AI_TOKEN (BYO/unset) — purchasing stays out of the
+// public app; this is the gated editor, for owners who never open the CLI.
+(async () => {
+  let c;
+  try {
+    c = await (await fetch(base + "/api/credits")).json();
+  } catch {
+    return;
+  }
+  if (!c || !c.ok) return;
+  const bar = document.createElement("div");
+  bar.style.cssText = "position:fixed;top:8px;right:10px;z-index:9999;background:#0b0d11;color:#cfe3ff;border:1px solid #232a36;border-radius:8px;padding:6px 10px;font:13px/1.4 system-ui;display:flex;gap:8px;align-items:center";
+  const label = document.createElement("span");
+  label.textContent = `AI: ${c.tier}${typeof c.creditBalanceUsd === "number" ? " · $" + c.creditBalanceUsd.toFixed(2) : ""}`;
+  bar.appendChild(label);
+  if (c.payments) {
+    for (const amt of [10, 25, 50]) {
+      const b = document.createElement("button");
+      b.textContent = "+$" + amt;
+      b.style.cssText = "background:#1f6feb;color:#fff;border:0;border-radius:6px;padding:3px 8px;cursor:pointer";
+      b.onclick = async () => {
+        const r = await (await fetch(base + "/api/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd: amt }) })).json();
+        if (r.ok && r.url) window.open(r.url, "_blank");
+        else alert(r.error || "checkout failed");
+      };
+      bar.appendChild(b);
+    }
+  }
+  document.body.appendChild(bar);
+})();

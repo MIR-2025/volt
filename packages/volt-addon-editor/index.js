@@ -152,5 +152,26 @@ export function register({ app, express, env, requireAuth, log }) {
 
   app.post(base + "/api/ai", gate, json, aiProxyHandler(env));
 
+  // AI credits (gateway mode): surface balance + Stripe top-up in the editor, for
+  // owners who never open the CLI config. Proxies the hosted gateway with the
+  // app's VOLT_AI_TOKEN (server-side; gated). No token → the widget stays hidden.
+  const gwBase = (env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai").replace(/\/api\/ai\/?$/, "");
+  app.get(base + "/api/credits", gate, (_req, res) => {
+    if (!env.VOLT_AI_TOKEN) return res.json({ ok: false, error: "no VOLT_AI_TOKEN" });
+    fetch(gwBase + "/api/credits", { headers: { authorization: "Bearer " + env.VOLT_AI_TOKEN } })
+      .then((r) => r.json())
+      .then((j) => res.json(j))
+      .catch(() => res.json({ ok: false, error: "gateway unreachable" }));
+  });
+  app.post(base + "/api/credits/checkout", gate, json, (req, res) => {
+    if (!env.VOLT_AI_TOKEN) return res.json({ ok: false, error: "no VOLT_AI_TOKEN" });
+    const amountUsd = Number(req.body?.amountUsd) || 0;
+    const baseUrl = env.SITE_URL || `${req.protocol}://${req.get("host")}`;
+    fetch(gwBase + "/api/credits/checkout", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.VOLT_AI_TOKEN }, body: JSON.stringify({ amountUsd, baseUrl }) })
+      .then((r) => r.json())
+      .then((j) => res.json(j))
+      .catch(() => res.json({ ok: false, error: "gateway unreachable" }));
+  });
+
   log(`editor ready at ${base} — allowlist: ${allow.size ? [...allow].join(", ") : "(any signed-in user — set ADMIN_EMAILS!)"}`);
 }
