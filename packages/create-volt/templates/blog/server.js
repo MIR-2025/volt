@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import os from "node:os";
 import express from "express";
 import { Server as SocketServer } from "socket.io";
 
@@ -614,7 +615,118 @@ async function startStudio() {
   });
 }
 
-// --- gate: studio / setup (first run, --edit) / the app ---
+// --- `--logs`: a disposable, localhost-only log viewer (its own port, like
+// --studio). Tails pm2 stdout/stderr; with mir-sentinel installed, an Analytics
+// tab parses Apache/nginx access logs (ACCESS_LOG). Shell access is the auth;
+// for a remote box, SSH-tunnel the port. ---
+async function startLogs() {
+  loadEnv();
+  const PORT = configPort();
+  const name = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(PKG_PATH, "utf8")).name || "app";
+    } catch {
+      return "app";
+    }
+  })();
+  const logsDir = path.join(os.homedir(), ".pm2", "logs");
+  // Sources: pm2 stdout/stderr work out of the box; ACCESS_LOG adds an Apache/nginx
+  // log; users add more (other apps/servers/mounted or tunneled paths) via
+  // .volt/logs.json, editable here in the viewer. Re-read per request so additions
+  // show live. For a remote box, ship its log here or SSH-tunnel + run --logs there.
+  const LOGS_JSON = path.join(__dirname, ".volt", "logs.json");
+  const readExtra = () => {
+    try {
+      const a = JSON.parse(fs.readFileSync(LOGS_JSON, "utf8"));
+      return Array.isArray(a) ? a.filter((x) => x && x.label && x.file) : [];
+    } catch {
+      return [];
+    }
+  };
+  const sources = () => {
+    const s = { app: path.join(logsDir, `${name}-out.log`), error: path.join(logsDir, `${name}-error.log`) };
+    if (process.env.ACCESS_LOG) s.access = process.env.ACCESS_LOG;
+    for (const x of readExtra()) s[x.label] = x.file;
+    return s;
+  };
+  const tail = (f, n) => (f && fs.existsSync(f) ? fs.readFileSync(f, "utf8").split(/\r?\n/).filter(Boolean).slice(-n) : []);
+  let parseLine = null;
+  try {
+    parseLine = (await import("mir-sentinel")).parseLine;
+  } catch {
+    /* analytics optional */
+  }
+  const top = (arr, key) => {
+    const m = {};
+    for (const x of arr) if (x && x[key]) m[x[key]] = (m[x[key]] || 0) + 1;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  };
+  const assets = {
+    "/": ["text/html; charset=utf-8", fs.readFileSync(path.join(__dirname, "setup", "logs.html"))],
+    "/logs.js": ["text/javascript; charset=utf-8", fs.readFileSync(path.join(__dirname, "setup", "logs.js"))],
+  };
+  const json = (res, o) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(o));
+  };
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://localhost");
+    const p = u.pathname;
+    if (assets[p]) {
+      res.setHeader("Content-Type", assets[p][0]);
+      return res.end(assets[p][1]);
+    }
+    if (p === "/api/sources") return json(res, { sources: Object.keys(sources()), extra: readExtra(), analytics: !!parseLine });
+    if (p === "/api/tail") {
+      const f = sources()[u.searchParams.get("source")];
+      return f ? json(res, { ok: true, lines: tail(f, Math.min(2000, Number(u.searchParams.get("lines")) || 300)) }) : json(res, { ok: false });
+    }
+    if (p === "/api/analytics") {
+      if (!parseLine) return json(res, { ok: false, error: "npm i mir-sentinel for analytics" });
+      const f = sources()[u.searchParams.get("source")];
+      if (!f) return json(res, { ok: false });
+      const parsed = tail(f, 5000).map((l) => parseLine(l));
+      return json(res, { ok: true, total: parsed.length, paths: top(parsed, "path"), statuses: top(parsed, "status"), ips: top(parsed, "ip"), bots: parsed.filter((x) => x && x.bot).length, attacks: parsed.filter((x) => x && x.attack).length });
+    }
+    // add/remove a source ("add servers") — written to .volt/logs.json
+    if (req.method === "POST" && (p === "/api/source" || p === "/api/source/remove")) {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        try {
+          const { label, file } = JSON.parse(body || "{}");
+          if (!/^[a-z0-9][a-z0-9 _-]*$/i.test(label || "")) throw new Error("label: letters, numbers, spaces, - _");
+          let list = readExtra().filter((x) => x.label !== label);
+          if (p === "/api/source") list.push({ label, file: String(file || "") });
+          fs.mkdirSync(path.dirname(LOGS_JSON), { recursive: true });
+          fs.writeFileSync(LOGS_JSON, JSON.stringify(list, null, 2));
+          json(res, { ok: true });
+        } catch (e) {
+          res.statusCode = 400;
+          json(res, { ok: false, error: e.message });
+        }
+      });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("not found");
+  });
+  server.on("error", (e) => {
+    if (e.code === "EADDRINUSE") {
+      console.error(`\n[volt] Logs port ${PORT} is in use — set CONFIG_PORT in .env or pass --port <n>.`);
+      process.exit(1);
+    }
+    throw e;
+  });
+  server.listen(PORT, "127.0.0.1", () => {
+    const url = `http://localhost:${PORT}`;
+    console.log(`\nVolt logs at ${url}   (${parseLine ? "analytics on" : "raw tail — npm i mir-sentinel for analytics"})`);
+    console.log("  localhost only; for a remote box: ssh -L " + PORT + ":localhost:" + PORT + " you@server");
+    openBrowser(url);
+  });
+}
+
+// --- gate: studio / logs / setup (first run, --edit) / the app ---
 const editMode = process.argv.includes("--edit") || process.argv.includes("-e");
 // In production / on a PaaS there's no interactive wizard: config comes from the
 // platform's env vars (a Dockerfile sets NODE_ENV=production). Only fall back to
@@ -622,6 +734,8 @@ const editMode = process.argv.includes("--edit") || process.argv.includes("-e");
 const configured = fs.existsSync(ENV_PATH) || process.env.VOLT_ADDONS != null || process.env.NODE_ENV === "production";
 if (process.argv.includes("--studio")) {
   startStudio();
+} else if (process.argv.includes("--logs")) {
+  startLogs();
 } else if (editMode || !configured) {
   startSetup();
 } else {
