@@ -270,8 +270,35 @@ if (positionals[0] === "update") {
   }
   fs.mkdirSync(path.join(cwd, ".volt"), { recursive: true });
   fs.writeFileSync(path.join(cwd, ".volt", "version"), pkg.version + "\n");
+
+  // Self-heal: older scaffolds have byte-corrupted ⚡/→/…/— in server.js's startup
+  // logs (a tooling bug). Repair is SURGICAL — it only swaps the corrupted byte-runs
+  // and rewrites the brand console.log lines to plain ASCII; no logic is touched.
+  const srv = path.join(cwd, "server.js");
+  if (fs.existsSync(srv)) {
+    let code = fs.readFileSync(srv, "utf8");
+    const orig = code;
+    code = code.replace(/`[^`]*Volt[^`]*http:\/\/localhost/g, "`Volt at http://localhost");
+    code = code.replace(/`\\n[^`]*Volt setup[^`]*\$\{url\}/g, "`\\nVolt setup at ${url}");
+    code = code.replace(/`\\n[^`]*Volt Studio[^`]*\$\{url\}/g, "`\\nVolt Studio at ${url}");
+    const cc = (...a) => String.fromCharCode(...a);
+    const moji = [
+      [cc(195, 162, 194, 128, 194, 148), "—"], // em-dash
+      [cc(195, 162, 194, 134, 194, 144), "→"], // arrow
+      [cc(195, 162, 194, 134, 194, 146), "→"], // arrow
+      [cc(195, 162, 194, 128, 194, 166), "…"], // ellipsis
+      [cc(195, 131, 194, 160), "—"],
+      [cc(226, 128, 148), "—"], // single-encoded em-dash
+    ];
+    for (const [from, to] of moji) code = code.split(from).join(to);
+    if (code !== orig) {
+      fs.writeFileSync(srv, code);
+      done.push("server.js (repaired startup-log encoding)");
+    }
+  }
+
   console.log(`\n${green("✔")} Updated to create-volt ${pkg.version}: ${done.join(", ")}.`);
-  console.log(dim(`  Your server.js + content are untouched (re-scaffold to adopt entry-point changes). Restart the app.`));
+  console.log(dim(`  server.js logic is untouched (re-scaffold to adopt entry-point changes). Restart the app.`));
   process.exit(0);
 }
 

@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.46.0] - 2026-06-29
+
+### Added
+- **`update` self-heals `server.js` startup-log encoding.** Older scaffolds had
+  byte-corrupted bolt/arrow/ellipsis/dash characters in their console logs;
+  `create-volt update` (and the config wizard Upgrade button, which runs it) now
+  surgically repairs them — rewriting the brand log lines to plain ASCII and
+  swapping the corrupted byte-runs — with no change to your logic.
+
 ## [0.45.1] - 2026-06-29
 
 ### Fixed
@@ -600,6 +609,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.46.0]: https://github.com/MIR-2025/volt/releases/tag/v0.46.0
 [0.45.1]: https://github.com/MIR-2025/volt/releases/tag/v0.45.1
 [0.45.0]: https://github.com/MIR-2025/volt/releases/tag/v0.45.0
 [0.44.0]: https://github.com/MIR-2025/volt/releases/tag/v0.44.0

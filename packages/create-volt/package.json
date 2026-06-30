@@ -1,6 +1,6 @@
 {
   "name": "create-volt",
-  "version": "0.45.1",
+  "version": "0.46.0",
   "description": "Scaffold a new Volt app — no-build, signals-based UI with Socket.io hot reload.",
   "type": "module",
   "bin": {
