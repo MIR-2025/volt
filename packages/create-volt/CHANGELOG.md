@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.39.1] - 2026-06-30
+
+### Fixed
+- **Scaffolding was broken in 0.37.0–0.39.0.** The bundled `themes/` dir is
+  copied into new apps, but it was never added to the package `files`, so it was
+  missing from the npm tarball and `npm create volt` crashed with
+  `ENOENT … create-volt/themes`. Added `themes` to `files`, and guarded the
+  bundled-dir copy (`addons`/`themes`) so a missing dir is skipped, never fatal.
+  Verified by scaffolding from the packed tarball.
+
 ## [0.39.0] - 2026-06-29
 
 ### Fixed
@@ -518,6 +528,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.39.1]: https://github.com/MIR-2025/volt/releases/tag/v0.39.1
 [0.39.0]: https://github.com/MIR-2025/volt/releases/tag/v0.39.0
 [0.38.0]: https://github.com/MIR-2025/volt/releases/tag/v0.38.0
 [0.37.0]: https://github.com/MIR-2025/volt/releases/tag/v0.37.0

@@ -465,8 +465,12 @@ if (fs.existsSync(shippedDockerignore)) {
 // Bundle the add-on sources so the app's setup wizard can enable them later
 // (only for templates that ship the wizard, i.e. have a setup/ dir).
 if (fs.existsSync(path.join(targetDir, "setup"))) {
-  fs.cpSync(path.join(__dirname, "addons"), path.join(targetDir, ".volt", "addons"), { recursive: true });
-  fs.cpSync(path.join(__dirname, "themes"), path.join(targetDir, ".volt", "themes"), { recursive: true }); // bundled themes the wizard can pick
+  // copy each bundled dir into .volt/ — guard existsSync so a missing dir (e.g.
+  // an incomplete install) is skipped rather than crashing the scaffold.
+  for (const name of ["addons", "themes"]) {
+    const src = path.join(__dirname, name);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(targetDir, ".volt", name), { recursive: true });
+  }
 }
 
 // --- stamp the project name into package.json ---
