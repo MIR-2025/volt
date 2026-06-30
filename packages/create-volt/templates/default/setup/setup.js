@@ -317,7 +317,7 @@ function parseDoc(raw) {
   return { title, body: fm ? raw.slice(fm[0].length) : raw, isHtml: /^format:\s*html\s*$/m.test(front) };
 }
 function mountEditor(doc) {
-  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…" });
+  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…", aiProxy: "/setup/ai", aiProvider: state().aiProvider || "anthropic" });
   if (doc && doc.isHtml) ed.setHTML(doc.body || "");
   else ed.setMarkdown((doc && doc.body) || "");
 }

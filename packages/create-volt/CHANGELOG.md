@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.49.0] - 2026-06-29
+
+### Added
+- **AI in the config editor.** The embedded RTEPro editor's AI button now works:
+  a new `/setup/ai` proxy injects the `.env` provider key server-side
+  (Anthropic / OpenAI / Gemini, BYO) and RTEPro is wired to it via aiProxy. The
+  key never reaches the browser. (Set ANTHROPIC_API_KEY etc. in the app's .env.)
+
 ## [0.48.3] - 2026-06-29
 
 ### Fixed
@@ -649,6 +657,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.49.0]: https://github.com/MIR-2025/volt/releases/tag/v0.49.0
 [0.48.3]: https://github.com/MIR-2025/volt/releases/tag/v0.48.3
 [0.48.2]: https://github.com/MIR-2025/volt/releases/tag/v0.48.2
 [0.48.1]: https://github.com/MIR-2025/volt/releases/tag/v0.48.1

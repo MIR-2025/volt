@@ -370,6 +370,47 @@ function startSetup() {
       }
       return;
     }
+    // --- AI proxy for the in-config editor (RTEPro). Injects the .env provider
+    // key server-side (never reaches the browser). BYO keys; RTEPro POSTs a
+    // provider-native body with a _provider field. ---
+    if (req.method === "POST" && p === "/setup/ai") {
+      let cbody = "";
+      req.on("data", (c) => (cbody += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        try {
+          const env = readEnvFile();
+          const body = JSON.parse(cbody || "{}");
+          const provider = body._provider || env.AI_PROVIDER || "anthropic";
+          delete body._provider;
+          let url, headers;
+          if (provider === "anthropic") {
+            if (!env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in .env");
+            url = "https://api.anthropic.com/v1/messages";
+            headers = { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+          } else if (provider === "openai") {
+            if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set in .env");
+            url = "https://api.openai.com/v1/chat/completions";
+            headers = { authorization: "Bearer " + env.OPENAI_API_KEY, "content-type": "application/json" };
+          } else if (provider === "gemini") {
+            if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not set in .env");
+            const model = body.model || "gemini-2.0-flash";
+            delete body.model;
+            url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+            headers = { "content-type": "application/json" };
+          } else throw new Error("unknown AI provider: " + provider);
+          const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+          const text = await r.text();
+          res.statusCode = r.status;
+          res.setHeader("Content-Type", r.headers.get("content-type") || "application/json");
+          res.end(text);
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
     // --- AI credits: in-config purchase flow. Proxies the hosted gateway with
     // the app's VOLT_AI_TOKEN — the buy flow lives here in the (shell-gated)
     // config only, never in the running app. ---
