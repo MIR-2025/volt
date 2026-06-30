@@ -370,9 +370,10 @@ function startSetup() {
       }
       return;
     }
-    // --- AI proxy for the in-config editor (RTEPro). Injects the .env provider
-    // key server-side (never reaches the browser). BYO keys; RTEPro POSTs a
-    // provider-native body with a _provider field. ---
+    // --- AI proxy for the in-config editor (RTEPro). Uses a local provider key
+    // (BYO) when set; otherwise falls back to the voltjs.com gateway via
+    // VOLT_AI_TOKEN (free-capped, then pay-as-you-go on the host's key). The
+    // key/token never reaches the browser. ---
     if (req.method === "POST" && p === "/setup/ai") {
       let cbody = "";
       req.on("data", (c) => (cbody += c));
@@ -383,23 +384,30 @@ function startSetup() {
           const body = JSON.parse(cbody || "{}");
           const provider = body._provider || env.AI_PROVIDER || "anthropic";
           delete body._provider;
-          let url, headers;
-          if (provider === "anthropic") {
-            if (!env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in .env");
-            url = "https://api.anthropic.com/v1/messages";
-            headers = { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" };
-          } else if (provider === "openai") {
-            if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set in .env");
-            url = "https://api.openai.com/v1/chat/completions";
-            headers = { authorization: "Bearer " + env.OPENAI_API_KEY, "content-type": "application/json" };
-          } else if (provider === "gemini") {
-            if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not set in .env");
-            const model = body.model || "gemini-2.0-flash";
-            delete body.model;
-            url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
-            headers = { "content-type": "application/json" };
-          } else throw new Error("unknown AI provider: " + provider);
-          const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+          const localKey = { anthropic: env.ANTHROPIC_API_KEY, openai: env.OPENAI_API_KEY, gemini: env.GEMINI_API_KEY }[provider];
+          let url, headers, payload = body;
+          if (localKey) {
+            if (provider === "anthropic") {
+              url = "https://api.anthropic.com/v1/messages";
+              headers = { "x-api-key": localKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+            } else if (provider === "openai") {
+              url = "https://api.openai.com/v1/chat/completions";
+              headers = { authorization: "Bearer " + localKey, "content-type": "application/json" };
+            } else if (provider === "gemini") {
+              const model = body.model || "gemini-2.0-flash";
+              delete body.model;
+              url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${localKey}`;
+              headers = { "content-type": "application/json" };
+            } else throw new Error("unknown AI provider: " + provider);
+          } else if (env.VOLT_AI_TOKEN) {
+            // no local key → host gateway (free-capped, then pay-as-you-go)
+            url = env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai";
+            headers = { authorization: "Bearer " + env.VOLT_AI_TOKEN, "content-type": "application/json" };
+            payload = { messages: body.messages, system: body.system, max_tokens: body.max_tokens, model: body.model };
+          } else {
+            throw new Error("No AI key in .env and no VOLT_AI_TOKEN — add a provider key, or a gateway token to use the hosted tier.");
+          }
+          const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
           const text = await r.text();
           res.statusCode = r.status;
           res.setHeader("Content-Type", r.headers.get("content-type") || "application/json");

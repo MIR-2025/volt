@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.50.0] - 2026-06-30
+
+### Added
+- **Config editor AI falls back to the hosted gateway.** With no local provider
+  key, `/setup/ai` routes through the voltjs.com gateway via `VOLT_AI_TOKEN`
+  (free-capped, then pay-as-you-go on the host's key); a local key still wins
+  (BYO). Clear error when neither is set. The gateway now honors the client's
+  stream preference, so the editor gets a normal JSON response.
+
 ## [0.49.0] - 2026-06-29
 
 ### Added
@@ -657,6 +666,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.50.0]: https://github.com/MIR-2025/volt/releases/tag/v0.50.0
 [0.49.0]: https://github.com/MIR-2025/volt/releases/tag/v0.49.0
 [0.48.3]: https://github.com/MIR-2025/volt/releases/tag/v0.48.3
 [0.48.2]: https://github.com/MIR-2025/volt/releases/tag/v0.48.2
