@@ -4,6 +4,12 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.48.2] - 2026-06-29
+
+### Changed
+- Config is desktop-only, so the **editor view is now much wider** (up to
+  `min(1200px, 95vw)`) while settings stay a readable 720px — view-responsive.
+
 ## [0.48.1] - 2026-06-29
 
 ### Changed
@@ -635,6 +641,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.48.2]: https://github.com/MIR-2025/volt/releases/tag/v0.48.2
 [0.48.1]: https://github.com/MIR-2025/volt/releases/tag/v0.48.1
 [0.48.0]: https://github.com/MIR-2025/volt/releases/tag/v0.48.0
 [0.47.0]: https://github.com/MIR-2025/volt/releases/tag/v0.47.0

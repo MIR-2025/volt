@@ -2,7 +2,7 @@
 // settings → writes .env (a VOLT_ADDONS list + settings), adds any needed
 // packages, installs, and starts the app. Add-on code is bundled; enabling is
 // just config.
-import { signal, computed, html, mount } from "/volt.js";
+import { signal, computed, effect, html, mount } from "/volt.js";
 
 const { available, themes = [], current, defaultPort, configDefaultPort = 5050 } = await (await fetch("/setup/state")).json();
 const depsOf = Object.fromEntries(available.map((a) => [a.name, a.dependsOn || []]));
@@ -271,6 +271,11 @@ const aiSettings = () =>
 
 // --- Manage content (a second screen reached via "Manage content →") ---
 const view = signal("config"); // "config" | "manage"
+// Desktop-only config: keep settings readable, but let the editor go wide.
+effect(() => {
+  const w = document.getElementById("wrap");
+  if (w) w.style.maxWidth = view() === "manage" ? "min(1200px, 95vw)" : "720px";
+});
 // upgrade check: compare bundled version to npm latest; offer a one-click upgrade
 const upgrade = signal(null); // { current, latest, available }
 fetch("/setup/upgrade-check").then((r) => r.json()).then((u) => upgrade(u)).catch(() => {});
