@@ -300,24 +300,52 @@ async function buyCredits(amountUsd) {
   }
 }
 const items = signal({ pages: [], posts: [] });
-const editing = signal(null); // { type, slug, body, isNew } — set only on open/save/close, so typing doesn't re-render
+const editing = signal(null); // { type, slug, title, isNew } — set only on open/save/close
+let ed = null; // live RTEPro instance for the open editor
 const loadItems = async () => items(await (await fetch("/setup/content")).json());
+// raw .md → { title, bodyHtml } for the WYSIWYG (markdown rendered to HTML)
+function parseDoc(raw) {
+  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  const front = fm ? fm[1] : "";
+  const title = ((front.match(/^title:\s*(.+)$/m) || [])[1] || "").trim();
+  const body = fm ? raw.slice(fm[0].length) : raw;
+  const bodyHtml = /^format:\s*html\s*$/m.test(front) ? body : window.marked.parse(body);
+  return { title, bodyHtml };
+}
+function mountEditor(bodyHtml) {
+  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…" });
+  ed.setHTML(bodyHtml || "");
+}
 async function editItem(type, slug) {
   const d = await (await fetch(`/setup/content/raw?type=${type}&slug=${encodeURIComponent(slug)}`)).json();
-  editing({ type, slug, body: d.body || "", isNew: false });
+  const { title, bodyHtml } = parseDoc(d.body || "");
+  editing({ type, slug, title, isNew: false });
+  queueMicrotask(() => mountEditor(bodyHtml));
 }
 function newItem(type) {
-  const body = type === "post" ? "---\ntitle: New Post\ndate: 2026-01-01\ncategory: \ntags: \n---\n\nWrite your post here.\n" : "---\ntitle: New Page\n---\n\nWrite your page here.\n";
-  editing({ type, slug: "", body, isNew: true });
+  editing({ type, slug: "", title: "", isNew: true });
+  queueMicrotask(() => mountEditor(""));
+}
+// markdown can't round-trip complex layouts (columns, inline styles, merged cells,
+// embeds) — save those as HTML so they aren't flattened.
+function isComplex(h) {
+  return /\bstyle\s*=\s*["'][^"']*(text-align|column|float|grid|flex|width|height|color|background|font|margin|padding)/i.test(h) || /\b(colspan|rowspan)\b/i.test(h) || /<(u|font|mark|sub|sup|iframe|video|audio|figure)\b/i.test(h) || /class\s*=\s*["'][^"']*(col|grid|row|flex|layout)/i.test(h);
 }
 async function saveItem() {
   const e = editing();
   const slug = (document.querySelector("#mg-slug").value || "").trim().toLowerCase();
-  const body = document.querySelector("#mg-body").value;
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return status("Slug must be lowercase letters, numbers, hyphens.");
+  const title = (document.querySelector("#mg-title").value || "").trim() || slug;
+  const htmlOut = ed ? ed.getHTML() : "";
+  const complex = isComplex(htmlOut);
+  const front = [`title: ${title}`];
+  if (complex) front.push("format: html");
+  const docBody = complex ? htmlOut : ed ? ed.getMarkdown() : "";
+  const body = `---\n${front.join("\n")}\n---\n\n${docBody}\n`;
   const r = await (await fetch("/setup/content/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: e.type, slug, body }) })).json();
   if (!r.ok) return status("Error: " + (r.error || "?"));
-  status("Saved → " + r.file);
+  status("Saved → " + r.file + (complex ? " (HTML — complex layout)" : ""));
+  ed = null;
   editing(null);
   loadItems();
 }
@@ -339,10 +367,10 @@ const section = (label, type, key) =>
     ${() => (items()[key].length ? html`<ul class="list-group">${items()[key].map(itemRow)}</ul>` : html`<div class="small text-muted">No ${key} yet.</div>`)}
   </div>`;
 const editorPanel = () => {
-  const e = editing(); // inputs are uncontrolled (read on Save) so typing never re-renders
-  return html`<div class="p-3 mb-2" style="border:1px solid #232a36;border-radius:10px">
-    <div class="d-flex gap-2 mb-2"><input id="mg-slug" class="form-control" placeholder="slug" value=${e.slug} readonly=${!e.isNew} /><span class="align-self-center small text-muted">${e.type === "post" ? "posts/" : "pages/"}</span></div>
-    <textarea id="mg-body" class="form-control" rows="16" style="font-family:ui-monospace,monospace;font-size:13px" value=${e.body}></textarea>
+  const e = editing(); // inputs uncontrolled (read on Save); RTEPro mounts into #mg-editor
+  return html`<div class="p-3 mb-2" style="border:1px solid var(--border,#232a36);border-radius:10px">
+    <div class="d-flex gap-2 mb-2"><input id="mg-slug" class="form-control" placeholder="slug" value=${e.slug} readonly=${!e.isNew} style="max-width:200px" /><input id="mg-title" class="form-control" placeholder="Title" value=${e.title || ""} /><span class="align-self-center small text-muted">${e.type === "post" ? "posts/" : "pages/"}</span></div>
+    <div id="mg-editor"></div>
     <div class="mt-2 d-flex gap-2"><button class="btn btn-primary btn-sm" onclick=${saveItem}>Save</button><button class="btn btn-outline-secondary btn-sm" onclick=${() => editing(null)}>Cancel</button></div>
   </div>`;
 };

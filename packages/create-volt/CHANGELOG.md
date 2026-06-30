@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.48.0] - 2026-06-29
+
+### Added
+- **WYSIWYG editor in the config.** Manage content embeds the RTEPro rich editor
+  (loaded from CDN) instead of a raw textarea — visual editing, shell-gated, no
+  public route or auth. Opens markdown rendered to HTML, saves markdown (or HTML
+  for complex layouts), with a title field beside the slug.
+
 ## [0.47.0] - 2026-06-29
 
 ### Added
@@ -620,6 +628,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.48.0]: https://github.com/MIR-2025/volt/releases/tag/v0.48.0
 [0.47.0]: https://github.com/MIR-2025/volt/releases/tag/v0.47.0
 [0.46.0]: https://github.com/MIR-2025/volt/releases/tag/v0.46.0
 [0.45.1]: https://github.com/MIR-2025/volt/releases/tag/v0.45.1
