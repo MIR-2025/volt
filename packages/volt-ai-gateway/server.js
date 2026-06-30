@@ -220,14 +220,17 @@ app.post("/api/ai", async (req, res) => {
     if ((rec.creditBalanceUsd || 0) <= 0) return res.status(402).json({ error: "out of credits — top up at POST /api/credits/checkout" });
   }
 
-  const { messages, system, max_tokens, model } = req.body || {};
+  const { messages, system, max_tokens, model, stream } = req.body || {};
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: "messages[] required" });
+  // Honor the client's stream preference (default off). Streaming clients
+  // (volt-addon-ai) send stream:true; non-streaming ones (RTEPro) omit it and get
+  // a single JSON response. Metering greps usage from either shape.
   const payload = {
     model: model || MODEL_DEFAULT,
     max_tokens: Math.min(Number(max_tokens) || MAX_TOKENS_CAP, MAX_TOKENS_CAP),
     messages,
     ...(system ? { system } : {}),
-    stream: true,
+    stream: stream === true,
   };
 
   try {
