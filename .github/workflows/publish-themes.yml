@@ -1,0 +1,33 @@
+name: Publish volt-theme-* to npm
+
+# Publishes the bundled starter themes (paper / midnight / classic) when a themes
+# tag (e.g. themes-v0.1.0) is pushed. Separate tag namespace so themes version
+# independently of create-volt / the editor.
+#   git tag themes-v0.1.0 && git push origin themes-v0.1.0
+on:
+  push:
+    tags:
+      - "themes-v*"
+
+permissions:
+  contents: read
+  id-token: write # npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Upgrade npm (Trusted Publishing needs >= 11.5)
+        run: npm install -g npm@latest
+      # No token: npm exchanges the GitHub OIDC token. A trusted publisher for THIS
+      # repo + this workflow file must be configured on npmjs.com for each package.
+      - name: Publish paper
+        run: npm publish -w volt-theme-paper --provenance --access public
+      - name: Publish midnight
+        run: npm publish -w volt-theme-midnight --provenance --access public
+      - name: Publish classic
+        run: npm publish -w volt-theme-classic --provenance --access public
