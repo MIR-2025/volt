@@ -43,3 +43,7 @@ jsonld: {"@context":"https://schema.org","@type":"Article","headline":"About Us"
 ```
 
 The page emits Open Graph + Twitter tags and a `<script type="application/ld+json">` block (JSON-LD is validated; `<` is escaped so it can’t break out of the script). The WYSIWYG editor has a SEO panel that sets these for you.
+
+## The home page
+
+`pages/index.md` is your site's front page — it is rendered in your theme and served at `/` (taking over from the app's `views/index.html`). Delete it to fall back to the default home.

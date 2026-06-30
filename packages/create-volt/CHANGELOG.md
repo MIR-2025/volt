@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.40.0] - 2026-06-30
+
+### Added
+- **Themed front page.** `pages/index.md` now takes over `/` (rendered in your
+  theme), so a content site's home matches the rest of the site instead of
+  showing the demo `views/index.html`. With no `pages/index.md`, `/` stays the
+  app's index.html. (Answers: "I chose a theme but the home page was unchanged" —
+  the theme styles pages/posts; the home needs to *be* a page.)
+
 ## [0.39.1] - 2026-06-30
 
 ### Fixed
@@ -528,6 +537,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.40.0]: https://github.com/MIR-2025/volt/releases/tag/v0.40.0
 [0.39.1]: https://github.com/MIR-2025/volt/releases/tag/v0.39.1
 [0.39.0]: https://github.com/MIR-2025/volt/releases/tag/v0.39.0
 [0.38.0]: https://github.com/MIR-2025/volt/releases/tag/v0.38.0

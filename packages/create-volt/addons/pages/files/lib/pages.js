@@ -176,20 +176,29 @@ export async function pagesRouter({ dir }) {
   const { marked } = await import("marked");
   ensure(dir);
   const getTheme = themeResolver(dir);
+  // render one markdown file into the theme. `format: html` pages (e.g. from the
+  // WYSIWYG editor) are served verbatim; everything else is rendered with marked.
+  const renderFile = async (file, fallbackTitle, res) => {
+    const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
+    const content = meta.format === "html" ? body : marked.parse(body);
+    const m = { ...meta, title: meta.title || fallbackTitle };
+    const { layout } = await getTheme();
+    res.type("html").send(injectHot(layout({ title: m.title, head: metaHead(m), content, meta: m })));
+  };
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css));
+  // themed home: pages/index.md takes over "/" (the site's front page) when present
+  r.get("/", async (_req, res, next) => {
+    const file = path.join(dir, "index.md");
+    if (!fs.existsSync(file)) return next();
+    await renderFile(file, "Home", res);
+  });
   r.get("/:slug", async (req, res, next) => {
     const slug = req.params.slug;
     if (!isSafeSlug(slug)) return next(); // safe slug only — no traversal
     const file = path.join(dir, slug + ".md");
     if (!fs.existsSync(file)) return next();
-    const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
-    // `format: html` pages (e.g. from the WYSIWYG editor) are served verbatim to
-    // preserve complex layouts; everything else is markdown rendered with marked.
-    const content = meta.format === "html" ? body : marked.parse(body);
-    const m = { ...meta, title: meta.title || slug };
-    const { layout } = await getTheme();
-    res.type("html").send(injectHot(layout({ title: m.title, head: metaHead(m), content, meta: m })));
+    await renderFile(file, slug, res);
   });
   return r;
 }
