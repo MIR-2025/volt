@@ -342,7 +342,7 @@ const editorPanel = () => {
   const e = editing(); // inputs are uncontrolled (read on Save) so typing never re-renders
   return html`<div class="p-3 mb-2" style="border:1px solid #232a36;border-radius:10px">
     <div class="d-flex gap-2 mb-2"><input id="mg-slug" class="form-control" placeholder="slug" value=${e.slug} readonly=${!e.isNew} /><span class="align-self-center small text-muted">${e.type === "post" ? "posts/" : "pages/"}</span></div>
-    <textarea id="mg-body" class="form-control" rows="16" style="font-family:ui-monospace,monospace;font-size:13px">${e.body}</textarea>
+    <textarea id="mg-body" class="form-control" rows="16" style="font-family:ui-monospace,monospace;font-size:13px" value=${e.body}></textarea>
     <div class="mt-2 d-flex gap-2"><button class="btn btn-primary btn-sm" onclick=${saveItem}>Save</button><button class="btn btn-outline-secondary btn-sm" onclick=${() => editing(null)}>Cancel</button></div>
   </div>`;
 };
@@ -353,7 +353,11 @@ const manageView = () =>
   </div>`;
 
 const configView = () =>
-  html`${() => (upgrade()?.available ? html`<div class="card-x p-3 mb-3 d-flex justify-content-between align-items-center"><span class="small">⬆ <strong>create-volt ${upgrade().latest}</strong> is available — you have ${upgrade().current}.</span><button class="btn btn-sm btn-primary" onclick=${doUpgrade}>Upgrade</button></div>` : "")}
+  html`${() => {
+      const u = upgrade();
+      if (!u || !u.current || u.current === "?") return "";
+      return html`<div class="card-x p-3 mb-3 d-flex justify-content-between align-items-center"><span class="small">create-volt <strong>${u.current}</strong> ${u.available ? html`<span class="accent">(${u.latest} available)</span>` : u.latest && u.latest !== "?" ? html`<span class="text-muted">(up to date)</span>` : ""}</span>${u.available ? html`<button class="btn btn-sm btn-primary" onclick=${doUpgrade}>Upgrade</button>` : ""}</div>`;
+    }}
     ${() => (aiCredits()?.ok ? html`<div class="card-x p-3 mb-3"><div class="d-flex justify-content-between align-items-center mb-2"><strong>AI credits</strong><span class="small text-muted">${aiCredits().tier}${typeof aiCredits().creditBalanceUsd === "number" ? ` · $${aiCredits().creditBalanceUsd.toFixed(2)} left` : ""}</span></div>${aiCredits().payments ? html`<div class="d-flex gap-2 align-items-center"><span class="small text-muted me-1">Top up:</span>${[10, 25, 50].map((a) => html`<button class="btn btn-sm btn-outline-primary" onclick=${() => buyCredits(a)}>$${a}</button>`)}</div>` : html`<div class="small text-muted">Pay-as-you-go isn't enabled on the gateway yet — using the free tier.</div>`}</div>` : "")}
     ${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
     <div class="card-x p-4 mb-3">

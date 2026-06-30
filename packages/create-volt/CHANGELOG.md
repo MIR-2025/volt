@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.47.0] - 2026-06-29
+
+### Added
+- **Config shows the create-volt version** at the top, always; with `(X available)`
+  + an Upgrade button when behind, `(up to date)` otherwise.
+- **Light-mode switcher** in the config wizard (top-right; persists; defaults to dark).
+
+### Fixed
+- **Content-editor textarea** showed a template placeholder instead of the page
+  body — now binds the body via the value property.
+
 ## [0.46.0] - 2026-06-29
 
 ### Added
@@ -609,6 +620,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.47.0]: https://github.com/MIR-2025/volt/releases/tag/v0.47.0
 [0.46.0]: https://github.com/MIR-2025/volt/releases/tag/v0.46.0
 [0.45.1]: https://github.com/MIR-2025/volt/releases/tag/v0.45.1
 [0.45.0]: https://github.com/MIR-2025/volt/releases/tag/v0.45.0
