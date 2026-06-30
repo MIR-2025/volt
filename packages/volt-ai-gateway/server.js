@@ -26,6 +26,19 @@ import express from "express";
 import { paymentsEnabled, createCheckoutSession, constructWebhookEvent } from "./payments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load shared secrets from the repo-root .env (websites/volt/.env), then an
+// optional local .env override. Real process.env (pm2/shell) always wins.
+function loadEnvFile(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+}
+loadEnvFile(path.join(__dirname, ".env")); // optional per-deploy override
+loadEnvFile(path.join(__dirname, "..", "..", ".env")); // shared root: websites/volt/.env
+
 const PORT = Number(process.env.PORT) || 8787;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
@@ -250,6 +263,16 @@ app.post("/api/ai", async (req, res) => {
     if (!res.headersSent) res.status(502).json({ error: "proxy failed" });
     else res.end();
   }
+});
+
+// self-service balance for an app's own token (the config wizard polls this).
+app.get("/api/credits", (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const rec = tokens.find((t) => t.token === token);
+  if (!rec) return res.status(401).json({ error: "invalid token" });
+  rollDay();
+  res.json({ ok: true, app: rec.app, tier: rec.tier || "free", creditBalanceUsd: Number((rec.creditBalanceUsd || 0).toFixed(4)), dailyCap: rec.dailyCap, usedToday: usedToday(token), markup: MARKUP, payments: paymentsEnabled() });
 });
 
 // pay-as-you-go: an app buys credits with its own token → Stripe Checkout URL.
