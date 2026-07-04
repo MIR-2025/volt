@@ -22,7 +22,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes the wizard can pick
-const DEFAULT_PORT = 26630; // create-volt stamps this with the project's date-port
+const DEFAULT_PORT = 26704; // create-volt stamps this with the project's date-port
 const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
 // `--port <n>` (or --port=<n>) overrides the listen port for this run — lets

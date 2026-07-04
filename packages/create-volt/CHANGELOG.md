@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.52.0] - 2026-07-04
+
+### Added
+- **Mailer accepts discrete SMTP vars.** The mailer add-on builds its transport
+  from `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/`SMTP_PASS` when
+  `SMTP_URL` is not set (secure defaults on for port 465), and resolves the From
+  address as `MAIL_FROM` → `SMTP_FROM` → `SMTP_USER`. So a plain host/port/user/pass
+  config works without composing a URL.
+
 ## [0.51.0] - 2026-06-30
 
 ### Added
@@ -675,6 +684,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.52.0]: https://github.com/MIR-2025/volt/releases/tag/v0.52.0
 [0.51.0]: https://github.com/MIR-2025/volt/releases/tag/v0.51.0
 [0.50.0]: https://github.com/MIR-2025/volt/releases/tag/v0.50.0
 [0.49.0]: https://github.com/MIR-2025/volt/releases/tag/v0.49.0
