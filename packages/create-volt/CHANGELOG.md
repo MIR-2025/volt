@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.53.0] - 2026-07-04
+
+### Added
+- **`create-volt env`** — writes a documented `.env.example` for a deploying admin
+  to fill in: every var grouped and commented, structural values (PORT, SITE_NAME,
+  VOLT_ADDONS…) seeded from an existing `.env`, secrets left blank. `--print` to
+  stdout, `--force` to overwrite.
+
 ## [0.52.0] - 2026-07-04
 
 ### Added
@@ -684,6 +692,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.53.0]: https://github.com/MIR-2025/volt/releases/tag/v0.53.0
 [0.52.0]: https://github.com/MIR-2025/volt/releases/tag/v0.52.0
 [0.51.0]: https://github.com/MIR-2025/volt/releases/tag/v0.51.0
 [0.50.0]: https://github.com/MIR-2025/volt/releases/tag/v0.50.0
