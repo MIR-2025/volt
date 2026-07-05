@@ -40,7 +40,7 @@ ${bold("Usage")}
   npx create-volt@latest studio              # browse your data — ephemeral, localhost (like Prisma Studio)
 
 ${bold("Options")}
-  --template <name>  Template: default | blog | docs | starter | guestbook  (default: default)
+  --template <name>  Template: default | blog | docs | starter | guestbook | business  (default: default)
   --port <number>    Dev port for the app (default: derived from today's date)
   --skip-install   Don't run the package manager install step
   --no-git         Don't initialize a git repository

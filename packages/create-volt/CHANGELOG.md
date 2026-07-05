@@ -4,6 +4,31 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.56.0] - 2026-07-05
+
+### Added
+- **Full site templates.** `--template business` scaffolds a complete multi-page
+  site (Home, About, Products, Contact) with a sticky-nav theme, hero, product grid,
+  CTA, and swap-your-own media slots — the "install a theme with demo content, then
+  make it yours" experience.
+- **Media library in the config.** A new **Media** view uploads / browses / deletes
+  images and video (stored in `public/media/`, served at `/media/<name>`) — a
+  Bootstrap card grid with thumbnails, copy-URL, and delete.
+- **Editor media, de-base64'd on save.** RTEPro's built-in picker inlines "Choose
+  File" uploads as base64; on save they're extracted to `public/media/<hash>.<ext>`
+  (content-hash deduped) and the `src` rewritten to a `/media` URL, so pages stay
+  lean and editor uploads land in the library.
+
+### Fixed
+- **Boolean attributes.** `readonly=${false}` (and `required`/`multiple`/`hidden`/…)
+  now correctly turn the attribute OFF — any value, including the string `"false"`,
+  previously left it on. `readonly` also maps to the `readOnly` DOM property.
+- **Hosted-token button.** "Generate a free hosted token" shows its result inline
+  next to the button, with a clear message when the gateway isn't reachable (was a
+  silent failure buried in the status line).
+- `default/server.js` now imports `node:crypto` — it had relied on the global Web
+  Crypto, which has no `createHash`.
+
 ## [0.55.1] - 2026-07-05
 
 ### Security
@@ -720,6 +745,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.56.0]: https://github.com/MIR-2025/volt/releases/tag/v0.56.0
 [0.55.1]: https://github.com/MIR-2025/volt/releases/tag/v0.55.1
 [0.55.0]: https://github.com/MIR-2025/volt/releases/tag/v0.55.0
 [0.54.0]: https://github.com/MIR-2025/volt/releases/tag/v0.54.0

@@ -43,6 +43,7 @@ const status = signal("");
 const dbTest = signal("");
 const smtpTest = signal("");
 const aiTest = signal("");
+const genMsg = signal("");
 const testResult = (m) => (m ? html`<span class="small ms-2 ${m.startsWith("✓") ? "text-success" : m.startsWith("✗") ? "text-danger" : "text-muted"}">${m}</span>` : "");
 const envObj = () => Object.fromEntries(env().split("\n").filter((l) => /^[A-Za-z0-9_]+=/.test(l)).map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }));
 
@@ -293,18 +294,66 @@ const aiSettings = () =>
       ${() => html`<a class="small d-inline-block mb-1" href=${AI_KEY_URL[state().aiProvider] || AI_KEY_URL.anthropic} target="_blank" rel="noopener">Get a ${state().aiProvider} key → paste it below (stays server-side in .env)</a>`}
       ${field("API key", "aiKey", "sk-…")}
       <div class="small text-muted mt-2 mb-1">— or — no key? Use the hosted tier (free, capped, then pay-as-you-go):</div>
-      ${() => (state().aiToken ? html`<div class="small">Hosted token: <code>${state().aiToken.slice(0, 14)}…</code> <button class="btn btn-sm btn-link p-0 ms-1" onclick=${() => set({ aiToken: "" })}>clear</button></div>` : html`<button class="btn btn-sm btn-outline-secondary" onclick=${genToken}>Generate a free hosted token</button>`)}
+      ${() => (state().aiToken ? html`<div class="small">Hosted token: <code>${state().aiToken.slice(0, 14)}…</code> <button class="btn btn-sm btn-link p-0 ms-1" onclick=${() => set({ aiToken: "" })}>clear</button></div>` : html`<button class="btn btn-sm btn-outline-secondary" onclick=${genToken}>Generate a free hosted token</button>${() => testResult(genMsg())}`)}
       <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testAi}>Test AI</button>${() => testResult(aiTest())}</div>
     </div>
   </details>`;
 
 // --- Manage content (a second screen reached via "Manage content →") ---
-const view = signal("config"); // "config" | "manage"
-// Desktop-only config: keep settings readable, but let the editor go wide.
+const view = signal("config"); // "config" | "manage" | "media"
+// Desktop-only config: keep settings readable, but let the editor + library go wide.
 effect(() => {
   const w = document.getElementById("wrap");
-  if (w) w.style.maxWidth = view() === "manage" ? "min(1200px, 95vw)" : "720px";
+  if (w) w.style.maxWidth = view() !== "config" ? "min(1200px, 95vw)" : "720px";
 });
+// --- media library: upload / browse / delete files served at /media/<name> ---
+const media = signal([]);
+const loadMedia = async () => media(((await (await fetch("/setup/media")).json()).items) || []);
+async function uploadMedia(file) {
+  status(`Uploading ${file.name}…`);
+  try {
+    const r = await (await fetch("/setup/media/upload?name=" + encodeURIComponent(file.name), { method: "POST", body: file })).json();
+    status(r.ok ? `Uploaded → ${r.url}` : `Upload failed: ${r.error || "?"}`);
+  } catch {
+    status("Upload failed.");
+  }
+  loadMedia();
+}
+async function delMedia(name) {
+  if (typeof confirm === "function" && !confirm(`Delete ${name}?`)) return;
+  await fetch("/setup/media/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+  loadMedia();
+}
+const isImg = (n) => /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(n);
+const isVid = (n) => /\.(mp4|webm|mov|ogg|ogv|m4v)$/i.test(n);
+const kb = (n) => (n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB");
+const mediaThumb = (m) =>
+  isImg(m.name)
+    ? html`<img src=${m.url} loading="lazy" class="object-fit-cover" alt=${m.name} />`
+    : isVid(m.name)
+      ? html`<video src=${m.url} muted class="object-fit-cover"></video>`
+      : html`<div class="d-flex align-items-center justify-content-center text-white-50 small text-uppercase">${m.name.split(".").pop()}</div>`;
+const mediaTile = (m) =>
+  html`<div class="col"><div class="card h-100 shadow-sm">
+    <div class="ratio ratio-4x3 bg-dark rounded-top overflow-hidden">${mediaThumb(m)}</div>
+    <div class="card-body p-2">
+      <div class="small text-truncate" title=${m.name}>${m.name}</div>
+      <div class="small text-muted mb-2">${kb(m.size)}</div>
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button type="button" class="btn btn-outline-secondary" onclick=${() => (navigator.clipboard && navigator.clipboard.writeText(m.url), status(`Copied ${m.url}`))}>Copy URL</button>
+        <button type="button" class="btn btn-outline-danger flex-grow-0" title="Delete" onclick=${() => delMedia(m.name)}>✕</button>
+      </div>
+    </div>
+  </div></div>`;
+const mediaView = () =>
+  html`<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center"><h2 class="h6 mb-0">Media library</h2><button class="btn btn-sm btn-outline-secondary" onclick=${() => view("config")}>← Settings</button></div>
+    <div class="card-body">
+      <input type="file" class="form-control mb-2" accept="image/*,video/*" multiple onchange=${(e) => { for (const f of e.target.files) uploadMedia(f); e.target.value = ""; }} />
+      <p class="small text-muted">Uploads are stored in <code>public/media/</code> and served at <code>/media/&lt;name&gt;</code>. Copy a URL and paste it into a page's image slot in the editor. (Max 100&nbsp;MB per file.)</p>
+      ${() => (media().length ? html`<div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-3">${media().map(mediaTile)}</div>` : html`<div class="text-muted small border rounded p-4 text-center">No media yet — upload above.</div>`)}
+    </div>
+  </div>`;
 // upgrade check: compare bundled version to npm latest; offer a one-click upgrade
 const upgrade = signal(null); // { current, latest, available }
 fetch("/setup/upgrade-check").then((r) => r.json()).then((u) => upgrade(u)).catch(() => {});
@@ -334,15 +383,15 @@ async function buyCredits(amountUsd) {
   }
 }
 async function genToken() {
-  status("Requesting a hosted token…");
+  genMsg("Requesting…");
   try {
     const r = await (await fetch("/setup/gen-token", { method: "POST" })).json();
     if (r.ok && r.token) {
       set({ aiToken: r.token });
-      status("Hosted token generated — click Apply to save it.");
-    } else status("Could not get a token: " + (r.error || "?"));
+      genMsg("✓ token generated — Apply to save");
+    } else genMsg("✗ " + (r.error || "no token"));
   } catch {
-    status("Token request failed.");
+    genMsg("✗ request failed");
   }
 }
 const items = signal({ pages: [], posts: [] });
@@ -449,12 +498,12 @@ const configView = () =>
       ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
     </div>
     <div class="card-x p-4 mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-light btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
+      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-light btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-outline-light btn-sm" onclick=${() => (view("media"), loadMedia())}>Media →</button><button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
       <pre class="mb-0" style="background:#0b0d11;border:1px solid #232a36;border-radius:10px;padding:12px;color:#cfe3ff;white-space:pre-wrap">${env}</pre>
     </div>`;
 
 mount(
   "#app",
-  () => (view() === "config" ? configView() : manageView()),
+  () => (view() === "config" ? configView() : view() === "media" ? mediaView() : manageView()),
   () => (status() ? html`<p class="small accent">${status}</p>` : null),
 );

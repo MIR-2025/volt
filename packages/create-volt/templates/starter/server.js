@@ -376,9 +376,9 @@ function startSetup() {
       const env = readEnvFile();
       const base = (env.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai").replace(/\/api\/ai\/?$/, "");
       fetch(base + "/api/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app: env.SITE_NAME || "volt-app" }) })
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : { ok: false, error: `hosted AI gateway not available (HTTP ${r.status}) — is it deployed?` }))
         .then((j) => res.end(JSON.stringify(j)))
-        .catch(() => res.end(JSON.stringify({ ok: false, error: "gateway unreachable" })));
+        .catch(() => res.end(JSON.stringify({ ok: false, error: "hosted AI gateway unreachable" })));
       return;
     }
     // --- AI proxy for the in-config editor (RTEPro). Uses a local provider key
@@ -492,6 +492,71 @@ function startSetup() {
       })();
       return;
     }
+    // --- media library: list / upload / delete files in public/media (served at
+    // /media/<name>). Shell-gated (config only). ---
+    if (req.method === "GET" && p === "/setup/media") {
+      res.setHeader("Content-Type", "application/json");
+      const dir = path.join(__dirname, "public", "media");
+      let items = [];
+      try {
+        items = fs
+          .readdirSync(dir)
+          .filter((f) => !f.startsWith("."))
+          .map((f) => ({ name: f, url: "/media/" + f, size: fs.statSync(path.join(dir, f)).size }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      } catch {
+        /* no media dir yet */
+      }
+      return res.end(JSON.stringify({ items }));
+    }
+    if (req.method === "POST" && p === "/setup/media/upload") {
+      res.setHeader("Content-Type", "application/json");
+      const name = (u.searchParams.get("name") || "").replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "").slice(0, 120);
+      if (!name || !/\.[A-Za-z0-9]+$/.test(name)) return res.end(JSON.stringify({ ok: false, error: "bad filename" }));
+      const dir = path.join(__dirname, "public", "media");
+      fs.mkdirSync(dir, { recursive: true });
+      const chunks = [];
+      let size = 0;
+      let tooBig = false;
+      req.on("data", (c) => {
+        if (tooBig) return;
+        size += c.length;
+        if (size > 100 * 1024 * 1024) tooBig = true;
+        else chunks.push(c);
+      });
+      req.on("end", () => {
+        if (tooBig) {
+          res.statusCode = 413;
+          return res.end(JSON.stringify({ ok: false, error: "file too large (max 100MB)" }));
+        }
+        try {
+          fs.writeFileSync(path.join(dir, name), Buffer.concat(chunks));
+          res.end(JSON.stringify({ ok: true, url: "/media/" + name, name }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
+    if (req.method === "POST" && p === "/setup/media/delete") {
+      let mbody = "";
+      req.on("data", (c) => (mbody += c));
+      req.on("end", () => {
+        res.setHeader("Content-Type", "application/json");
+        try {
+          const { name } = JSON.parse(mbody || "{}");
+          if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name || "")) throw new Error("bad name");
+          const f = path.join(__dirname, "public", "media", name);
+          if (fs.existsSync(f)) fs.unlinkSync(f);
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
     // --- content manager: list / read / write / delete pages + posts ---
     if (req.method === "GET" && p === "/setup/content") {
       const list = (type) => {
@@ -532,7 +597,25 @@ function startSetup() {
             return res.end(JSON.stringify({ ok: true }));
           }
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(file, String(body ?? ""));
+          // RTEPro's media picker inlines "Choose File" uploads as base64 data URLs.
+          // Extract them to public/media/<hash>.<ext> and rewrite the src, so pages
+          // stay lean and the uploads land in the media library.
+          const mediaDir = path.join(__dirname, "public", "media");
+          const extFor = (mime) =>
+            ({ "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/avif": "avif", "image/svg+xml": "svg", "video/mp4": "mp4", "video/webm": "webm", "video/ogg": "ogv", "audio/mpeg": "mp3", "audio/ogg": "ogg", "audio/wav": "wav" }[mime.toLowerCase()] || (mime.split("/")[1] || "bin").replace(/[^a-z0-9]+/gi, "").slice(0, 8) || "bin");
+          const finalBody = String(body ?? "").replace(/(<(?:img|video|audio|source)\b[^>]*?\ssrc=")data:([\w.+-]+\/[\w.+-]+);base64,([^"]+)(")/gi, (m, pre, mime, b64, post) => {
+            try {
+              const buf = Buffer.from(b64, "base64");
+              const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + "." + extFor(mime);
+              fs.mkdirSync(mediaDir, { recursive: true });
+              const dest = path.join(mediaDir, name);
+              if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
+              return pre + "/media/" + name + post;
+            } catch {
+              return m;
+            }
+          });
+          fs.writeFileSync(file, finalBody);
           res.end(JSON.stringify({ ok: true, file: (type === "post" ? "posts/" : "pages/") + slug + ".md" }));
         } catch (e) {
           res.statusCode = 400;

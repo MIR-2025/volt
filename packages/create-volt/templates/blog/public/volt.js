@@ -125,14 +125,19 @@ export function mount(target, ...children) {
   return parent;
 }
 
+// Boolean attributes: presence means "on", so a false/null/"false" value must turn
+// them OFF (readonly="false" is still readonly in HTML). Set via the DOM property;
+// readonly's property is readOnly, so map it.
+const BOOL_ATTRS = new Set(["checked", "disabled", "selected", "readonly", "required", "multiple", "hidden", "autofocus", "open"]);
+const BOOL_PROP = { readonly: "readOnly" };
 function setAttr(node, name, value) {
   if (name === "value") {
     const v = value ?? "";
     if (node.value !== v) node.value = v; // skip redundant writes — they reset the caret while typing
     return;
   }
-  if (name === "checked" || name === "disabled" || name === "selected") {
-    node[name] = !!value && value !== "false";
+  if (BOOL_ATTRS.has(name)) {
+    node[BOOL_PROP[name] || name] = !!value && value !== "false";
     return;
   }
   if (value === false || value == null) {
