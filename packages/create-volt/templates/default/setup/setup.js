@@ -32,12 +32,18 @@ const state = signal({
   siteUrl: current.SITE_URL || "",
   configPort: current.CONFIG_PORT || "",
   theme: current.THEME || "",
+  siteScheme: current.SITE_SCHEME || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
+  adminEmail: current.ADMIN_EMAIL || "",
+  adminPath: current.ADMIN_PATH || "",
+  adminSecret: current.ADMIN_SECRET || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
+// browser CSPRNG → an unguessable admin path + session key (no human-picked secrets)
+const randHex = (n = 16) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const status = signal("");
 // per-test inline results (shown right next to each Test button)
 const dbTest = signal("");
@@ -85,6 +91,7 @@ function genEnv(s) {
   if (s.siteUrl) out.push(`SITE_URL=${clean(s.siteUrl)}`);
   if (s.configPort) out.push(`CONFIG_PORT=${clean(s.configPort)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
   if (s.aiKey) {
     out.push(`AI_PROVIDER=${clean(s.aiProvider)}`);
     const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
@@ -116,6 +123,11 @@ function genEnv(s) {
       if (s.s3PublicBase) out.push(`S3_PUBLIC_BASE=${clean(s.s3PublicBase)}`);
     }
   }
+  if (eff.includes("admin")) {
+    if (s.adminPath) out.push(`ADMIN_PATH=${clean(s.adminPath)}`);
+    if (s.adminEmail) out.push(`ADMIN_EMAIL=${clean(s.adminEmail)}`);
+    if (s.adminSecret) out.push(`ADMIN_SECRET=${clean(s.adminSecret)}`);
+  }
   return out.join("\n") + "\n";
 }
 const env = computed(() => genEnv(state()));
@@ -128,6 +140,16 @@ const mediaDriver = computed(() => state().mediaDriver);
 const hasDb = computed(() => eff().includes("db"));
 const hasMailer = computed(() => eff().includes("mailer"));
 const hasMedia = computed(() => eff().includes("media"));
+const hasAdmin = computed(() => eff().includes("admin"));
+// when web-admin is on, seed an unguessable path + session key if they're unset
+effect(() => {
+  if (!hasAdmin()) return;
+  const s = state();
+  const patch = {};
+  if (!s.adminPath) patch.adminPath = randHex(8);
+  if (!s.adminSecret) patch.adminSecret = randHex(32);
+  if (Object.keys(patch).length) set(patch);
+});
 const hasContent = computed(() => eff().includes("pages") || eff().includes("posts")); // themes apply to pages/posts
 
 // "Customize": copy the selected bundled theme to pages/_theme.js, then use it
@@ -214,6 +236,22 @@ const field = (label, key, placeholder = "") =>
     <input class="form-control" placeholder=${placeholder} value=${() => state()[key]} oninput=${(e) => set({ [key]: e.target.value })} />
   </div>`;
 
+// Web-admin settings — a secret admin URL (auto-generated, unguessable) + the one
+// email allowed to sign in. Shown when the "admin" add-on is enabled.
+const adminSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">Web admin</h2>
+    <p class="small text-muted mb-2">Manage content + media over the web at a secret URL — a magic link secured by a one-time nonce, a same-browser check, and a device fingerprint. Only the email below can sign in.</p>
+    ${field("Admin email", "adminEmail", "you@example.com")}
+    <label class="form-label small mb-1">Secret admin URL</label>
+    <div class="input-group input-group-sm mb-1">
+      <span class="input-group-text text-truncate" style="max-width:55%">${() => (state().siteUrl || "your-site").replace(/\/+$/, "")}/</span>
+      <input class="form-control font-monospace" value=${() => state().adminPath} oninput=${(e) => set({ adminPath: e.target.value })} />
+      <button class="btn btn-outline-secondary" onclick=${() => set({ adminPath: randHex(8) })}>Regenerate</button>
+    </div>
+    <p class="small text-muted mb-0">Unguessable by design — bookmark it. A 256-bit <code>ADMIN_SECRET</code> (session key) is generated automatically.</p>
+  </div>`;
+
 // A dependency pulled in by another enabled add-on shows as checked + disabled
 // (you can't turn it off while something needs it), with a "required by" note —
 // so the .env's VOLT_ADDONS always matches what the boxes show.
@@ -261,6 +299,16 @@ const mediaSettings = () =>
         ? html`${field("S3_ENDPOINT", "s3Endpoint", "https://nyc3.digitaloceanspaces.com")}${field("S3_REGION", "s3Region", "us-east-1")}${field("S3_BUCKET", "s3Bucket", "my-space")}${field("S3_KEY", "s3Key", "access key")}${field("S3_SECRET", "s3Secret", "secret key")}${field("S3_PUBLIC_BASE (optional CDN base)", "s3PublicBase", "https://cdn.example.com")}`
         : null}`;
 
+// available color schemes (swatches for the picker) — a palette swap that any
+// scheme-ready theme (canonical tokens) picks up. Sourced from the pages add-on.
+const schemes = signal([]);
+fetch("/setup/schemes").then((r) => r.json()).then((d) => schemes(d.schemes || [])).catch(() => {});
+const schemeSwatch = (sc) =>
+  html`<button type="button" class=${() => "btn btn-sm p-0 " + (state().siteScheme === sc.id ? "border border-2 border-primary" : "border")} style="width:76px;overflow:hidden;border-radius:8px" title=${sc.label} onclick=${() => set({ siteScheme: sc.id })}>
+    <div class="d-flex align-items-center justify-content-center" style=${`height:32px;background:${sc.bg}`}><div style=${`width:18px;height:18px;border-radius:50%;background:${sc.brand}`}></div></div>
+    <div class="text-truncate px-1" style="font-size:.68rem">${sc.label}</div>
+  </button>`;
+
 // theme chooser: a bundled theme (or the built-in/local one), with Customize
 const themePicker = () =>
   html`<div class="mb-2">
@@ -273,6 +321,15 @@ const themePicker = () =>
       state().theme
         ? html`<button class="btn btn-sm btn-outline-secondary mt-1" onclick=${ejectTheme}>Customize → copy to pages/_theme.js</button>`
         : html`<div class="small text-muted mt-1">Pick a starter theme, or keep the built-in / your local <code>pages/_theme.js</code>.</div>`}
+    <label class="form-label small mb-1 mt-3">Color scheme (SITE_SCHEME)</label>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class=${() => "btn btn-sm p-0 " + (state().siteScheme === "" ? "border border-2 border-primary" : "border")} style="width:76px;overflow:hidden;border-radius:8px" title="Theme default" onclick=${() => set({ siteScheme: "" })}>
+        <div class="bg-body-secondary small d-flex align-items-center justify-content-center" style="height:32px">Aa</div>
+        <div class="text-truncate px-1" style="font-size:.68rem">Default</div>
+      </button>
+      ${() => schemes().map(schemeSwatch)}
+    </div>
+    <div class="small text-muted mt-1">Swaps the palette; the theme's structure stays.</div>
   </div>`;
 
 // AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.
@@ -493,6 +550,7 @@ const configView = () =>
       ${() => (hasDb() ? dbSettings() : null)}
       ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
       ${() => (hasMedia() ? mediaSettings() : null)}
+      ${() => (hasAdmin() ? adminSettings() : null)}
       ${aiSettings()}
       ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
       ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}

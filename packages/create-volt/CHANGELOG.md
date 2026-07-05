@@ -4,6 +4,26 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.57.0] - 2026-07-05
+
+### Added
+- **Color schemes.** Eight curated palettes (Slate, Ocean, Indigo, Rose, Forest,
+  Amber, Mono, High-contrast), each with a light + dark set, chosen from a swatch
+  picker in the config (`SITE_SCHEME`) and stamped on `<html>` server-side (no
+  flash). A scheme swaps only the *palette*: every bundled theme (default, paper,
+  midnight, classic) and the `business` template now share one token contract
+  (`--bg`/`--surface`/`--ink`/`--muted`/`--line`/`--brand`/`--brand-ink`), so one
+  theme × eight schemes = eight looks. The bare default keeps its automatic OS
+  light/dark.
+- **`volt-addon-admin` — secure web admin.** Manage content + media on the *live*
+  site without shell access, at a secret `ADMIN_PATH` behind a hardened magic link:
+  a one-time **nonce**, a **same-browser challenge cookie** (a secret planted in the
+  browser that requested the link, which the click must present), and a **device
+  fingerprint** — a link opened in a different browser/device is rejected. Signed
+  stateless sessions, gated to `ADMIN_EMAIL`, rate-limited, no account enumeration.
+  Enable it in the config and it generates an unguessable `ADMIN_PATH` + a 256-bit
+  `ADMIN_SECRET` automatically.
+
 ## [0.56.1] - 2026-07-05
 
 ### Fixed
@@ -754,6 +774,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.57.0]: https://github.com/MIR-2025/volt/releases/tag/v0.57.0
 [0.56.1]: https://github.com/MIR-2025/volt/releases/tag/v0.56.1
 [0.56.0]: https://github.com/MIR-2025/volt/releases/tag/v0.56.0
 [0.55.1]: https://github.com/MIR-2025/volt/releases/tag/v0.55.1

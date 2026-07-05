@@ -481,6 +481,18 @@ function startSetup() {
       return;
     }
     // --- active theme's CSS, so the in-config editor renders pages themed ---
+    if (req.method === "GET" && p === "/setup/schemes") {
+      res.setHeader("Content-Type", "application/json");
+      (async () => {
+        try {
+          const { SCHEMES } = await imp(path.join(".volt", "addons", "pages", "files", "lib", "pages.js"));
+          res.end(JSON.stringify({ schemes: (SCHEMES || []).map((s) => ({ id: s.id, label: s.label, brand: s.light.brand, bg: s.light.bg })) }));
+        } catch {
+          res.end(JSON.stringify({ schemes: [] }));
+        }
+      })();
+      return;
+    }
     if (req.method === "GET" && p === "/setup/theme-css") {
       res.setHeader("Content-Type", "text/css; charset=utf-8");
       (async () => {

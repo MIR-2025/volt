@@ -86,15 +86,18 @@ export function metaHead(meta) {
   return t.join("\n");
 }
 
-const DEFAULT_CSS = `:root { color-scheme: light dark }
-body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 system-ui, -apple-system, sans-serif; }
+// Canonical color tokens with an automatic dark set (prefers-color-scheme), so the
+// bare default still adapts to the OS AND a SITE_SCHEME can override the palette.
+const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 } }
+body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink) }
 h1, h2, h3 { line-height: 1.25; margin: 1.6rem 0 .6rem }
 pre { background: #0b0d11; color: #cfe3ff; padding: 1rem; border-radius: 10px; overflow: auto }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em }
-:not(pre) > code { background: rgba(127,127,127,.18); padding: .1em .35em; border-radius: 5px }
-img { max-width: 100% } a { color: #0b67d6 }
-blockquote { border-left: 3px solid #ccc; margin: 1rem 0; padding: .2rem 1rem; opacity: .8 }
-table { border-collapse: collapse } td, th { border: 1px solid #ccc; padding: .4rem .7rem }
+:not(pre) > code { background: color-mix(in srgb, var(--ink) 12%, transparent); padding: .1em .35em; border-radius: 5px }
+img { max-width: 100% } a { color: var(--brand) }
+blockquote { border-left: 3px solid var(--line); margin: 1rem 0; padding: .2rem 1rem; color: var(--muted) }
+table { border-collapse: collapse } td, th { border: 1px solid var(--line); padding: .4rem .7rem }
 header, footer { max-width: 720px; margin: 0 auto; padding: 0 1.1rem }`;
 
 // Built-in default theme: wraps content with optional pages/_header.html and
@@ -134,6 +137,40 @@ const freshUrl = (f) => pathToFileURL(f).href + (DEV ? "?t=" + fs.statSync(f).mt
 // hot-reload IIFE. Nothing is injected in production.
 const HOT = DEV ? '\n<script src="/socket.io/socket.io.js"></script><script type="module" src="/volt.js"></script>\n' : "";
 export const injectHot = (html) => (!HOT ? html : html.includes("</body>") ? html.replace("</body>", HOT + "</body>") : html + HOT);
+
+// --- color schemes -------------------------------------------------------
+// A scheme swaps the *palette* without touching a theme's *structure*: it sets
+// the canonical color tokens below, which themes consume via var(). Pick one with
+// data-scheme="<id>" on <html>; data-theme="dark" (or prefers-color-scheme) selects
+// the dark set. A theme's own :root provides the defaults a scheme overrides.
+// Canonical tokens: --bg --surface --ink --muted --line --brand --brand-ink
+export const SCHEMES = [
+  { id: "slate", label: "Slate", light: { bg: "#f7f8fa", surface: "#ffffff", ink: "#1a1f26", muted: "#57606b", line: "#e4e7ec", brand: "#475569", brandInk: "#ffffff" }, dark: { bg: "#0f141a", surface: "#181e26", ink: "#e6ebf1", muted: "#9aa7b5", line: "#27313d", brand: "#8fa3ba", brandInk: "#0f141a" } },
+  { id: "ocean", label: "Ocean", light: { bg: "#f3f7f6", surface: "#ffffff", ink: "#10201c", muted: "#4c635e", line: "#dce8e4", brand: "#0e7c66", brandInk: "#ffffff" }, dark: { bg: "#08120f", surface: "#101d19", ink: "#e2f0eb", muted: "#86aaa0", line: "#1d302a", brand: "#34bd9e", brandInk: "#04130f" } },
+  { id: "indigo", label: "Indigo", light: { bg: "#f6f6fc", surface: "#ffffff", ink: "#17182b", muted: "#565b78", line: "#e5e5f1", brand: "#4f46e5", brandInk: "#ffffff" }, dark: { bg: "#0d0e1a", surface: "#161829", ink: "#e8e9f6", muted: "#9294ba", line: "#272a41", brand: "#8f8bf6", brandInk: "#0c0d18" } },
+  { id: "rose", label: "Rose", light: { bg: "#fcf6f7", surface: "#ffffff", ink: "#2a1418", muted: "#785459", line: "#f1e1e4", brand: "#c11d5a", brandInk: "#ffffff" }, dark: { bg: "#18090c", surface: "#231015", ink: "#f6e4e8", muted: "#c48d97", line: "#3b1e25", brand: "#f4588c", brandInk: "#180a0d" } },
+  { id: "forest", label: "Forest", light: { bg: "#f4f8f2", surface: "#ffffff", ink: "#14230d", muted: "#4f6047", line: "#e1ebda", brand: "#2f7d32", brandInk: "#ffffff" }, dark: { bg: "#0a1408", surface: "#121f10", ink: "#e4f0e0", muted: "#8bab84", line: "#1e3019", brand: "#58c15b", brandInk: "#08140a" } },
+  { id: "amber", label: "Amber", light: { bg: "#fbf7f0", surface: "#ffffff", ink: "#271c0c", muted: "#6f5f45", line: "#eee5d5", brand: "#b45309", brandInk: "#ffffff" }, dark: { bg: "#16110a", surface: "#201a10", ink: "#f2ebdd", muted: "#bda98a", line: "#352c1d", brand: "#e9a23b", brandInk: "#1a1308" } },
+  { id: "mono", label: "Mono", light: { bg: "#f6f6f6", surface: "#ffffff", ink: "#17171a", muted: "#5c5c60", line: "#e6e6e8", brand: "#18181b", brandInk: "#ffffff" }, dark: { bg: "#0e0e10", surface: "#17171a", ink: "#ececee", muted: "#98989c", line: "#2a2a2e", brand: "#ededf0", brandInk: "#0e0e10" } },
+  { id: "contrast", label: "High contrast", light: { bg: "#ffffff", surface: "#ffffff", ink: "#000000", muted: "#333333", line: "#000000", brand: "#0031c8", brandInk: "#ffffff" }, dark: { bg: "#000000", surface: "#0a0a0a", ink: "#ffffff", muted: "#d6d6d6", line: "#ffffff", brand: "#6ea8ff", brandInk: "#000000" } },
+];
+const schemeVars = (p) => `--bg:${p.bg};--surface:${p.surface};--ink:${p.ink};--muted:${p.muted};--line:${p.line};--brand:${p.brand};--brand-ink:${p.brandInk}`;
+export function schemesCss(schemes = SCHEMES) {
+  return schemes
+    .map(
+      (s) =>
+        `[data-scheme="${s.id}"]{${schemeVars(s.light)}}\n` +
+        `@media(prefers-color-scheme:dark){[data-scheme="${s.id}"]:not([data-theme="light"]){${schemeVars(s.dark)}}}\n` +
+        `[data-scheme="${s.id}"][data-theme="dark"]{${schemeVars(s.dark)}}`
+    )
+    .join("\n");
+}
+// Stamp the owner's default scheme onto <html> (server-side → no flash). A visitor
+// switcher can override data-scheme/data-theme client-side later.
+export function injectScheme(html, env) {
+  const id = String(env.SITE_SCHEME || "").replace(/[^a-z0-9-]/gi, "");
+  return id && html.includes("<html") ? html.replace("<html", `<html data-scheme="${id}"`) : html;
+}
 
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
@@ -183,10 +220,10 @@ export async function pagesRouter({ dir }) {
     const content = meta.format === "html" ? body : marked.parse(body);
     const m = { ...meta, title: meta.title || fallbackTitle };
     const { layout } = await getTheme();
-    res.type("html").send(injectHot(layout({ title: m.title, head: metaHead(m), content, meta: m })));
+    res.type("html").send(injectHot(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m }), process.env)));
   };
   const r = express.Router();
-  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css));
+  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss()));
   // themed home: pages/index.md takes over "/" (the site's front page) when present
   r.get("/", async (_req, res, next) => {
     const file = path.join(dir, "index.md");
