@@ -4,3 +4,7 @@ npm-debug.log*
 .env
 *.local
 deploy.sh
+
+# app + screenshots — kept local + on the server, not in the public repo
+/site/
+/ss/
