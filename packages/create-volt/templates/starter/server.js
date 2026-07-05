@@ -338,6 +338,20 @@ function startSetup() {
       res.setHeader("Content-Type", assets[p][0]);
       return res.end(assets[p][1]);
     }
+    // Serve uploaded media so library thumbnails + editor previews render inside the
+    // config (the running app serves these via express.static; the config didn't).
+    if (req.method === "GET" && p.startsWith("/media/")) {
+      const base = path.join(__dirname, "public", "media");
+      const f = path.resolve(base, decodeURIComponent(p.slice("/media/".length)));
+      if ((f === base || f.startsWith(base + path.sep)) && fs.existsSync(f) && fs.statSync(f).isFile()) {
+        const ext = (f.split(".").pop() || "").toLowerCase();
+        const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", ogv: "video/ogg", m4v: "video/x-m4v", ogg: "audio/ogg", mp3: "audio/mpeg", wav: "audio/wav" }[ext] || "application/octet-stream";
+        res.setHeader("Content-Type", mime);
+        return res.end(fs.readFileSync(f));
+      }
+      res.statusCode = 404;
+      return res.end("not found");
+    }
     if (req.method === "GET" && p === "/setup/state") {
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT }));
