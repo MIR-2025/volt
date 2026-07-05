@@ -22,7 +22,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes the wizard can pick
-const DEFAULT_PORT = 26704; // create-volt stamps this with the project's date-port
+const DEFAULT_PORT = 26705; // create-volt stamps this with the project's date-port
 const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
 // `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
@@ -440,6 +440,32 @@ function startSetup() {
       });
       return;
     }
+    // --- active theme's CSS, so the in-config editor renders pages themed ---
+    if (req.method === "GET" && p === "/setup/theme-css") {
+      res.setHeader("Content-Type", "text/css; charset=utf-8");
+      (async () => {
+        const theme = (readEnvFile().THEME || "").trim();
+        const load = async (rel) => {
+          try {
+            return (await imp(rel)).css || "";
+          } catch {
+            return null;
+          }
+        };
+        let css = null;
+        if (theme) css = await load(path.join(".volt", "themes", theme, "index.js"));
+        if (css == null && fs.existsSync(path.join(__dirname, "pages", "_theme.js"))) css = await load(path.join("pages", "_theme.js"));
+        if (css == null && theme) {
+          try {
+            css = (await import(`volt-theme-${theme}`)).css || "";
+          } catch {
+            css = null;
+          }
+        }
+        res.end(css || "");
+      })();
+      return;
+    }
     // --- content manager: list / read / write / delete pages + posts ---
     if (req.method === "GET" && p === "/setup/content") {
       const list = (type) => {
@@ -785,7 +811,7 @@ async function startLogs() {
       const f = sources()[u.searchParams.get("source")];
       if (!f) return json(res, { ok: false });
       const parsed = tail(f, 5000).map((l) => parseLine(l));
-      return json(res, { ok: true, total: parsed.length, paths: top(parsed, "path"), statuses: top(parsed, "status"), ips: top(parsed, "ip"), bots: parsed.filter((x) => x && x.bot).length, attacks: parsed.filter((x) => x && x.attack).length });
+      return json(res, { ok: true, total: parsed.length, paths: top(parsed, "path"), statuses: top(parsed, "status"), ips: top(parsed, "ip"), bots: parsed.filter((x) => x && x.isBot).length, attacks: parsed.filter((x) => x && x.isAttack).length });
     }
     // add/remove a source ("add servers") — written to .volt/logs.json
     if (req.method === "POST" && (p === "/api/source" || p === "/api/source/remove")) {

@@ -60,8 +60,8 @@ function rollup(parsed) {
     paths: top("path"),
     statuses: top("status"),
     ips: top("ip"),
-    bots: parsed.filter((p) => p && p.bot).length,
-    attacks: parsed.filter((p) => p && p.attack).length,
+    bots: parsed.filter((p) => p && p.isBot).length,
+    attacks: parsed.filter((p) => p && p.isAttack).length,
   };
 }
 

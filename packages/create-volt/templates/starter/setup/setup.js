@@ -323,6 +323,8 @@ async function genToken() {
 const items = signal({ pages: [], posts: [] });
 const editing = signal(null); // { type, slug, title, isNew } — set only on open/save/close
 let ed = null; // live RTEPro instance for the open editor
+let themeCss = ""; // active theme's CSS, so the editor renders pages themed
+fetch("/setup/theme-css").then((r) => r.text()).then((c) => { themeCss = c; }).catch(() => {});
 const loadItems = async () => items(await (await fetch("/setup/content")).json());
 // raw .md → { title, body, isHtml }; RTEPro takes markdown directly (setMarkdown),
 // so no markdown library is needed.
@@ -333,7 +335,7 @@ function parseDoc(raw) {
   return { title, body: fm ? raw.slice(fm[0].length) : raw, isHtml: /^format:\s*html\s*$/m.test(front) };
 }
 function mountEditor(doc) {
-  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…", aiProxy: "/setup/ai", aiProvider: state().aiProvider || "anthropic" });
+  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…", aiProxy: "/setup/ai", aiProvider: state().aiProvider || "anthropic", exportCSS: themeCss });
   if (doc && doc.isHtml) ed.setHTML(doc.body || "");
   else ed.setMarkdown((doc && doc.body) || "");
 }

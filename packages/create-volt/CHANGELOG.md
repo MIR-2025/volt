@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.54.0] - 2026-07-04
+
+### Added
+- **Config editor renders themed.** The in-config WYSIWYG loads the active theme's
+  CSS (new `/setup/theme-css` → RTEPro `exportCSS`), so pages look like the published
+  site as you edit — new pages included.
+
+### Fixed
+- **Log analytics bot/attack counts were always 0** — they read `.bot`/`.attack`,
+  but mir-sentinel's parseLine returns `.isBot`/`.isAttack`. Fixed in `--logs`.
+
 ## [0.53.0] - 2026-07-04
 
 ### Added
@@ -692,6 +703,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.54.0]: https://github.com/MIR-2025/volt/releases/tag/v0.54.0
 [0.53.0]: https://github.com/MIR-2025/volt/releases/tag/v0.53.0
 [0.52.0]: https://github.com/MIR-2025/volt/releases/tag/v0.52.0
 [0.51.0]: https://github.com/MIR-2025/volt/releases/tag/v0.51.0
