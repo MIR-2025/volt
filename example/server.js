@@ -564,6 +564,104 @@ function startSetup() {
       });
       return;
     }
+    // verify SMTP creds (form values merged over the saved .env) — auth check via
+    // nodemailer if available, else a TCP reachability check.
+    if (req.method === "POST" && p === "/setup/test-smtp") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { env = {} } = JSON.parse(body || "{}");
+          const cfg = { ...readEnvFile(), ...env };
+          const url = cfg.SMTP_URL;
+          const host = cfg.SMTP_HOST;
+          if (!url && !host) return done({ ok: false, error: "no SMTP config (set SMTP_URL or SMTP_HOST)" });
+          let nodemailer;
+          try {
+            nodemailer = (await import("nodemailer")).default;
+          } catch {
+            /* not installed */
+          }
+          if (nodemailer) {
+            const transport = url
+              ? nodemailer.createTransport(url)
+              : nodemailer.createTransport({ host, port: Number(cfg.SMTP_PORT) || 587, secure: /^(1|true|yes|on)$/i.test(cfg.SMTP_SECURE || "") || Number(cfg.SMTP_PORT) === 465, auth: cfg.SMTP_USER ? { user: cfg.SMTP_USER, pass: cfg.SMTP_PASS } : undefined });
+            await transport.verify();
+            return done({ ok: true, detail: "connection + auth OK" });
+          }
+          const net = await import("node:net");
+          let h = host;
+          let prt = Number(cfg.SMTP_PORT) || 587;
+          if (url) {
+            const u = new URL(url.replace(/^smtps?:\/\//, "http://"));
+            h = u.hostname;
+            prt = Number(u.port) || (url.startsWith("smtps") ? 465 : 587);
+          }
+          await new Promise((resolve, reject) => {
+            const s = net.connect(prt, h, () => {
+              s.end();
+              resolve();
+            });
+            s.setTimeout(5000, () => {
+              s.destroy();
+              reject(new Error("timeout"));
+            });
+            s.on("error", reject);
+          });
+          done({ ok: true, detail: `${h}:${prt} reachable — enable the mailer add-on for a full auth test` });
+        } catch (e) {
+          done({ ok: false, error: e.message });
+        }
+      });
+      return;
+    }
+    // verify the AI provider key (or gateway token) with a 1-token live call.
+    if (req.method === "POST" && p === "/setup/test-ai") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { env = {} } = JSON.parse(body || "{}");
+          const cfg = { ...readEnvFile(), ...env };
+          const provider = cfg.AI_PROVIDER || "anthropic";
+          const key = { anthropic: cfg.ANTHROPIC_API_KEY, openai: cfg.OPENAI_API_KEY, gemini: cfg.GEMINI_API_KEY }[provider];
+          let url, headers, payload, label;
+          if (key) {
+            label = provider + " key";
+            if (provider === "anthropic") {
+              url = "https://api.anthropic.com/v1/messages";
+              headers = { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+              payload = { model: cfg.AI_MODEL || "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "hi" }] };
+            } else if (provider === "openai") {
+              url = "https://api.openai.com/v1/chat/completions";
+              headers = { authorization: "Bearer " + key, "content-type": "application/json" };
+              payload = { model: cfg.AI_MODEL || "gpt-4o-mini", max_tokens: 1, messages: [{ role: "user", content: "hi" }] };
+            } else {
+              url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+              headers = { "content-type": "application/json" };
+              payload = { contents: [{ parts: [{ text: "hi" }] }] };
+            }
+          } else if (cfg.VOLT_AI_TOKEN) {
+            label = "hosted gateway";
+            url = cfg.VOLT_AI_GATEWAY || "https://voltjs.com/api/ai";
+            headers = { authorization: "Bearer " + cfg.VOLT_AI_TOKEN, "content-type": "application/json" };
+            payload = { model: cfg.AI_MODEL || "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "hi" }] };
+          } else {
+            return done({ ok: false, error: "no AI key or VOLT_AI_TOKEN set" });
+          }
+          const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+          if (r.ok) return done({ ok: true, detail: `${label} works` });
+          done({ ok: false, error: `${r.status}: ${(await r.text()).slice(0, 120)}` });
+        } catch (e) {
+          done({ ok: false, error: e.message });
+        }
+      });
+      return;
+    }
     if (req.method === "POST" && p === "/setup/apply") {
       let body = "";
       req.on("data", (c) => (body += c));

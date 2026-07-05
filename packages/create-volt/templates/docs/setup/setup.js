@@ -39,6 +39,12 @@ const state = signal({
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
 const status = signal("");
+// per-test inline results (shown right next to each Test button)
+const dbTest = signal("");
+const smtpTest = signal("");
+const aiTest = signal("");
+const testResult = (m) => (m ? html`<span class="small ms-2 ${m.startsWith("✓") ? "text-success" : m.startsWith("✗") ? "text-danger" : "text-muted"}">${m}</span>` : "");
+const envObj = () => Object.fromEntries(env().split("\n").filter((l) => /^[A-Za-z0-9_]+=/.test(l)).map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }));
 
 // selected add-ons, dependencies expanded, in display order
 function effective(s) {
@@ -149,12 +155,30 @@ async function testDb() {
   } else if (s.dbDriver === "mysql" || s.dbDriver === "postgres") {
     e.DATABASE_URL = s.dbUrl;
   }
-  status("Testing connection…");
+  dbTest("Testing…");
   try {
     const r = await (await fetch("/setup/test-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: e }) })).json();
-    status(r.ok ? `✓ Connected (${r.driver}).` : `✗ ${r.error}`);
+    dbTest(r.ok ? `✓ Connected (${r.driver})` : `✗ ${r.error}`);
   } catch {
-    status("Network error testing connection.");
+    dbTest("✗ network error");
+  }
+}
+async function testSmtp() {
+  smtpTest("Testing…");
+  try {
+    const r = await (await fetch("/setup/test-smtp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: envObj() }) })).json();
+    smtpTest(r.ok ? `✓ ${r.detail || "OK"}` : `✗ ${r.error}`);
+  } catch {
+    smtpTest("✗ network error");
+  }
+}
+async function testAi() {
+  aiTest("Testing…");
+  try {
+    const r = await (await fetch("/setup/test-ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: envObj() }) })).json();
+    aiTest(r.ok ? `✓ ${r.detail || "OK"}` : `✗ ${r.error}`);
+  } catch {
+    aiTest("✗ network error");
   }
 }
 
@@ -221,7 +245,7 @@ const dbSettings = () =>
         : dbDriver() === "mysql" || dbDriver() === "postgres"
           ? field("DATABASE_URL", "dbUrl", dbDriver() + "://user:pass@host/db")
           : null}
-    ${() => (dbDriver() !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>` : null)}`;
+    ${() => (dbDriver() !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>${() => testResult(dbTest())}` : null)}`;
 
 const mediaSettings = () =>
   html`<div class="mb-2">
@@ -270,6 +294,7 @@ const aiSettings = () =>
       ${field("API key", "aiKey", "sk-…")}
       <div class="small text-muted mt-2 mb-1">— or — no key? Use the hosted tier (free, capped, then pay-as-you-go):</div>
       ${() => (state().aiToken ? html`<div class="small">Hosted token: <code>${state().aiToken.slice(0, 14)}…</code> <button class="btn btn-sm btn-link p-0 ms-1" onclick=${() => set({ aiToken: "" })}>clear</button></div>` : html`<button class="btn btn-sm btn-outline-secondary" onclick=${genToken}>Generate a free hosted token</button>`)}
+      <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testAi}>Test AI</button>${() => testResult(aiTest())}</div>
     </div>
   </details>`;
 
@@ -417,7 +442,7 @@ const configView = () =>
       ${field("SITE_NAME", "siteName", "My Site")}
       ${() => (hasContent() ? themePicker() : null)}
       ${() => (hasDb() ? dbSettings() : null)}
-      ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}` : null)}
+      ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
       ${() => (hasMedia() ? mediaSettings() : null)}
       ${aiSettings()}
       ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
