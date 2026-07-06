@@ -20,10 +20,12 @@ pre{background:#0b0d11;color:#cfe3ff;padding:1rem;border-radius:8px;overflow:aut
 img{max-width:100%}
 footer.site{text-align:center;color:var(--muted);font-size:.9rem;padding:2rem 1rem}`;
 
-export function layout({ title, head, content }) {
+export function layout({ title, head, content, nav = [] }) {
+  const links = nav.length ? nav.map((i) => `<a href="${i.href}"${i.active ? ' class="active"' : ""}>${i.label}</a>`).join("") : `<a href="/">Home</a>`;
+  const burger = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${title}</title>${head}<link rel="stylesheet" href="/_theme.css" /></head><body>
-<header class="site"><div class="bar"><a class="brand" href="/">${NAME}</a><nav><a href="/">Home</a></nav></div></header>
+<header class="site"><div class="bar nav-wrap"><a class="brand" href="/">${NAME}</a>${burger}<nav class="nav-links">${links}</nav></div></header>
 <main><div class="card">${content}</div></main>
 <footer class="site">${NAME} — built with Volt</footer>
 </body></html>`;

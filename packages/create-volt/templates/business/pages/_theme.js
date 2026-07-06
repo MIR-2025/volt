@@ -3,12 +3,6 @@
 // sections. Media slots (.slot) are placeholders you swap your own image/video
 // into from the config editor.
 const NAME = process.env.SITE_NAME || "Northwind Co";
-const NAV = [
-  ["/", "Home"],
-  ["/about", "About"],
-  ["/products", "Products"],
-  ["/contact", "Contact"],
-];
 
 export const css = `
 :root{--bg:#ffffff;--surface:#ffffff;--ink:#141a1f;--muted:#5c6a76;--line:#e6eaef;--brand:#0e7c66;--brand-ink:#ffffff;--radius:16px;--brand-2:color-mix(in srgb,var(--brand),#000 16%);--soft:color-mix(in srgb,var(--ink) 4%,var(--bg))}
@@ -54,11 +48,12 @@ footer.site{border-top:1px solid var(--line);color:var(--muted);padding:2.5rem 0
 footer.site .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 `;
 
-export function layout({ title, head, content }) {
-  const nav = NAV.map(([h, l], i) => (i === NAV.length - 1 ? `<a class="cta" href="${h}">${l}</a>` : `<a href="${h}">${l}</a>`)).join("");
+export function layout({ title, head, content, nav = [] }) {
+  const links = nav.map((i) => `<a href="${i.href}"${i.active ? ' class="active"' : ""}>${i.label}</a>`).join("");
+  const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${links}</nav>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>${title}</title>${head}<link rel="stylesheet" href="/_theme.css"/></head><body>
-<header class="nav"><div class="wrap"><a class="brand" href="/">${NAME}</a><nav>${nav}</nav></div></header>
+<header class="nav"><div class="wrap nav-wrap"><a class="brand" href="/">${NAME}</a>${menu}</div></header>
 ${content}
 <footer class="site"><div class="wrap"><span>© ${NAME}</span><span>Built with <a href="https://voltjs.com">Volt</a></span></div></footer>
 </body></html>`;

@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 // express + marked are imported lazily in postsRouter() so the pure helpers load
 // without those deps. Theme + SEO come from the pages add-on (a dependency).
-import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot } from "../../../pages/files/lib/pages.js";
+import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot, loadNav, injectScheme } from "../../../pages/files/lib/pages.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -117,10 +117,11 @@ export async function postsRouter({ dir, themeDir }) {
   fs.mkdirSync(dir, { recursive: true });
   const getTheme = themeResolver(themeDir || dir); // same theme as pages (live in dev)
   const PER = Math.max(1, Number(process.env.POSTS_PER_PAGE) || 10);
-  const render = async ({ title, content, meta = {} }) => {
+  const render = async ({ title, content, meta = {}, activePath = "/blog" }) => {
     const m = { ...meta, title };
     const { layout } = await getTheme();
-    return injectHot(layout({ title, head: metaHead(m), content, meta: m }));
+    const nav = loadNav(themeDir || dir, activePath);
+    return injectHot(injectScheme(layout({ title, head: metaHead(m), content, meta: m, nav }), process.env));
   };
   const r = express.Router();
 

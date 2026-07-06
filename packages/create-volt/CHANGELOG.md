@@ -4,6 +4,23 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.60.0] - 2026-07-05
+
+### Added
+- **Configured header menus + responsive nav.** `pages/_nav.md` — a Markdown link
+  list — defines the header menu (reorder, rename, external links). Every theme
+  (default, paper, midnight, classic, business) renders it with **active-link
+  marking** and a **CSS-only hamburger** under 640px. `loadNav` + shared nav
+  classes/CSS live in the pages add-on; templates ship a starter `_nav.md`.
+
+### Fixed
+- **Blog/post pages now get the color scheme + mode + nav.** `posts.js` rendered
+  through the theme but skipped `injectScheme` and passed no nav — so blog pages
+  ignored `SITE_SCHEME`/`SITE_MODE` and had no menu. Now consistent with pages.
+- **Config buttons invisible in light mode.** The `.env` card's "Manage content →"
+  and "Media →" were `btn-outline-light` (white-on-white in light mode) → now
+  `btn-outline-secondary`, readable in both.
+
 ## [0.59.0] - 2026-07-05
 
 ### Added
@@ -809,6 +826,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.60.0]: https://github.com/MIR-2025/volt/releases/tag/v0.60.0
 [0.59.0]: https://github.com/MIR-2025/volt/releases/tag/v0.59.0
 [0.58.1]: https://github.com/MIR-2025/volt/releases/tag/v0.58.1
 [0.58.0]: https://github.com/MIR-2025/volt/releases/tag/v0.58.0

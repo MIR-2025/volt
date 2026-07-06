@@ -614,7 +614,7 @@ const configView = () =>
       ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
     </div>
     <div class="card-x p-4 mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-light btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-outline-light btn-sm" onclick=${() => (view("media"), loadMedia())}>Media →</button><button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
+      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-secondary btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-outline-secondary btn-sm" onclick=${() => (view("media"), loadMedia())}>Media →</button><button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
       <pre class="mb-0" style="background:#0b0d11;border:1px solid #232a36;border-radius:10px;padding:12px;color:#cfe3ff;white-space:pre-wrap">${env}</pre>
     </div>`;
 

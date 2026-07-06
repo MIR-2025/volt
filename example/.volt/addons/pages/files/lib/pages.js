@@ -103,18 +103,25 @@ header, footer { max-width: 720px; margin: 0 auto; padding: 0 1.1rem }`;
 
 // Built-in default theme: wraps content with optional pages/_header.html and
 // pages/_footer.html partials (read fresh each request → live edits).
+// Shared header: brand + the configured nav (pages/_nav.md) + a responsive
+// hamburger. Standalone themes can build their own header from `nav` instead.
+function navHeader(nav) {
+  const name = process.env.SITE_NAME || "Home";
+  const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${navLinks(nav)}</nav>` : "";
+  return `<header class="site-nav"><div class="nav-wrap"><a class="brand" href="/">${esc(name)}</a>${menu}</div></header>`;
+}
 function defaultLayout(dir) {
   const part = (f) => {
     const p = path.join(dir, f);
     return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
   };
-  // links /_theme.css (the active theme's CSS) so the page and the editor preview
-  // share one stylesheet.
-  return ({ title, head, content }) => `<!doctype html><html lang="en"><head><meta charset="utf-8" />
+  // links /_theme.css (shared with the editor preview). A pages/_header.html
+  // overrides the auto nav header.
+  return ({ title, head, content, nav = [] }) => `<!doctype html><html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
 ${head}
-<link rel="stylesheet" href="/_theme.css" /></head><body>${part("_header.html")}<main>${content}</main>${part("_footer.html")}</body></html>`;
+<link rel="stylesheet" href="/_theme.css" /></head><body>${part("_header.html") || navHeader(nav)}<main>${content}</main>${part("_footer.html")}</body></html>`;
 }
 
 // The active theme's CSS — a `_theme.css` override in pages/, else the default.
@@ -182,7 +189,16 @@ export function injectScheme(html, env) {
 // e.g. a hero image or video from the editor. The theme keeps its readable text
 // column; only flagged blocks span edge-to-edge. No editor change needed.
 export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
-.full-bleed>img,.full-bleed>video{width:100%;display:block}`;
+.full-bleed>img,.full-bleed>video{width:100%;display:block}
+.site-nav{border-bottom:1px solid var(--line);margin-bottom:1.5rem;padding:.5rem 0}
+.nav-wrap{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.nav-wrap .brand{font-weight:800;color:var(--ink);text-decoration:none;font-size:1.15rem}
+.nav-toggle{display:none}
+.nav-burger{display:none;cursor:pointer;font-size:1.35rem;line-height:1;user-select:none;margin-left:auto;color:var(--ink)}
+.nav-links{display:flex;gap:1.1rem;align-items:center;margin-left:auto;flex-wrap:wrap}
+.nav-links a{text-decoration:none;color:var(--muted)}
+.nav-links a:hover,.nav-links a.active{color:var(--brand)}
+@media(max-width:640px){.nav-burger{display:inline-block}.nav-links{display:none;flex-direction:column;align-items:flex-start;width:100%;gap:.5rem;margin:.4rem 0 0}.nav-toggle:checked~.nav-links{display:flex}}`;
 
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
@@ -220,6 +236,25 @@ export function themeResolver(dir) {
   return async () => (cached && !DEV ? cached : (cached = await loadTheme(dir, process.env)));
 }
 
+// Configured header menu: pages/_nav.md is a markdown list of links; each
+// [Label](href) becomes a nav item, in file order. Absent → no menu (the theme
+// shows just the brand). Read fresh each request so edits show live.
+export function loadNav(dir, activePath = "/") {
+  const f = path.join(dir, "_nav.md");
+  if (!fs.existsSync(f)) return [];
+  const md = fs.readFileSync(f, "utf8");
+  const items = [];
+  const re = /\[([^\]]+)\]\(\s*([^)\s]+)[^)]*\)/g;
+  let m;
+  while ((m = re.exec(md))) {
+    const href = m[2].trim();
+    items.push({ label: m[1].trim(), href, active: href === activePath || (href.length > 1 && activePath.startsWith(href)) });
+  }
+  return items;
+}
+// Render nav items to <a> tags a theme can drop into its header (active gets .active).
+export const navLinks = (nav = []) => nav.map((i) => `<a href="${esc(i.href)}"${i.active ? ' class="active" aria-current="page"' : ""}>${esc(i.label)}</a>`).join("");
+
 export async function pagesRouter({ dir }) {
   const express = (await import("express")).default;
   const { marked } = await import("marked");
@@ -227,12 +262,13 @@ export async function pagesRouter({ dir }) {
   const getTheme = themeResolver(dir);
   // render one markdown file into the theme. `format: html` pages (e.g. from the
   // WYSIWYG editor) are served verbatim; everything else is rendered with marked.
-  const renderFile = async (file, fallbackTitle, res) => {
+  const renderFile = async (file, fallbackTitle, res, activePath = "/") => {
     const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
     const content = meta.format === "html" ? body : marked.parse(body);
     const m = { ...meta, title: meta.title || fallbackTitle };
     const { layout } = await getTheme();
-    res.type("html").send(injectHot(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m }), process.env)));
+    const nav = loadNav(dir, activePath);
+    res.type("html").send(injectHot(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env)));
   };
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS));
@@ -240,14 +276,14 @@ export async function pagesRouter({ dir }) {
   r.get("/", async (_req, res, next) => {
     const file = path.join(dir, "index.md");
     if (!fs.existsSync(file)) return next();
-    await renderFile(file, "Home", res);
+    await renderFile(file, "Home", res, "/");
   });
   r.get("/:slug", async (req, res, next) => {
     const slug = req.params.slug;
     if (!isSafeSlug(slug)) return next(); // safe slug only — no traversal
     const file = path.join(dir, slug + ".md");
     if (!fs.existsSync(file)) return next();
-    await renderFile(file, slug, res);
+    await renderFile(file, slug, res, "/" + slug);
   });
   return r;
 }
