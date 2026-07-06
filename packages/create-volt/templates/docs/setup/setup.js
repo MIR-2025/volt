@@ -247,6 +247,7 @@ const adminSettings = () =>
     <div class="input-group input-group-sm mb-1">
       <span class="input-group-text text-truncate" style="max-width:55%">${() => (state().siteUrl || "your-site").replace(/\/+$/, "")}/</span>
       <input class="form-control font-monospace" value=${() => state().adminPath} oninput=${(e) => set({ adminPath: e.target.value })} />
+      <button class="btn btn-outline-secondary" onclick=${() => { const u = (state().siteUrl || "").replace(/\/+$/, "") + "/" + state().adminPath; navigator.clipboard && navigator.clipboard.writeText(u); status(`Copied ${u}`); }}>Copy</button>
       <button class="btn btn-outline-secondary" onclick=${() => set({ adminPath: randHex(8) })}>Regenerate</button>
     </div>
     <p class="small text-muted mb-0">Unguessable by design — bookmark it. A 256-bit <code>ADMIN_SECRET</code> (session key) is generated automatically.</p>

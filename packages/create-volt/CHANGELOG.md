@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.58.1] - 2026-07-05
+
+### Added
+- **Web admin: "View site →" and "Restart" in the header.** After an edit, one click
+  opens the live site to check it (content + media changes are live instantly — no
+  restart needed); Restart is there only for theme/settings changes.
+- **Config: a "Copy" button on the admin URL** (just before Regenerate) that copies
+  the full admin URL (`SITE_URL` + path) to the clipboard.
+
 ## [0.58.0] - 2026-07-05
 
 ### Added
@@ -785,6 +794,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.58.1]: https://github.com/MIR-2025/volt/releases/tag/v0.58.1
 [0.58.0]: https://github.com/MIR-2025/volt/releases/tag/v0.58.0
 [0.57.0]: https://github.com/MIR-2025/volt/releases/tag/v0.57.0
 [0.56.1]: https://github.com/MIR-2025/volt/releases/tag/v0.56.1

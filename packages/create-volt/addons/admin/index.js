@@ -281,9 +281,13 @@ const notePage = (base, msg) =>
 const adminPage = (base, email) =>
   shell(
     "Admin",
-    `<div class="d-flex justify-content-between align-items-center mb-4">
+    `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
   <h1 class="h5 mb-0">Site admin</h1>
-  <div class="small text-secondary">${esc(email)} · <a href="#" id="lo">sign out</a></div></div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-sm btn-primary" href="/" target="_blank" rel="noopener">View site →</a>
+    <button class="btn btn-sm btn-outline-warning" data-act="restart">Restart</button>
+    <span class="small text-secondary ms-1">${esc(email)} · <a href="#" id="lo">sign out</a></span></div></div>
+<p class="small text-secondary mb-4">Content &amp; media changes go live instantly — hit <b>View site</b> to check them before continuing. <b>Restart</b> is only needed after theme or settings changes.</p>
 <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span>Server actions</span><span class="small text-secondary">whitelisted — not a shell</span></div><div class="card-body">
   <div class="d-flex gap-2 flex-wrap mb-2">
     <button class="btn btn-sm btn-outline-primary" data-act="update">Update to latest</button>
