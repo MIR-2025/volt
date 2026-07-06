@@ -55,6 +55,25 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const ANTHROPIC_URL = process.env.ANTHROPIC_URL || "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
+// MIR (Memory Infrastructure Registry) — voltjs.com is a MIR partner; the platform's
+// token holders are participants. We emit account.created on register and
+// transaction.completed on a paid top-up, building portable reputation for them.
+// Opt-in + safe: nothing is sent unless MIR_EMIT is on AND MIR_API_KEY is set, and every
+// emit is best-effort fire-and-forget — a MIR hiccup must never fail a register or webhook.
+// (Reads MIR_API_KEY/MIR_EMIT from the gateway's env: websites/volt/.env or a local .env —
+// NOT site/.env, which only the marketing site loads.)
+const MIR_BASE = (process.env.MIR_BASE_URL || "https://mirregistry.org/v1").replace(/\/+$/, "");
+const MIR_KEY = process.env.MIR_API_KEY || "";
+const MIR_EMIT = /^(1|true|on|yes)$/i.test(process.env.MIR_EMIT || "");
+// Stable, non-secret participant id from a token (never send the raw secret token to MIR).
+const mirParticipant = (token) => "gw_" + crypto.createHash("sha256").update(String(token)).digest("hex").slice(0, 24);
+function mirEmit(userExternalId, eventType) {
+  if (!MIR_EMIT || !MIR_KEY || !userExternalId) return;
+  fetch(MIR_BASE + "/events", { method: "POST", headers: { "content-type": "application/json", "x-api-key": MIR_KEY }, body: JSON.stringify({ userExternalId, eventType }) })
+    .then((r) => { if (!r.ok) console.warn(`[mir] ${eventType} → HTTP ${r.status}`); })
+    .catch((e) => console.warn(`[mir] ${eventType} failed:`, e.message));
+}
+
 // Pay-as-you-go: usage beyond the free daily cap is billed against prepaid USD
 // credits at MARKUP times the underlying Anthropic cost. PRICING is $/Mtok
 // (input,output) per model — defaults are placeholders; verify against current
@@ -142,6 +161,7 @@ app.post("/webhooks/stripe", express.raw({ type: "application/json" }), (req, re
         save(TOK_FILE, tokens);
         charges.push({ stripeSessionId: s.id, token, amountUsd, at: new Date().toISOString() });
         save(CHG_FILE, charges);
+        mirEmit(mirParticipant(token), "transaction.completed"); // MIR: a paid top-up completed
         console.log(`[credit] +$${amountUsd} → ${rec.app} (balance $${rec.creditBalanceUsd.toFixed(2)})`);
       }
     }
@@ -222,6 +242,7 @@ app.post("/api/register", (req, res) => {
   const rec = { token: "volt_" + crypto.randomBytes(24).toString("base64url"), app: String(req.body?.app || "app").slice(0, 64), dailyCap: DEFAULT_APP_DAILY_CAP, tier: "free", creditBalanceUsd: 0, disabled: false, createdAt: today() };
   tokens.push(rec);
   save(TOK_FILE, tokens);
+  mirEmit(mirParticipant(rec.token), "account.created"); // MIR: a new participant onboarded
   res.json({ ok: true, token: rec.token, tier: "free", dailyCap: rec.dailyCap });
 });
 
