@@ -67,6 +67,11 @@ export function metaHead(meta) {
   if (meta.url || meta.canonical) t.push(`<meta property="og:url" content="${esc(meta.url || meta.canonical)}" />`);
   if (meta.canonical) t.push(`<link rel="canonical" href="${esc(meta.canonical)}" />`);
   t.push(`<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />`);
+  if (process.env.SITE_FAVICON) {
+    // media role: favicon (browser tab + apple-touch icon), site-wide
+    t.push(`<link rel="icon" href="${esc(process.env.SITE_FAVICON)}" />`);
+    t.push(`<link rel="apple-touch-icon" href="${esc(process.env.SITE_FAVICON)}" />`);
+  }
   if (meta.jsonld) {
     let ok = false;
     try {
@@ -108,7 +113,7 @@ header, footer { max-width: 720px; margin: 0 auto; padding: 0 1.1rem }`;
 function navHeader(nav) {
   const name = process.env.SITE_NAME || "Home";
   const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${navLinks(nav)}</nav>` : "";
-  return `<header class="site-nav"><div class="nav-wrap"><a class="brand" href="/">${esc(name)}</a>${menu}</div></header>`;
+  return `<header class="site-nav"><div class="nav-wrap"><a class="brand" href="/">${brandMark(name)}</a>${menu}</div></header>`;
 }
 function defaultLayout(dir) {
   const part = (f) => {
@@ -193,12 +198,24 @@ export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:cal
 .site-nav{border-bottom:1px solid var(--line);margin-bottom:1.5rem;padding:.5rem 0}
 .nav-wrap{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
 .nav-wrap .brand{font-weight:800;color:var(--ink);text-decoration:none;font-size:1.15rem}
+.brand-logo{height:1.9em;width:auto;display:block}
 .nav-toggle{display:none}
 .nav-burger{display:none;cursor:pointer;font-size:1.35rem;line-height:1;user-select:none;margin-left:auto;color:var(--ink)}
 .nav-links{display:flex;gap:1.1rem;align-items:center;margin-left:auto;flex-wrap:wrap}
 .nav-links a{text-decoration:none;color:var(--muted)}
 .nav-links a:hover,.nav-links a.active{color:var(--brand)}
-@media(max-width:640px){.nav-burger{display:inline-block}.nav-links{display:none;flex-direction:column;align-items:flex-start;width:100%;gap:.5rem;margin:.4rem 0 0}.nav-toggle:checked~.nav-links{display:flex}}`;
+@media(max-width:640px){.nav-burger{display:inline-block}.nav-links{display:none;flex-direction:column;align-items:flex-start;width:100%;gap:.5rem;margin:.4rem 0 0}.nav-toggle:checked~.nav-links{display:flex}}
+.volt-hero{position:relative;overflow:hidden}
+.vh-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .8s ease}`;
+
+// media role: hero. When SITE_HERO is set, fill every .volt-hero element on the page
+// with those image(s)/video(s). Multiple → a fading carousel. No dependency, no build.
+export function injectHero(html, env) {
+  const imgs = String(env.SITE_HERO || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!imgs.length || !html.includes("</body>")) return html;
+  const script = `<script>(function(){var H=${JSON.stringify(imgs)};document.querySelectorAll(".volt-hero").forEach(function(el){el.innerHTML=H.map(function(u,i){var v=/\\.(mp4|webm|mov|ogv|m4v)$/i.test(u),o="opacity:"+(i?0:1);return v?'<video src="'+u+'" autoplay muted loop playsinline class="vh-slide" style="'+o+'"></video>':'<img src="'+u+'" alt="" class="vh-slide" style="'+o+'">';}).join("");var k=el.querySelectorAll(".vh-slide");if(k.length<2)return;var i=0;setInterval(function(){k[i].style.opacity=0;i=(i+1)%k.length;k[i].style.opacity=1;},4500);});})();</script>`;
+  return html.replace("</body>", script + "</body>");
+}
 
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
@@ -254,6 +271,10 @@ export function loadNav(dir, activePath = "/") {
 }
 // Render nav items to <a> tags a theme can drop into its header (active gets .active).
 export const navLinks = (nav = []) => nav.map((i) => `<a href="${esc(i.href)}"${i.active ? ' class="active" aria-current="page"' : ""}>${esc(i.label)}</a>`).join("");
+// Absolute URL for a path, for auto-canonical + og:url. Needs SITE_URL; else undefined.
+export const absUrl = (p) => (process.env.SITE_URL ? process.env.SITE_URL.replace(/\/+$/, "") + p : undefined);
+// media role: logo. The brand mark — a logo image when SITE_LOGO is set, else the name.
+export const brandMark = (name) => (process.env.SITE_LOGO ? `<img class="brand-logo" src="${esc(process.env.SITE_LOGO)}" alt="${esc(name)}" />` : esc(name));
 
 export async function pagesRouter({ dir }) {
   const express = (await import("express")).default;
@@ -265,10 +286,10 @@ export async function pagesRouter({ dir }) {
   const renderFile = async (file, fallbackTitle, res, activePath = "/") => {
     const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
     const content = meta.format === "html" ? body : marked.parse(body);
-    const m = { ...meta, title: meta.title || fallbackTitle };
+    const m = { ...meta, title: meta.title || fallbackTitle, canonical: meta.canonical || absUrl(activePath) };
     const { layout } = await getTheme();
     const nav = loadNav(dir, activePath);
-    res.type("html").send(injectHot(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env)));
+    res.type("html").send(injectHot(injectHero(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env), process.env)));
   };
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS));

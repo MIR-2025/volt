@@ -3,6 +3,7 @@
 // sections. Media slots (.slot) are placeholders you swap your own image/video
 // into from the config editor.
 const NAME = process.env.SITE_NAME || "Northwind Co";
+const BRAND = process.env.SITE_LOGO ? `<img class="brand-logo" src="${process.env.SITE_LOGO}" alt="${NAME}" />` : NAME;
 
 export const css = `
 :root{--bg:#ffffff;--surface:#ffffff;--ink:#141a1f;--muted:#5c6a76;--line:#e6eaef;--brand:#0e7c66;--brand-ink:#ffffff;--radius:16px;--brand-2:color-mix(in srgb,var(--brand),#000 16%);--soft:color-mix(in srgb,var(--ink) 4%,var(--bg))}
@@ -53,7 +54,7 @@ export function layout({ title, head, content, nav = [] }) {
   const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${links}</nav>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>${title}</title>${head}<link rel="stylesheet" href="/_theme.css"/></head><body>
-<header class="nav"><div class="wrap nav-wrap"><a class="brand" href="/">${NAME}</a>${menu}</div></header>
+<header class="nav"><div class="wrap nav-wrap"><a class="brand" href="/">${BRAND}</a>${menu}</div></header>
 ${content}
 <footer class="site"><div class="wrap"><span>© ${NAME}</span><span>Built with <a href="https://voltjs.com">Volt</a></span></div></footer>
 </body></html>`;

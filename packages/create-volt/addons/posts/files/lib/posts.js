@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 // express + marked are imported lazily in postsRouter() so the pure helpers load
 // without those deps. Theme + SEO come from the pages add-on (a dependency).
-import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot, loadNav, injectScheme } from "../../../pages/files/lib/pages.js";
+import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot, loadNav, injectScheme, absUrl, injectHero } from "../../../pages/files/lib/pages.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -117,11 +117,11 @@ export async function postsRouter({ dir, themeDir }) {
   fs.mkdirSync(dir, { recursive: true });
   const getTheme = themeResolver(themeDir || dir); // same theme as pages (live in dev)
   const PER = Math.max(1, Number(process.env.POSTS_PER_PAGE) || 10);
-  const render = async ({ title, content, meta = {}, activePath = "/blog" }) => {
-    const m = { ...meta, title };
+  const render = async ({ title, content, meta = {}, activePath = "/blog", path }) => {
+    const m = { ...meta, title, canonical: meta.canonical || absUrl(path || "/blog") };
     const { layout } = await getTheme();
     const nav = loadNav(themeDir || dir, activePath);
-    return injectHot(injectScheme(layout({ title, head: metaHead(m), content, meta: m, nav }), process.env));
+    return injectHot(injectHero(injectScheme(layout({ title, head: metaHead(m), content, meta: m, nav }), process.env), process.env));
   };
   const r = express.Router();
 
@@ -131,7 +131,7 @@ export async function postsRouter({ dir, themeDir }) {
     const totalPages = Math.max(1, Math.ceil(all.length / PER));
     const slice = all.slice((page - 1) * PER, page * PER);
     const heading = process.env.SITE_NAME || "Blog";
-    res.type("html").send(await render({ title: heading, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl: "/blog" }) }));
+    res.type("html").send(await render({ title: heading, path: req.path, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl: "/blog" }) }));
   });
 
   r.get("/blog/:slug", async (req, res, next) => {
@@ -149,6 +149,7 @@ export async function postsRouter({ dir, themeDir }) {
     res.type("html").send(
       await render({
         title,
+        path: req.path,
         meta: { ...post.meta, title, type: "article", jsonld: post.meta.jsonld || autoLd },
         content: renderPost(post, marked),
       }),
@@ -159,14 +160,14 @@ export async function postsRouter({ dir, themeDir }) {
     if (!isSafeSlug(req.params.name)) return next();
     const list = readPosts(dir).filter((p) => slugify(p.meta.category) === req.params.name);
     if (!list.length) return next();
-    res.type("html").send(await render({ title: "Category: " + req.params.name, content: renderList(list, { heading: "Category: " + req.params.name, baseUrl: "/category/" + req.params.name }) }));
+    res.type("html").send(await render({ title: "Category: " + req.params.name, path: req.path, content: renderList(list, { heading: "Category: " + req.params.name, baseUrl: "/category/" + req.params.name }) }));
   });
 
   r.get("/tag/:name", async (req, res, next) => {
     if (!isSafeSlug(req.params.name)) return next();
     const list = readPosts(dir).filter((p) => tagsOf(p.meta).some((t) => slugify(t) === req.params.name));
     if (!list.length) return next();
-    res.type("html").send(await render({ title: "Tag: " + req.params.name, content: renderList(list, { heading: "Tag: " + req.params.name, baseUrl: "/tag/" + req.params.name }) }));
+    res.type("html").send(await render({ title: "Tag: " + req.params.name, path: req.path, content: renderList(list, { heading: "Tag: " + req.params.name, baseUrl: "/tag/" + req.params.name }) }));
   });
 
   r.get("/feed.xml", (_req, res) => {

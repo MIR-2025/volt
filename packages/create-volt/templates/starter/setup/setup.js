@@ -34,6 +34,10 @@ const state = signal({
   theme: current.THEME || "",
   siteScheme: current.SITE_SCHEME || "",
   siteMode: current.SITE_MODE || "",
+  siteLogo: current.SITE_LOGO || "",
+  siteFavicon: current.SITE_FAVICON || "",
+  ogImage: current.OG_IMAGE || "",
+  siteHero: current.SITE_HERO || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
@@ -98,6 +102,10 @@ function genEnv(s) {
   if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
+  if (s.siteLogo) out.push(`SITE_LOGO=${clean(s.siteLogo)}`); // media roles: logo / favicon / OG / hero
+  if (s.siteFavicon) out.push(`SITE_FAVICON=${clean(s.siteFavicon)}`);
+  if (s.ogImage) out.push(`OG_IMAGE=${clean(s.ogImage)}`);
+  if (s.siteHero) out.push(`SITE_HERO=${clean(s.siteHero)}`);
   if (s.aiKey) {
     out.push(`AI_PROVIDER=${clean(s.aiProvider)}`);
     const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
@@ -396,6 +404,18 @@ async function delMedia(name) {
 const isImg = (n) => /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(n);
 const isVid = (n) => /\.(mp4|webm|mov|ogg|ogv|m4v)$/i.test(n);
 const kb = (n) => (n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB");
+// media roles — single-value slots (logo/favicon/og) + hero (a list → carousel)
+const MEDIA_ROLES = [
+  { key: "siteLogo", label: "Logo" },
+  { key: "siteFavicon", label: "Icon" },
+  { key: "ogImage", label: "OG" },
+];
+const heroList = () => state().siteHero.split(",").map((s) => s.trim()).filter(Boolean);
+const toggleRole = (m, key) => set({ [key]: state()[key] === m.url ? "" : m.url });
+const toggleHero = (m) => {
+  const l = heroList();
+  set({ siteHero: (l.includes(m.url) ? l.filter((u) => u !== m.url) : [...l, m.url]).join(",") });
+};
 const mediaThumb = (m) =>
   isImg(m.name)
     ? html`<img src=${m.url} loading="lazy" class="object-fit-cover" alt=${m.name} />`
@@ -407,7 +427,11 @@ const mediaTile = (m) =>
     <div class="ratio ratio-4x3 bg-dark rounded-top overflow-hidden">${mediaThumb(m)}</div>
     <div class="card-body p-2">
       <div class="small text-truncate" title=${m.name}>${m.name}</div>
-      <div class="small text-muted mb-2">${kb(m.size)}</div>
+      <div class="small text-muted mb-1">${kb(m.size)}</div>
+      ${() => (isImg(m.name) || isVid(m.name) ? html`<div class="d-flex flex-wrap gap-1 mb-2">
+        ${MEDIA_ROLES.map((r) => html`<button type="button" class=${() => "btn py-0 px-1 " + (state()[r.key] === m.url ? "btn-primary" : "btn-outline-secondary")} style="font-size:.62rem" title=${"Use as " + r.label} onclick=${() => toggleRole(m, r.key)}>${r.label}</button>`)}
+        <button type="button" class=${() => "btn py-0 px-1 " + (heroList().includes(m.url) ? "btn-primary" : "btn-outline-secondary")} style="font-size:.62rem" title="Add to the home hero (multiple → carousel)" onclick=${() => toggleHero(m)}>Hero</button>
+      </div>` : "")}
       <div class="btn-group btn-group-sm w-100" role="group">
         <button type="button" class="btn btn-outline-secondary" onclick=${() => (navigator.clipboard && navigator.clipboard.writeText(m.url), status(`Copied ${m.url}`))}>Copy URL</button>
         <button type="button" class="btn btn-outline-danger flex-grow-0" title="Delete" onclick=${() => delMedia(m.name)}>✕</button>

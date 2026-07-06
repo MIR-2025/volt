@@ -1,5 +1,6 @@
 // volt-theme-classic — a structured site theme: top nav bar + card content.
 const NAME = process.env.SITE_NAME || "Home";
+const BRAND = process.env.SITE_LOGO ? `<img class="brand-logo" src="${process.env.SITE_LOGO}" alt="${NAME}" />` : NAME;
 
 // Canonical color tokens (--bg --surface --ink --muted --line --brand --brand-ink)
 // are the theme's defaults; a SITE_SCHEME overrides them without touching structure.
@@ -25,7 +26,7 @@ export function layout({ title, head, content, nav = [] }) {
   const burger = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${title}</title>${head}<link rel="stylesheet" href="/_theme.css" /></head><body>
-<header class="site"><div class="bar nav-wrap"><a class="brand" href="/">${NAME}</a>${burger}<nav class="nav-links">${links}</nav></div></header>
+<header class="site"><div class="bar nav-wrap"><a class="brand" href="/">${BRAND}</a>${burger}<nav class="nav-links">${links}</nav></div></header>
 <main><div class="card">${content}</div></main>
 <footer class="site">${NAME} — built with Volt</footer>
 </body></html>`;

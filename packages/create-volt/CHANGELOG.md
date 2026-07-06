@@ -4,6 +4,21 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.61.0] - 2026-07-05
+
+### Added
+- **Media roles.** In the config's **Media library**, assign a file as **Logo /
+  Favicon / OG image / Hero**. Logo (`SITE_LOGO`) swaps the brand text for the image
+  across every theme; Favicon (`SITE_FAVICON`) sets the `<head>` icon + apple-touch
+  on every page; **Hero (`SITE_HERO`) fills any `.volt-hero` slot — one image, or
+  several → a fading vanilla-JS carousel** (the business template's hero is
+  pre-marked). OG image (`OG_IMAGE`) was already wired.
+
+### Fixed
+- **Auto-canonical + og:url.** Every page **and** post now emits
+  `<link rel="canonical">` and `og:url` from `SITE_URL` + the request path, unless the
+  front-matter overrides — closing an SEO gap where they only appeared if added by hand.
+
 ## [0.60.0] - 2026-07-05
 
 ### Added
@@ -826,6 +841,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.61.0]: https://github.com/MIR-2025/volt/releases/tag/v0.61.0
 [0.60.0]: https://github.com/MIR-2025/volt/releases/tag/v0.60.0
 [0.59.0]: https://github.com/MIR-2025/volt/releases/tag/v0.59.0
 [0.58.1]: https://github.com/MIR-2025/volt/releases/tag/v0.58.1

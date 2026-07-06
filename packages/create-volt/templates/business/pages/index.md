@@ -10,7 +10,7 @@ format: html
     <p class="lead">Every word, image, and video on this site is yours to edit. Make it your brand in minutes — right from the Volt config.</p>
     <p><a class="btn" href="/products">Shop products</a> &nbsp; <a class="btn ghost" href="/about">Our story</a></p>
   </div>
-  <div class="slot wide"><span>📷 / 🎬 Hero image or video — upload yours</span></div>
+  <div class="slot wide volt-hero"><span>📷 / 🎬 Hero — in the config's Media library, upload image(s)/video and set the <b>Hero</b> role (multiple → a carousel)</span></div>
 </div></section>
 
 <section class="alt"><div class="wrap">
