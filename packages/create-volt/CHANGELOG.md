@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.63.0] - 2026-07-06
+
+### Added
+- **`volt-addon-mir` — Memory Infrastructure Registry participation.** Make an app a MIR
+  *partner*; its users become *participants* who build portable, cross-partner reputation.
+  The add-on serves the domain-verification challenge at `/.well-known/mir-challenge` and
+  exposes `app.locals.mir { submitEvent, resolveUser }` to your routes (200 found / 202
+  provisional / 404 unknown, surfaced distinctly). Onboarding is driven from the config:
+  register a sandbox partner (email-gated), deploy, then **promote** to a production key
+  once MIR verifies your domain. Only offered when `SITE_URL` is a public, DNS-resolving
+  domain — a localhost site can't be domain-verified. New `/docs/mir`.
+- **`SITE_URL` DNS affirmation.** The config now checks that the domain actually resolves
+  (on blur), catching typos before canonical / OG / RSS — and MIR — rely on it. Existence,
+  not ownership: `✓ resolves` / `✗ doesn't` / a local-private note. Server-side lookup via
+  a new `/setup/dns-check`.
+
 ## [0.62.0] - 2026-07-05
 
 ### Added
@@ -859,6 +875,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.63.0]: https://github.com/MIR-2025/volt/releases/tag/v0.63.0
 [0.62.0]: https://github.com/MIR-2025/volt/releases/tag/v0.62.0
 [0.61.0]: https://github.com/MIR-2025/volt/releases/tag/v0.61.0
 [0.60.0]: https://github.com/MIR-2025/volt/releases/tag/v0.60.0

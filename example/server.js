@@ -12,6 +12,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import dns from "node:dns";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import os from "node:os";
@@ -23,7 +24,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes the wizard can pick
-const DEFAULT_PORT = 26705; // create-volt stamps this with the project's date-port
+const DEFAULT_PORT = 26706; // create-volt stamps this with the project's date-port
 const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
 // `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
@@ -460,6 +461,65 @@ function startSetup() {
       return;
     }
     // --- active theme's CSS, so the in-config editor renders pages themed ---
+    // affirm a domain resolves (existence, not ownership) — for the SITE_URL field
+    if (req.method === "GET" && p === "/setup/dns-check") {
+      res.setHeader("Content-Type", "application/json");
+      const host = String(u.searchParams.get("host") || "").trim().toLowerCase();
+      if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) return res.end(JSON.stringify({ ok: false, error: "not a domain" }));
+      dns.lookup(host, (err, address) => res.end(JSON.stringify(err ? { ok: false, error: err.code || "no DNS record" } : { ok: true, ip: address })));
+      return;
+    }
+    // MIR onboarding — register a sandbox partner (public, no auth). The wizard stores the
+    // returned apiKey + challenge token in .env on Apply; the running app then serves the
+    // challenge and can record events.
+    if (req.method === "POST" && p === "/setup/mir-register") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { env = {} } = JSON.parse(body || "{}");
+          const cfg = { ...readEnvFile(), ...env };
+          const base = String(cfg.MIR_BASE_URL || "https://mirregistry.org/v1").replace(/\/+$/, "");
+          const email = cfg.MIR_EMAIL || cfg.ADMIN_EMAIL || "";
+          if (!email) return done({ ok: false, error: "an email is required to register with MIR" });
+          const r = await fetch(base + "/partners/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: cfg.SITE_NAME || "My Volt site", acceptTerms: true, website: cfg.SITE_URL || "", email }) });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) return done({ ok: false, error: data.error || data.message || "MIR HTTP " + r.status });
+          done({ ok: true, partnerId: data.partnerId, apiKey: data.apiKey, challenge: (data.domainChallenge || {}).token, environment: data.environment, status: data.status });
+        } catch (e) {
+          done({ ok: false, error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
+    // MIR promote — verify the deployed domain (MIR fetches /.well-known/mir-challenge) and
+    // swap the sandbox key for a production key. Auth: the sandbox key.
+    if (req.method === "POST" && p === "/setup/mir-promote") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { env = {} } = JSON.parse(body || "{}");
+          const cfg = { ...readEnvFile(), ...env };
+          const base = String(cfg.MIR_BASE_URL || "https://mirregistry.org/v1").replace(/\/+$/, "");
+          const key = cfg.MIR_API_KEY || "";
+          const url = cfg.SITE_URL || "";
+          if (!key) return done({ ok: false, error: "register first — no sandbox key yet" });
+          if (!url) return done({ ok: false, error: "set a public SITE_URL first" });
+          const r = await fetch(base + "/partners/promote", { method: "POST", headers: { "content-type": "application/json", "x-api-key": key }, body: JSON.stringify({ url }) });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) return done({ ok: false, error: data.error || data.message || "MIR HTTP " + r.status });
+          done({ ok: true, apiKey: data.apiKey, environment: data.environment, status: data.status, domain: data.domain, alreadyVerified: data.alreadyVerified });
+        } catch (e) {
+          done({ ok: false, error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
     if (req.method === "GET" && p === "/setup/schemes") {
       res.setHeader("Content-Type", "application/json");
       (async () => {

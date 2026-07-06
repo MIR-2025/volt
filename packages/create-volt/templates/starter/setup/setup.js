@@ -46,6 +46,11 @@ const state = signal({
   adminPath: current.ADMIN_PATH || "",
   adminSecret: current.ADMIN_SECRET || "",
   adminAllowIps: current.ADMIN_ALLOW_IPS || "",
+  mirEmail: current.MIR_EMAIL || "",
+  mirApiKey: current.MIR_API_KEY || "",
+  mirChallenge: current.MIR_CHALLENGE || "",
+  mirPartnerId: current.MIR_PARTNER_ID || "",
+  mirEnv: current.MIR_ENV || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -145,6 +150,13 @@ function genEnv(s) {
     if (s.adminEmail) out.push(`ADMIN_EMAIL=${clean(s.adminEmail)}`);
     if (s.adminSecret) out.push(`ADMIN_SECRET=${clean(s.adminSecret)}`);
     if (s.adminAllowIps) out.push(`ADMIN_ALLOW_IPS=${clean(s.adminAllowIps)}`);
+  }
+  if (eff.includes("mir")) {
+    if (s.mirEmail) out.push(`MIR_EMAIL=${clean(s.mirEmail)}`);
+    if (s.mirApiKey) out.push(`MIR_API_KEY=${clean(s.mirApiKey)}`);
+    if (s.mirChallenge) out.push(`MIR_CHALLENGE=${clean(s.mirChallenge)}`);
+    if (s.mirPartnerId) out.push(`MIR_PARTNER_ID=${clean(s.mirPartnerId)}`);
+    if (s.mirEnv) out.push(`MIR_ENV=${clean(s.mirEnv)}`);
   }
   return out.join("\n") + "\n";
 }
@@ -582,6 +594,78 @@ const manageView = () =>
     ${() => (editing() ? editorPanel() : html`${section("Pages", "page", "pages")}${section("Posts", "post", "posts")}<p class="small text-muted mb-0">Pages → <code>/slug</code>, posts → <code>/blog/slug</code>; <code>index</code> page is your home. All rendered in your theme. Edits hot-reload the running app.</p>`)}
   </div>`;
 
+// --- MIR participation (volt-addon-mir) ---
+// The app is a MIR partner/market; its users are participants. Onboarding is register →
+// (deploy, serve the challenge) → promote. Only offered once SITE_URL is a public,
+// routable domain — a localhost/private site can never pass MIR's domain verification.
+const hasMir = computed(() => eff().includes("mir"));
+const siteHostOf = (u) => String(u || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+const siteIsPublic = computed(() => {
+  const h = siteHostOf(state().siteUrl);
+  return !!h && h.includes(".") && !h.endsWith(".local") && !/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h);
+});
+const mirMsg = signal("");
+const mirBusy = signal(false);
+const mirPost = (path, env) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ env }) }).then((r) => r.json());
+async function mirRegister() {
+  if (mirBusy()) return;
+  const email = state().mirEmail || state().adminEmail;
+  if (!validEmail(email)) return mirMsg("✗ enter a valid partner email first");
+  mirBusy(true);
+  mirMsg("registering…");
+  try {
+    const r = await mirPost("/setup/mir-register", { SITE_NAME: state().siteName, SITE_URL: state().siteUrl, MIR_EMAIL: email });
+    if (!r.ok) mirMsg("✗ " + r.error);
+    else {
+      set({ mirEmail: email, mirApiKey: r.apiKey, mirChallenge: r.challenge, mirPartnerId: r.partnerId, mirEnv: "sandbox" });
+      mirMsg("✓ registered (sandbox) — Apply, deploy, then Promote");
+    }
+  } catch (e) {
+    mirMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    mirBusy(false);
+  }
+}
+async function mirPromote() {
+  if (mirBusy()) return;
+  mirBusy(true);
+  mirMsg("verifying domain + promoting…");
+  try {
+    const r = await mirPost("/setup/mir-promote", { SITE_URL: state().siteUrl, MIR_API_KEY: state().mirApiKey });
+    if (!r.ok) mirMsg("✗ " + r.error);
+    else {
+      set({ mirApiKey: r.apiKey || state().mirApiKey, mirEnv: "production" });
+      mirMsg(r.alreadyVerified ? "✓ already in production" : "✓ promoted to production");
+    }
+  } catch (e) {
+    mirMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    mirBusy(false);
+  }
+}
+const mirSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">MIR participation <span class=${() => "badge " + (state().mirEnv === "production" ? "text-bg-success" : state().mirEnv ? "text-bg-secondary" : "text-bg-light text-dark")}>${() => state().mirEnv || "not registered"}</span></h2>
+    <p class="small text-muted mb-2">Make this site a Memory Infrastructure Registry partner — your users become participants who build portable, cross-partner reputation. The app records events and resolves neutral signals.</p>
+    ${() =>
+      !siteIsPublic()
+        ? html`<div class="alert alert-secondary small mb-0 py-2">Set a public <code>SITE_URL</code> above to use MIR — a localhost or private-network site can't be domain-verified.</div>`
+        : html`
+          ${field("MIR partner email", "mirEmail", "you@example.com")}
+          ${() =>
+            !state().mirApiKey
+              ? html`<div><button class="btn btn-primary btn-sm" disabled=${() => mirBusy()} onclick=${mirRegister}>Register with MIR (sandbox)</button>${() => testResult(mirMsg())}</div>`
+              : html`<div>
+                  <div class="small mb-1">Partner <code>${() => state().mirPartnerId || "—"}</code> · key <code>${() => (state().mirApiKey || "").slice(0, 14)}…</code></div>
+                  ${() =>
+                    state().mirEnv !== "production"
+                      ? html`<button class="btn btn-outline-primary btn-sm" disabled=${() => mirBusy()} onclick=${mirPromote}>Promote to production</button><div class="small text-muted mt-1">Apply + deploy first, so MIR can fetch <code>${() => (state().siteUrl || "").replace(/\/+$/, "")}/.well-known/mir-challenge</code>.</div>`
+                      : html`<span class="small text-success">✓ live in production — recording real participation</span>`}
+                  ${() => testResult(mirMsg())}
+                </div>`}
+        `}
+  </div>`;
+
 // --- first-run wizard: the same config, one step at a time ---
 // Memoized string key → the wizard re-renders when the add-on set changes, but NOT
 // on every keystroke (reading the eff() array directly would drop input focus).
@@ -596,6 +680,7 @@ function wizardSteps(enabled) {
   if (has("db")) steps.push({ title: "Database", sub: "Where your data is stored. “Memory” needs no setup — fine to start.", body: dbSettings, valid: () => state().dbDriver === "memory" || (state().dbDriver === "mongodb" ? !!String(state().mongoUri).trim() : !!String(state().dbUrl).trim()) });
   if (has("mailer")) steps.push({ title: "Email", sub: "Sends login + admin links. In dev, leave SMTP blank — emails print to the console.", body: () => html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}`, valid: () => true });
   if (has("admin")) steps.push({ title: "Web admin", sub: "Manage your live site from a browser. The email below is the only one that can sign in — it's required.", body: adminSettings, valid: () => validEmail(state().adminEmail) });
+  if (has("mir")) steps.push({ title: "MIR participation", sub: "Optional — make your site a Memory Infrastructure Registry partner. Needs a public SITE_URL; you can register now or after you deploy.", body: mirSettings, valid: () => true });
   steps.push({ title: "AI assistant", sub: "Optional — powers the editor's writing help. Skip if you don't need it.", body: aiSettings, valid: () => true });
   steps.push({ title: "Review & launch", sub: "This is your .env. Launch writes it and starts your app.", body: () => html`<pre class="small p-2 rounded" style="background:#0b0d11;color:#cfe3ff;max-height:280px;overflow:auto;white-space:pre-wrap">${() => env()}</pre>`, valid: () => true });
   return steps;
@@ -628,6 +713,29 @@ const wizardView = () =>
       <p class="small text-muted mt-3 mb-0 text-center"><a href="#" onclick=${(ev) => (ev.preventDefault(), wizard(false))}>Prefer the full form? Switch to advanced →</a></p>`;
   }}</div>`;
 
+// SITE_URL: on blur, affirm the domain actually resolves in DNS (existence, not
+// ownership) — catches typos before MIR / canonical / RSS rely on it. The lookup runs
+// server-side (browsers can't do arbitrary DNS).
+const siteUrlDns = signal("");
+async function checkSiteUrlDns() {
+  const host = String(state().siteUrl || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+  if (!host || !host.includes(".")) return siteUrlDns("");
+  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) || host.endsWith(".local")) return siteUrlDns("local/private — fine for dev, not a public domain");
+  siteUrlDns("checking DNS…");
+  try {
+    const r = await (await fetch("/setup/dns-check?host=" + encodeURIComponent(host))).json();
+    siteUrlDns(r.ok ? `✓ ${host} resolves (${r.ip})` : `✗ ${host} — ${r.error} (typo?)`);
+  } catch {
+    siteUrlDns("");
+  }
+}
+const siteUrlField = () =>
+  html`<div class="mb-2">
+    <label class="form-label small mb-1">SITE_URL (optional — absolute links, RSS, canonical)</label>
+    <input class="form-control" placeholder="https://example.com" value=${() => state().siteUrl} oninput=${(e) => set({ siteUrl: e.target.value })} onblur=${checkSiteUrlDns} />
+    ${() => testResult(siteUrlDns())}
+  </div>`;
+
 const configView = () =>
   html`${() => {
       const u = upgrade();
@@ -645,8 +753,9 @@ const configView = () =>
       ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
       ${() => (hasMedia() ? mediaSettings() : null)}
       ${() => (hasAdmin() ? adminSettings() : null)}
+      ${() => (hasMir() ? mirSettings() : null)}
       ${aiSettings()}
-      ${field("SITE_URL (optional — absolute links, RSS, canonical)", "siteUrl", "https://example.com")}
+      ${siteUrlField()}
       ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
     </div>
     <div class="card-x p-4 mb-3">

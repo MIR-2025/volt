@@ -12,6 +12,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import dns from "node:dns";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import os from "node:os";
@@ -485,6 +486,14 @@ function startSetup() {
       return;
     }
     // --- active theme's CSS, so the in-config editor renders pages themed ---
+    // affirm a domain resolves (existence, not ownership) — for the SITE_URL field
+    if (req.method === "GET" && p === "/setup/dns-check") {
+      res.setHeader("Content-Type", "application/json");
+      const host = String(u.searchParams.get("host") || "").trim().toLowerCase();
+      if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) return res.end(JSON.stringify({ ok: false, error: "not a domain" }));
+      dns.lookup(host, (err, address) => res.end(JSON.stringify(err ? { ok: false, error: err.code || "no DNS record" } : { ok: true, ip: address })));
+      return;
+    }
     if (req.method === "GET" && p === "/setup/schemes") {
       res.setHeader("Content-Type", "application/json");
       (async () => {
