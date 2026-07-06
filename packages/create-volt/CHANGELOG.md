@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.63.1] - 2026-07-06
+
+### Added
+- **MIR emission is opt-in.** Being a registered MIR partner no longer means events flow:
+  `submitEvent` is a **no-op until the owner opts in** — a new *Emit participation events*
+  checkbox in the config (`MIR_EMIT=on`). Sending data about your users to the registry is
+  now a deliberate, separate consent step; `resolveUser` (a read) is unaffected. The startup
+  log states whether events are emitting.
+
 ## [0.63.0] - 2026-07-06
 
 ### Added
@@ -875,6 +884,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.63.1]: https://github.com/MIR-2025/volt/releases/tag/v0.63.1
 [0.63.0]: https://github.com/MIR-2025/volt/releases/tag/v0.63.0
 [0.62.0]: https://github.com/MIR-2025/volt/releases/tag/v0.62.0
 [0.61.0]: https://github.com/MIR-2025/volt/releases/tag/v0.61.0

@@ -51,6 +51,7 @@ const state = signal({
   mirChallenge: current.MIR_CHALLENGE || "",
   mirPartnerId: current.MIR_PARTNER_ID || "",
   mirEnv: current.MIR_ENV || "",
+  mirEmit: current.MIR_EMIT || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -157,6 +158,7 @@ function genEnv(s) {
     if (s.mirChallenge) out.push(`MIR_CHALLENGE=${clean(s.mirChallenge)}`);
     if (s.mirPartnerId) out.push(`MIR_PARTNER_ID=${clean(s.mirPartnerId)}`);
     if (s.mirEnv) out.push(`MIR_ENV=${clean(s.mirEnv)}`);
+    if (s.mirEmit) out.push(`MIR_EMIT=${clean(s.mirEmit)}`);
   }
   return out.join("\n") + "\n";
 }
@@ -660,8 +662,12 @@ const mirSettings = () =>
                   ${() =>
                     state().mirEnv !== "production"
                       ? html`<button class="btn btn-outline-primary btn-sm" disabled=${() => mirBusy()} onclick=${mirPromote}>Promote to production</button><div class="small text-muted mt-1">Apply + deploy first, so MIR can fetch <code>${() => (state().siteUrl || "").replace(/\/+$/, "")}/.well-known/mir-challenge</code>.</div>`
-                      : html`<span class="small text-success">✓ live in production — recording real participation</span>`}
+                      : html`<span class="small text-success">✓ live in production</span>`}
                   ${() => testResult(mirMsg())}
+                  <div class="form-check mt-2 pt-2 border-top">
+                    <input class="form-check-input" type="checkbox" id="mir-emit" checked=${() => state().mirEmit === "on"} onchange=${(e) => set({ mirEmit: e.target.checked ? "on" : "" })} />
+                    <label class="form-check-label small" for="mir-emit"><strong>Emit participation events</strong> — send events about your users' actions (onboarding, purchases, …) to MIR. Off = you're a registered partner but nothing is sent. Explicit opt-in.</label>
+                  </div>
                 </div>`}
         `}
   </div>`;

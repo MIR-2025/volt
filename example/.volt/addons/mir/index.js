@@ -26,6 +26,10 @@ export function register({ app, env, log }) {
   const base = String(env.MIR_BASE_URL || DEFAULT_BASE).replace(/\/+$/, "");
   const key = String(env.MIR_API_KEY || "").trim();
   const challenge = String(env.MIR_CHALLENGE || "").trim();
+  // Emitting participation events sends data about your users to an external registry, so
+  // it is a deliberate opt-in (MIR_EMIT), separate from being a registered partner. Off =
+  // registered/able-to-resolve, but submitEvent is a no-op. Set in the config wizard.
+  const emit = /^(1|true|on|yes)$/i.test(String(env.MIR_EMIT || ""));
 
   // domain verification — echo the challenge token as plain text at the well-known path.
   if (challenge) {
@@ -55,11 +59,14 @@ export function register({ app, env, log }) {
     base,
     environment: key.startsWith("mir_sandbox") ? "sandbox" : key ? "production" : "unregistered",
     configured: () => !!key,
+    emitting: emit,
 
-    // Record a participation event for a user (participant). Returns the created event,
+    // Record a participation event for a user (participant). No-ops (returns { skipped })
+    // unless the owner opted into emission (MIR_EMIT). Otherwise returns the created event,
     // or throws with MIR's error message.
     async submitEvent(userExternalId, eventType, opts = {}) {
       if (!key) throw new Error("MIR not configured — set MIR_API_KEY (register in the config)");
+      if (!emit) return { skipped: true, reason: "MIR emission not opted in — enable “Emit participation events” in the config (MIR_EMIT=on)" };
       if (!userExternalId || !eventType) throw new Error("submitEvent needs (userExternalId, eventType)");
       const body = { userExternalId: String(userExternalId), eventType: String(eventType) };
       if (opts.weight != null) body.weight = opts.weight;
@@ -90,5 +97,5 @@ export function register({ app, env, log }) {
   };
 
   app.locals.mir = mir;
-  log(`partner client ready → ${base} (${mir.environment})${challenge ? ", challenge served" : ""}`);
+  log(`partner client ready → ${base} (${mir.environment})${challenge ? ", challenge served" : ""} · events ${emit ? "EMITTING" : "not emitting (opt in via config)"}`);
 }
