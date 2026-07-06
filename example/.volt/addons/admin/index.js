@@ -15,6 +15,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 
 const NONCE_TTL = 15 * 60 * 1000; // 15 min
 const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 h
@@ -207,6 +208,35 @@ export function register({ app, express, mailer, env, log }) {
     }
   });
 
+  // ── scoped server actions (a fixed whitelist of commands — NOT a shell) ──
+  const ACTIONS = {
+    update: ["npx", ["create-volt@latest", "update"]],
+    pull: ["git", ["pull", "--ff-only"]],
+  };
+  app.post(base + "/api/action", guard, express.json(), (req, res) => {
+    const name = String(req.body?.action || "");
+    if (name === "restart") {
+      res.json({ ok: true, restarting: true });
+      log("restart requested via admin — exiting so the process manager (pm2/docker/systemd) relaunches");
+      setTimeout(() => process.exit(0), 300);
+      return;
+    }
+    const spec = ACTIONS[name]; // key lookup only — no user string ever reaches the shell
+    if (!spec) return res.status(400).json({ ok: false, error: "unknown action" });
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.write(`$ ${spec[0]} ${spec[1].join(" ")}\n\n`);
+    let child;
+    try {
+      child = spawn(spec[0], spec[1], { cwd: process.cwd(), shell: process.platform === "win32" });
+    } catch (e) {
+      return res.end(`\n[error] ${e.message}\n`);
+    }
+    child.stdout.on("data", (d) => res.write(d));
+    child.stderr.on("data", (d) => res.write(d));
+    child.on("error", (e) => res.end(`\n[error] ${e.message}\n`));
+    child.on("close", (code) => res.end(`\n[exit ${code}]\n`));
+  });
+
   log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint), for ${adminEmail}`);
 }
 
@@ -254,6 +284,14 @@ const adminPage = (base, email) =>
     `<div class="d-flex justify-content-between align-items-center mb-4">
   <h1 class="h5 mb-0">Site admin</h1>
   <div class="small text-secondary">${esc(email)} · <a href="#" id="lo">sign out</a></div></div>
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span>Server actions</span><span class="small text-secondary">whitelisted — not a shell</span></div><div class="card-body">
+  <div class="d-flex gap-2 flex-wrap mb-2">
+    <button class="btn btn-sm btn-outline-primary" data-act="update">Update to latest</button>
+    <button class="btn btn-sm btn-outline-primary" data-act="pull">Pull from git</button>
+    <button class="btn btn-sm btn-outline-warning" data-act="restart">Restart app</button>
+  </div>
+  <pre id="out" class="small mb-0 p-2 rounded" style="background:#0b0d11;color:#cfe3ff;max-height:240px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+</div></div>
 <div class="card"><div class="card-header">Media library</div><div class="card-body">
   <input id="up" type="file" class="form-control mb-2" accept="image/*,video/*" multiple />
   <p class="small text-secondary">Uploads go to <code>public/media/</code>, served at <code>/media/&lt;name&gt;</code>.</p>
@@ -274,6 +312,19 @@ col.querySelector(".del").onclick=async()=>{if(confirm("Delete "+m.name+"?")){aw
 grid.appendChild(col);});}
 document.getElementById("up").onchange=async e=>{for(const f of e.target.files){await fetch(B+"/api/media/upload?name="+encodeURIComponent(f.name),{method:"POST",body:f});}e.target.value="";load();};
 document.getElementById("lo").onclick=async ev=>{ev.preventDefault();await fetch(B+"/logout",{method:"POST"});location.href=B;};
+const out=document.getElementById("out");
+document.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{
+  const act=b.getAttribute("data-act");out.style.display="block";out.textContent="";
+  if(act==="restart"){if(!confirm("Restart the app? It only comes back if a process manager (pm2/docker/systemd) is running it.")){out.style.display="none";return;}
+    await fetch(B+"/api/action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:act})});
+    out.textContent="Restarting… if a process manager is running the app it'll be back shortly — reload then.";return;}
+  document.querySelectorAll("[data-act]").forEach(x=>x.disabled=true);
+  try{const r=await fetch(B+"/api/action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:act})});
+    const rd=r.body.getReader(),dec=new TextDecoder();
+    for(;;){const{done,value}=await rd.read();if(done)break;out.textContent+=dec.decode(value);out.scrollTop=out.scrollHeight;}}
+  catch(e){out.textContent+="\\n[network error] "+e.message;}
+  document.querySelectorAll("[data-act]").forEach(x=>x.disabled=false);
+});
 load();
 </script>`
   );

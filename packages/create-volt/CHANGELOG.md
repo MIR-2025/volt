@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.58.0] - 2026-07-05
+
+### Added
+- **Scoped server actions in the web admin.** The admin gains **Update / Pull /
+  Restart** buttons — a *fixed whitelist* of commands (`npx create-volt@latest
+  update`, `git pull --ff-only`, and a process restart), with output streamed live
+  to the page. It is explicitly **not** a shell: the button name is a key lookup, no
+  user string ever reaches a command. Lets an owner who can't SSH run the common
+  server operations (update, pull content, restart under pm2/docker/systemd) without
+  exposing arbitrary command execution.
+
 ## [0.57.0] - 2026-07-05
 
 ### Added
@@ -774,6 +785,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.58.0]: https://github.com/MIR-2025/volt/releases/tag/v0.58.0
 [0.57.0]: https://github.com/MIR-2025/volt/releases/tag/v0.57.0
 [0.56.1]: https://github.com/MIR-2025/volt/releases/tag/v0.56.1
 [0.56.0]: https://github.com/MIR-2025/volt/releases/tag/v0.56.0
