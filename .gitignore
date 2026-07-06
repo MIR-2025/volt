@@ -3,7 +3,7 @@ npm-debug.log*
 .DS_Store
 .env
 *.local
-deploy.sh
+deploy*.sh
 
 # app + screenshots — kept local + on the server, not in the public repo
 /site/
