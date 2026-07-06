@@ -89,7 +89,8 @@ export function metaHead(meta) {
 // Canonical color tokens with an automatic dark set (prefers-color-scheme), so the
 // bare default still adapts to the OS AND a SITE_SCHEME can override the palette.
 const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff }
-@media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 } }
+:root[data-theme="dark"] { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 }
 body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink) }
 h1, h2, h3 { line-height: 1.25; margin: 1.6rem 0 .6rem }
 pre { background: #0b0d11; color: #cfe3ff; padding: 1rem; border-radius: 10px; overflow: auto }
@@ -165,12 +166,23 @@ export function schemesCss(schemes = SCHEMES) {
     )
     .join("\n");
 }
-// Stamp the owner's default scheme onto <html> (server-side → no flash). A visitor
-// switcher can override data-scheme/data-theme client-side later.
+// Stamp the owner's default scheme (palette) + mode (light/dark) onto <html>,
+// server-side so there's no flash. SITE_MODE unset = auto (follows the device via
+// prefers-color-scheme); "light"/"dark" force it. A visitor switcher can override
+// data-scheme/data-theme client-side later.
 export function injectScheme(html, env) {
   const id = String(env.SITE_SCHEME || "").replace(/[^a-z0-9-]/gi, "");
-  return id && html.includes("<html") ? html.replace("<html", `<html data-scheme="${id}"`) : html;
+  const mode = String(env.SITE_MODE || "").toLowerCase();
+  const attrs = [id ? `data-scheme="${id}"` : "", mode === "light" || mode === "dark" ? `data-theme="${mode}"` : ""].filter(Boolean).join(" ");
+  return attrs && html.includes("<html") ? html.replace("<html", `<html ${attrs}`) : html;
 }
+
+// Theme-side utility (appended to every theme's /_theme.css): mark a block
+// class="full-bleed" to break it OUT of the content column to full viewport width —
+// e.g. a hero image or video from the editor. The theme keeps its readable text
+// column; only flagged blocks span edge-to-edge. No editor change needed.
+export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
+.full-bleed>img,.full-bleed>video{width:100%;display:block}`;
 
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
@@ -223,7 +235,7 @@ export async function pagesRouter({ dir }) {
     res.type("html").send(injectHot(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m }), process.env)));
   };
   const r = express.Router();
-  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss()));
+  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS));
   // themed home: pages/index.md takes over "/" (the site's front page) when present
   r.get("/", async (_req, res, next) => {
     const file = path.join(dir, "index.md");

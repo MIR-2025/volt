@@ -4,7 +4,7 @@
 // just config.
 import { signal, computed, effect, html, mount } from "/volt.js";
 
-const { available, themes = [], current, defaultPort, configDefaultPort = 5050 } = await (await fetch("/setup/state")).json();
+const { available, themes = [], current, defaultPort, configDefaultPort = 5050, firstRun = false } = await (await fetch("/setup/state")).json();
 const depsOf = Object.fromEntries(available.map((a) => [a.name, a.dependsOn || []]));
 const order = available.map((a) => a.name);
 const enabledNow = new Set(String(current.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean));
@@ -33,6 +33,7 @@ const state = signal({
   configPort: current.CONFIG_PORT || "",
   theme: current.THEME || "",
   siteScheme: current.SITE_SCHEME || "",
+  siteMode: current.SITE_MODE || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
@@ -44,6 +45,10 @@ const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
 // browser CSPRNG → an unguessable admin path + session key (no human-picked secrets)
 const randHex = (n = 16) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || "").trim());
+// First run (no .env) → a guided, one-step-at-a-time wizard. --edit → the full form.
+const step = signal(0);
+const wizard = signal(firstRun);
 const status = signal("");
 // per-test inline results (shown right next to each Test button)
 const dbTest = signal("");
@@ -92,6 +97,7 @@ function genEnv(s) {
   if (s.configPort) out.push(`CONFIG_PORT=${clean(s.configPort)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
   if (s.aiKey) {
     out.push(`AI_PROVIDER=${clean(s.aiProvider)}`);
     const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
@@ -331,6 +337,11 @@ const themePicker = () =>
       ${() => schemes().map(schemeSwatch)}
     </div>
     <div class="small text-muted mt-1">Swaps the palette; the theme's structure stays.</div>
+    <label class="form-label small mb-1 mt-3">Mode (SITE_MODE)</label>
+    <div class="btn-group btn-group-sm w-100" role="group">
+      ${["", "light", "dark"].map((m) => html`<button type="button" class=${() => "btn " + (state().siteMode === m ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteMode: m })}>${m === "" ? "Auto" : m === "light" ? "Light" : "Dark"}</button>`)}
+    </div>
+    <div class="small text-muted mt-1">Auto follows the visitor's device; Light/Dark force it (works with any color scheme).</div>
   </div>`;
 
 // AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.
@@ -535,6 +546,52 @@ const manageView = () =>
     ${() => (editing() ? editorPanel() : html`${section("Pages", "page", "pages")}${section("Posts", "post", "posts")}<p class="small text-muted mb-0">Pages → <code>/slug</code>, posts → <code>/blog/slug</code>; <code>index</code> page is your home. All rendered in your theme. Edits hot-reload the running app.</p>`)}
   </div>`;
 
+// --- first-run wizard: the same config, one step at a time ---
+// Memoized string key → the wizard re-renders when the add-on set changes, but NOT
+// on every keystroke (reading the eff() array directly would drop input focus).
+const effKey = computed(() => eff().join(","));
+function wizardSteps(enabled) {
+  const has = (n) => enabled.includes(n);
+  const steps = [
+    { title: "Name your app", sub: "You can change any of this later from the config.", body: () => field("Site name", "siteName", "My Site"), valid: () => true },
+    { title: "Pick features", sub: "Turn on what you need — required dependencies are added for you.", body: () => html`<div class="d-flex flex-column gap-2">${available.map(addonRow)}</div>`, valid: () => true },
+  ];
+  if (has("pages") || has("posts")) steps.push({ title: "Appearance", sub: "The theme sets the layout; a color scheme + mode set the palette.", body: themePicker, valid: () => true });
+  if (has("db")) steps.push({ title: "Database", sub: "Where your data is stored. “Memory” needs no setup — fine to start.", body: dbSettings, valid: () => state().dbDriver === "memory" || (state().dbDriver === "mongodb" ? !!String(state().mongoUri).trim() : !!String(state().dbUrl).trim()) });
+  if (has("mailer")) steps.push({ title: "Email", sub: "Sends login + admin links. In dev, leave SMTP blank — emails print to the console.", body: () => html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}`, valid: () => true });
+  if (has("admin")) steps.push({ title: "Web admin", sub: "Manage your live site from a browser. The email below is the only one that can sign in — it's required.", body: adminSettings, valid: () => validEmail(state().adminEmail) });
+  steps.push({ title: "AI assistant", sub: "Optional — powers the editor's writing help. Skip if you don't need it.", body: aiSettings, valid: () => true });
+  steps.push({ title: "Review & launch", sub: "This is your .env. Launch writes it and starts your app.", body: () => html`<pre class="small p-2 rounded" style="background:#0b0d11;color:#cfe3ff;max-height:280px;overflow:auto;white-space:pre-wrap">${() => env()}</pre>`, valid: () => true });
+  return steps;
+}
+const wizardView = () =>
+  html`<div>${() => {
+    const enabled = effKey() ? effKey().split(",") : [];
+    const steps = wizardSteps(enabled);
+    const i = Math.max(0, Math.min(step(), steps.length - 1));
+    const cur = steps[i];
+    return html`
+      <div class="mb-3">
+        <div class="d-flex justify-content-between small text-muted mb-1"><span>Step ${i + 1} of ${steps.length}</span><span>${cur.title}</span></div>
+        <div class="progress" style="height:5px"><div class="progress-bar" style=${`width:${Math.round(((i + 1) / steps.length) * 100)}%`}></div></div>
+      </div>
+      <div class="card"><div class="card-body">
+        <h2 class="h5 mb-1">${cur.title}</h2>
+        <p class="text-muted small mb-3">${cur.sub}</p>
+        ${cur.body()}
+      </div></div>
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-outline-secondary" onclick=${() => (status(""), step(Math.max(0, i - 1)))} disabled=${i === 0}>← Back</button>
+        ${
+          i < steps.length - 1
+            ? html`<button class="btn btn-primary" onclick=${() => (cur.valid() ? (status(""), step(i + 1)) : status("⚠ Please complete this step before continuing."))}>Next →</button>`
+            : html`<button class="btn btn-success" onclick=${apply}>Launch app →</button>`
+        }
+      </div>
+      ${() => (status() ? html`<p class="small mt-2 accent mb-0">${status}</p>` : "")}
+      <p class="small text-muted mt-3 mb-0 text-center"><a href="#" onclick=${(ev) => (ev.preventDefault(), wizard(false))}>Prefer the full form? Switch to advanced →</a></p>`;
+  }}</div>`;
+
 const configView = () =>
   html`${() => {
       const u = upgrade();
@@ -563,6 +620,6 @@ const configView = () =>
 
 mount(
   "#app",
-  () => (view() === "config" ? configView() : view() === "media" ? mediaView() : manageView()),
+  () => (view() === "config" ? (wizard() ? wizardView() : configView()) : view() === "media" ? mediaView() : manageView()),
   () => (status() ? html`<p class="small accent">${status}</p>` : null),
 );

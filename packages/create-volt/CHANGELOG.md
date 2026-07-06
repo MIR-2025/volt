@@ -4,6 +4,21 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.0] - 2026-07-05
+
+### Added
+- **Guided first-run wizard.** First run (no `.env`) now walks through setup **one
+  step at a time** — Name → Features → Appearance → Database → Email → Web admin →
+  AI → Review & launch — with a progress bar, per-step validation (e.g. the web-admin
+  email is required before you can continue), a live `.env` preview, and steps that
+  appear only for the features you turned on. `--edit` keeps the dense all-at-once form.
+- **Light / Dark / Auto mode.** A `SITE_MODE` toggle beside the color scheme: **Auto**
+  follows the visitor's device, **Light/Dark** force it (`data-theme` stamped
+  server-side, no flash). Works with any scheme; the default theme honors forced dark.
+- **Full-bleed content.** A theme-side `.full-bleed` utility (appended to every
+  theme's `/_theme.css`) breaks a flagged block out of the readable column to full
+  viewport width — a hero image or video — with **no editor change**.
+
 ## [0.58.1] - 2026-07-05
 
 ### Added
@@ -794,6 +809,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.59.0]: https://github.com/MIR-2025/volt/releases/tag/v0.59.0
 [0.58.1]: https://github.com/MIR-2025/volt/releases/tag/v0.58.1
 [0.58.0]: https://github.com/MIR-2025/volt/releases/tag/v0.58.0
 [0.57.0]: https://github.com/MIR-2025/volt/releases/tag/v0.57.0

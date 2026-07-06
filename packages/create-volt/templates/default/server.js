@@ -329,7 +329,7 @@ function startSetup() {
     }
     if (req.method === "GET" && p === "/setup/state") {
       res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT }));
+      return res.end(JSON.stringify({ available: availableAddons(), themes: availableThemes(), current: readEnvFile(), defaultPort: DEFAULT_PORT, configDefaultPort: CONFIG_DEFAULT_PORT, firstRun: !fs.existsSync(ENV_PATH) }));
     }
     // --- upgrade: compare .volt/version to npm latest, and run the update ---
     if (req.method === "GET" && p === "/setup/upgrade-check") {
