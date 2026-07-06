@@ -160,7 +160,7 @@ All notable changes to `create-volt` are documented here. The format follows
   or a TCP reachability fallback); `/setup/test-ai` does a 1-token live call to the
   provider key or the hosted gateway. The DB test result is inline now too.
 
-## [0.54.0] - 2026-07-04
+## [0.54.0] - 2026-07-05
 
 ### Added
 - **Config editor renders themed.** The in-config WYSIWYG loads the active theme's
@@ -206,7 +206,7 @@ All notable changes to `create-volt` are documented here. The format follows
   (BYO). Clear error when neither is set. The gateway now honors the client's
   stream preference, so the editor gets a normal JSON response.
 
-## [0.49.0] - 2026-06-29
+## [0.49.0] - 2026-06-30
 
 ### Added
 - **AI in the config editor.** The embedded RTEPro editor's AI button now works:
@@ -289,7 +289,7 @@ All notable changes to `create-volt` are documented here. The format follows
   mounted/tunneled paths) right in the viewer — saved to `.volt/logs.json`.
   Localhost-only; SSH-tunnel the port for a remote box.
 
-## [0.43.0] - 2026-06-30
+## [0.43.0] - 2026-06-29
 
 ### Added
 - **Upgrade from the wizard.** Scaffolds record their version in `.volt/version`;
@@ -302,7 +302,7 @@ All notable changes to `create-volt` are documented here. The format follows
   per-provider **Get a key →** link (Anthropic / OpenAI / Gemini); leave it blank
   and the editor works without AI.
 
-## [0.42.0] - 2026-06-30
+## [0.42.0] - 2026-06-29
 
 ### Added
 - **Content manager in the config wizard.** `npm run dev -- --edit` has a
@@ -315,7 +315,7 @@ All notable changes to `create-volt` are documented here. The format follows
   source comments had been byte-corrupted (mojibake) by an earlier tooling pass.
   Console output is now clean ASCII ("Volt at http://…", "Volt setup at …").
 
-## [0.41.0] - 2026-06-30
+## [0.41.0] - 2026-06-29
 
 ### Added
 - **PM2 support.** Scaffolds ship `ecosystem.config.cjs` + scripts: `npm run pm2`
@@ -326,7 +326,7 @@ All notable changes to `create-volt` are documented here. The format follows
   `/__volt/reload` route to refresh browsers, prints a note, and exits 0 — no
   more `EADDRINUSE` stack trace.
 
-## [0.40.0] - 2026-06-30
+## [0.40.0] - 2026-06-29
 
 ### Added
 - **Themed front page.** `pages/index.md` now takes over `/` (rendered in your
@@ -335,7 +335,7 @@ All notable changes to `create-volt` are documented here. The format follows
   app's index.html. (Answers: "I chose a theme but the home page was unchanged" —
   the theme styles pages/posts; the home needs to *be* a page.)
 
-## [0.39.1] - 2026-06-30
+## [0.39.1] - 2026-06-29
 
 ### Fixed
 - **Scaffolding was broken in 0.37.0–0.39.0.** The bundled `themes/` dir is
