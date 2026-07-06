@@ -217,6 +217,16 @@ export function injectHero(html, env) {
   return html.replace("</body>", script + "</body>");
 }
 
+// SPA navigation (opt-in, SITE_SPA=on). Pages stay server-rendered (SEO intact); this
+// turns internal link clicks into fetch-and-swap so there's no full reload. Delegated
+// on document (survives body swaps); re-runs inline scripts so the hero re-inits;
+// falls back to a normal navigation on any error. External/hash/download links skip it.
+export function injectSpa(html, env) {
+  if (!/^(1|true|on|yes)$/i.test(String(env.SITE_SPA || "")) || !html.includes("</body>")) return html;
+  const s = `<script>(function(){if(window.__vspa)return;window.__vspa=1;function run(r){r.querySelectorAll("script:not([src])").forEach(function(s){var n=document.createElement("script");n.textContent=s.textContent;s.replaceWith(n);});}function go(u,push){fetch(u,{headers:{"x-volt-spa":"1"}}).then(function(r){return r.text();}).then(function(h){var d=new DOMParser().parseFromString(h,"text/html");if(!d.body)throw 0;document.title=d.title;document.body.replaceWith(d.body);run(document.body);if(push)history.pushState({},"",u);window.scrollTo(0,0);}).catch(function(){location.href=u;});}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a");if(!a)return;var h=a.getAttribute("href");if(!h||a.target||a.hasAttribute("download")||a.host!==location.host||h.charAt(0)==="#"||/^(mailto|tel):/i.test(h))return;e.preventDefault();go(a.href,true);});window.addEventListener("popstate",function(){go(location.href,false);});})();</script>`;
+  return html.replace("</body>", s + "</body>");
+}
+
 export async function loadTheme(dir, env) {
   const wrap = (m) => {
     const layout = m && (m.layout || m.default);
@@ -276,6 +286,29 @@ export const absUrl = (p) => (process.env.SITE_URL ? process.env.SITE_URL.replac
 // media role: logo. The brand mark — a logo image when SITE_LOGO is set, else the name.
 export const brandMark = (name) => (process.env.SITE_LOGO ? `<img class="brand-logo" src="${esc(process.env.SITE_LOGO)}" alt="${esc(name)}" />` : esc(name));
 
+// Themed 404 — register LAST (after every add-on) so a genuinely unknown path renders
+// in the active theme instead of Express's bare "Cannot GET". A pages/404.md overrides
+// the copy; otherwise a sensible default. Same theme, nav, scheme, and meta as any page.
+export function notFound(dir) {
+  const getTheme = themeResolver(dir);
+  return async (req, res) => {
+    try {
+      let content = `<h1>Page not found</h1><p>Sorry, we couldn't find <code>${esc(req.path)}</code>.</p><p><a href="/">← Back home</a></p>`;
+      const custom = path.join(dir, "404.md");
+      if (fs.existsSync(custom)) {
+        const { marked } = await import("marked");
+        const { meta, body } = parseFrontMatter(fs.readFileSync(custom, "utf8"));
+        content = meta.format === "html" ? body : marked.parse(body);
+      }
+      const { layout } = await getTheme();
+      const html = layout({ title: "Page not found", head: metaHead({ title: "Page not found" }), content, meta: {}, nav: loadNav(dir, req.path) });
+      res.status(404).type("html").send(injectHot(injectScheme(html, process.env)));
+    } catch {
+      res.status(404).type("html").send("<h1>Page not found</h1><p><a href=\"/\">Home</a></p>");
+    }
+  };
+}
+
 export async function pagesRouter({ dir }) {
   const express = (await import("express")).default;
   const { marked } = await import("marked");
@@ -289,7 +322,7 @@ export async function pagesRouter({ dir }) {
     const m = { ...meta, title: meta.title || fallbackTitle, canonical: meta.canonical || absUrl(activePath) };
     const { layout } = await getTheme();
     const nav = loadNav(dir, activePath);
-    res.type("html").send(injectHot(injectHero(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env), process.env)));
+    res.type("html").send(injectHot(injectSpa(injectHero(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env), process.env), process.env)));
   };
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS));

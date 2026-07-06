@@ -216,6 +216,10 @@ async function startApp() {
     }
   }
 
+  // themed 404 — registered LAST so a genuinely unknown path renders in the active
+  // theme (with nav) instead of Express's bare "Cannot GET". Customize via pages/404.md.
+  if (enabled.has("pages")) app.use((await addonMod("pages")).notFound(path.join(__dirname, "pages")));
+
   let timer = null;
   const onChange = (file) => {
     clearTimeout(timer);

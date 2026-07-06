@@ -38,12 +38,14 @@ const state = signal({
   siteFavicon: current.SITE_FAVICON || "",
   ogImage: current.OG_IMAGE || "",
   siteHero: current.SITE_HERO || "",
+  siteSpa: current.SITE_SPA || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
   adminEmail: current.ADMIN_EMAIL || "",
   adminPath: current.ADMIN_PATH || "",
   adminSecret: current.ADMIN_SECRET || "",
+  adminAllowIps: current.ADMIN_ALLOW_IPS || "",
 });
 const set = (patch) => state({ ...state(), ...patch });
 const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
@@ -102,6 +104,7 @@ function genEnv(s) {
   if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteSpa) out.push(`SITE_SPA=${clean(s.siteSpa)}`);
   if (s.siteLogo) out.push(`SITE_LOGO=${clean(s.siteLogo)}`); // media roles: logo / favicon / OG / hero
   if (s.siteFavicon) out.push(`SITE_FAVICON=${clean(s.siteFavicon)}`);
   if (s.ogImage) out.push(`OG_IMAGE=${clean(s.ogImage)}`);
@@ -141,6 +144,7 @@ function genEnv(s) {
     if (s.adminPath) out.push(`ADMIN_PATH=${clean(s.adminPath)}`);
     if (s.adminEmail) out.push(`ADMIN_EMAIL=${clean(s.adminEmail)}`);
     if (s.adminSecret) out.push(`ADMIN_SECRET=${clean(s.adminSecret)}`);
+    if (s.adminAllowIps) out.push(`ADMIN_ALLOW_IPS=${clean(s.adminAllowIps)}`);
   }
   return out.join("\n") + "\n";
 }
@@ -264,7 +268,9 @@ const adminSettings = () =>
       <button class="btn btn-outline-secondary" onclick=${() => { const u = (state().siteUrl || "").replace(/\/+$/, "") + "/" + state().adminPath; navigator.clipboard && navigator.clipboard.writeText(u); status(`Copied ${u}`); }}>Copy</button>
       <button class="btn btn-outline-secondary" onclick=${() => set({ adminPath: randHex(8) })}>Regenerate</button>
     </div>
-    <p class="small text-muted mb-0">Unguessable by design — bookmark it. A 256-bit <code>ADMIN_SECRET</code> (session key) is generated automatically.</p>
+    <p class="small text-muted mb-2">Unguessable by design — bookmark it. A 256-bit <code>ADMIN_SECRET</code> (session key) is generated automatically.</p>
+    ${field("Allowed IPs (optional)", "adminAllowIps", "e.g. 203.0.113.7, 198.51.100.4")}
+    <p class="small text-muted mb-0">Blank = any IP (the magic link is still required). Set one or more to lock the admin to those addresses — everything else gets a 404. Behind a reverse proxy, make sure it sets a real <code>X-Real-IP</code>.</p>
   </div>`;
 
 // A dependency pulled in by another enabled add-on shows as checked + disabled
@@ -350,6 +356,12 @@ const themePicker = () =>
       ${["", "light", "dark"].map((m) => html`<button type="button" class=${() => "btn " + (state().siteMode === m ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteMode: m })}>${m === "" ? "Auto" : m === "light" ? "Light" : "Dark"}</button>`)}
     </div>
     <div class="small text-muted mt-1">Auto follows the visitor's device; Light/Dark force it (works with any color scheme).</div>
+    <label class="form-label small mb-1 mt-3">Navigation (SITE_SPA)</label>
+    <div class="btn-group btn-group-sm w-100" role="group">
+      <button type="button" class=${() => "btn " + (state().siteSpa !== "on" ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteSpa: "" })}>Normal</button>
+      <button type="button" class=${() => "btn " + (state().siteSpa === "on" ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteSpa: "on" })}>SPA (no reload)</button>
+    </div>
+    <div class="small text-muted mt-1">SPA swaps pages client-side (no full reload). Pages stay <b>server-rendered</b>, so SEO is unaffected.</div>
   </div>`;
 
 // AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.

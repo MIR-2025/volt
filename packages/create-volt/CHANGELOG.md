@@ -4,6 +4,24 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.62.0] - 2026-07-05
+
+### Added
+- **SPA / Normal navigation** (`SITE_SPA`). Off = normal full-reload navigation. On =
+  a tiny turbo script intercepts internal link clicks and fetch-swaps the body (no
+  reload) — while **every URL stays fully server-rendered** (content, title, meta,
+  canonical, OG), so **SEO is unaffected**. It's the Turbolinks/htmx model, not a
+  client-rendered SPA: crawlers get complete HTML and ignore the script. Delegated on
+  `document` (survives swaps), re-runs inline scripts (hero re-inits), falls back to a
+  real navigation on any error.
+- **Admin IP allowlist** (`ADMIN_ALLOW_IPS`). A comma-separated list gates the whole
+  admin path before any route — a non-listed IP gets a plain **404** (can't even reach
+  the login form or `/request`). Prefers `X-Real-IP` for reverse-proxy setups; config
+  field in the Web-admin section; blank = any IP (the magic link is still required).
+- **Themed 404 page.** An unknown path now renders a real 404 **in the active theme**
+  (with nav) instead of Express's bare "Cannot GET". Override the copy with
+  `pages/404.md`.
+
 ## [0.61.0] - 2026-07-05
 
 ### Added
@@ -841,6 +859,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.62.0]: https://github.com/MIR-2025/volt/releases/tag/v0.62.0
 [0.61.0]: https://github.com/MIR-2025/volt/releases/tag/v0.61.0
 [0.60.0]: https://github.com/MIR-2025/volt/releases/tag/v0.60.0
 [0.59.0]: https://github.com/MIR-2025/volt/releases/tag/v0.59.0

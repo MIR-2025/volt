@@ -32,6 +32,10 @@ const eq = (a, b) => {
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fingerprint = (req) => sha([req.headers["user-agent"] || "", req.headers["accept-language"] || "", req.headers["accept-encoding"] || ""].join("|"));
+// Client IP for the allowlist. Behind a reverse proxy this needs the proxy to set
+// X-Real-IP / X-Forwarded-For from the real connection (and strip any client-supplied
+// XFF), or it can be spoofed — see ADMIN_ALLOW_IPS in the docs.
+const clientIp = (req) => String(req.headers["x-real-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0] || req.socket.remoteAddress || "").trim().replace(/^::ffff:/, "");
 function parseCookies(header = "") {
   const out = {};
   for (const part of String(header).split(";")) {
@@ -48,6 +52,16 @@ export function register({ app, express, mailer, env, log }) {
   if (!adminEmail) return log("ADMIN_EMAIL not set — web admin disabled (fail-closed).");
   if (!mailer) return log("web admin needs the mailer add-on (to send magic links) — disabled.");
   const base = "/" + raw;
+  // Opt-in IP allowlist (ADMIN_ALLOW_IPS=comma,separated). Fail-closed with a plain
+  // 404 so a blocked IP can't even tell the admin exists. Runs before every route.
+  const allowIps = new Set(String(env.ADMIN_ALLOW_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
+  if (allowIps.size) {
+    app.use(base, (req, res, next) => {
+      if (allowIps.has(clientIp(req))) return next();
+      log(`blocked ${req.method} ${base} from ${clientIp(req)} (not in ADMIN_ALLOW_IPS)`);
+      res.status(404).type("text/plain").send("Not found");
+    });
+  }
   const secret = String(env.ADMIN_SECRET || "").trim() || rand();
   if (!String(env.ADMIN_SECRET || "").trim()) log("ADMIN_SECRET not set — using an ephemeral key (sessions reset on restart). Set ADMIN_SECRET to persist.");
 
@@ -87,7 +101,7 @@ export function register({ app, express, mailer, env, log }) {
   // ── request a link: rate-limited, plants the challenge cookie, emails only
   //    if the address is the configured admin (no account enumeration) ──────
   app.post(base + "/request", express.json(), async (req, res) => {
-    const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+    const ip = clientIp(req);
     const now = Date.now();
     const r = rl.get(ip) || { n: 0, reset: now + RL_WINDOW };
     if (r.reset < now) {
@@ -237,7 +251,7 @@ export function register({ app, express, mailer, env, log }) {
     child.on("close", (code) => res.end(`\n[exit ${code}]\n`));
   });
 
-  log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint), for ${adminEmail}`);
+  log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint)${allowIps.size ? `, IP allowlist (${allowIps.size})` : ""}, for ${adminEmail}`);
 }
 
 // ── pages (self-contained, Bootstrap from CDN) ─────────────────────────────
