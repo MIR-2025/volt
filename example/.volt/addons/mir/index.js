@@ -30,6 +30,10 @@ export function register({ app, env, log }) {
   // it is a deliberate opt-in (MIR_EMIT), separate from being a registered partner. Off =
   // registered/able-to-resolve, but submitEvent is a no-op. Set in the config wizard.
   const emit = /^(1|true|on|yes)$/i.test(String(env.MIR_EMIT || ""));
+  // Never emit for a localhost / private-network app — dev + test events must not pollute a
+  // partner's production reputation data. This is a hard gate, independent of MIR_EMIT.
+  const host = String(env.SITE_URL || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+  const isLocal = !host || host === "localhost" || host.endsWith(".local") || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/.test(host);
 
   // domain verification — echo the challenge token as plain text at the well-known path.
   if (challenge) {
@@ -66,6 +70,7 @@ export function register({ app, env, log }) {
     // or throws with MIR's error message.
     async submitEvent(userExternalId, eventType, opts = {}) {
       if (!key) throw new Error("MIR not configured — set MIR_API_KEY (register in the config)");
+      if (isLocal) return { skipped: true, reason: "localhost/private site — MIR never emits for local apps" };
       if (!emit) return { skipped: true, reason: "MIR emission not opted in — enable “Emit participation events” in the config (MIR_EMIT=on)" };
       if (!userExternalId || !eventType) throw new Error("submitEvent needs (userExternalId, eventType)");
       const body = { userExternalId: String(userExternalId), eventType: String(eventType) };
@@ -97,5 +102,5 @@ export function register({ app, env, log }) {
   };
 
   app.locals.mir = mir;
-  log(`partner client ready → ${base} (${mir.environment})${challenge ? ", challenge served" : ""} · events ${emit ? "EMITTING" : "not emitting (opt in via config)"}`);
+  log(`partner client ready → ${base} (${mir.environment})${challenge ? ", challenge served" : ""} · events ${isLocal ? "OFF (localhost/private site — never emits)" : emit ? "EMITTING" : "not emitting (opt in via config)"}`);
 }

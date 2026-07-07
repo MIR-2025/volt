@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.67.0] - 2026-07-07
+
+### Changed
+- **MIR never emits for localhost / private-network apps.** `volt-addon-mir`'s `submitEvent`
+  now hard-skips when `SITE_URL` is localhost, a private IP, `.local`, or unset — **regardless of
+  `MIR_EMIT`** — so dev and test events can never pollute a partner's production reputation data.
+  `resolveUser` (a read) is unaffected. (The voltjs.com gateway applies the same guard on the
+  request host.)
+
 ## [0.66.0] - 2026-07-07
 
 ### Changed
@@ -944,6 +953,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.67.0]: https://github.com/MIR-2025/volt/releases/tag/v0.67.0
 [0.66.0]: https://github.com/MIR-2025/volt/releases/tag/v0.66.0
 [0.65.0]: https://github.com/MIR-2025/volt/releases/tag/v0.65.0
 [0.64.0]: https://github.com/MIR-2025/volt/releases/tag/v0.64.0
