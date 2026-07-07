@@ -490,8 +490,15 @@ function startSetup() {
           const base = String(cfg.MIR_BASE_URL || "https://mirregistry.org/v1").replace(/\/+$/, "");
           const email = cfg.MIR_EMAIL || cfg.ADMIN_EMAIL || "";
           if (!email) return done({ ok: false, error: "an email is required to register with MIR" });
-          const r = await fetch(base + "/partners/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: cfg.SITE_NAME || "My Volt site", acceptTerms: true, website: cfg.SITE_URL || "", email }) });
+          // Stable per-app slug = the domain (MIR is gated on a public SITE_URL). It's the
+          // idempotency guard: a redeploy or a re-run resolves to the SAME partner instead of
+          // fragmenting the app's customers across new partner rows. (An app is a partner; a
+          // deployment is not.) A taken slug → 409 = already registered (the key's in .env).
+          const host = String(cfg.SITE_URL || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+          const slug = host.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          const r = await fetch(base + "/partners/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: cfg.SITE_NAME || "My Volt site", acceptTerms: true, website: cfg.SITE_URL || "", email, ...(slug ? { slug } : {}) }) });
           const data = await r.json().catch(() => ({}));
+          if (r.status === 409) return done({ ok: false, error: "already registered for this domain — your MIR_API_KEY should already be in .env" });
           if (!r.ok) return done({ ok: false, error: data.error || data.message || "MIR HTTP " + r.status });
           done({ ok: true, partnerId: data.partnerId, apiKey: data.apiKey, challenge: (data.domainChallenge || {}).token, environment: data.environment, status: data.status });
         } catch (e) {

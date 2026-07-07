@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.66.0] - 2026-07-07
+
+### Changed
+- **MIR registration is idempotent per app.** `volt-addon-mir`'s register now sends the app's
+  domain (from `SITE_URL`) as a stable `slug`, so a redeploy or a re-run of the config resolves to
+  the **same** MIR partner instead of fragmenting the app's customers across new partner rows — *an
+  app is a partner; a deployment is not.* A taken slug returns `409` and is treated as
+  already-registered (the key is already in `.env`).
+
 ## [0.65.0] - 2026-07-07
 
 ### Added
@@ -935,6 +944,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.66.0]: https://github.com/MIR-2025/volt/releases/tag/v0.66.0
 [0.65.0]: https://github.com/MIR-2025/volt/releases/tag/v0.65.0
 [0.64.0]: https://github.com/MIR-2025/volt/releases/tag/v0.64.0
 [0.63.1]: https://github.com/MIR-2025/volt/releases/tag/v0.63.1
