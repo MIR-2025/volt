@@ -158,7 +158,13 @@ async function startApp() {
 
   let store = null;
   let mailer = null;
-  if (enabled.has("db")) store = await (await addonMod("db")).createStore();
+  if (enabled.has("db")) {
+    const dbMod = await addonMod("db");
+    store = await dbMod.createStore();
+    // seed data/*.json into empty collections on first boot (fixtures / migration output)
+    const seeded = await dbMod.seed(store, path.join(__dirname, "data"));
+    if (seeded.length) console.log("[db] seeded " + seeded.map((s) => `${s.count}→${s.collection}`).join(", ") + " from data/");
+  }
   if (enabled.has("mailer")) mailer = await (await addonMod("mailer")).createMailer();
   if (enabled.has("auth") && store && mailer) app.use((await addonMod("auth")).authRouter({ store, mailer }));
 

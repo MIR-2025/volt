@@ -1,2 +1,2 @@
 VOLT_ADDONS=db,mailer,auth,realtime
-DB_DRIVER=memory
+DB_DRIVER=sqlite

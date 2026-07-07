@@ -3,3 +3,7 @@ npm-debug.log*
 .DS_Store
 .env
 *.local
+
+# SQLite data (default DB_DRIVER) — the DB file + its WAL/SHM sidecars
+.volt/*.db
+.volt/*.db-*

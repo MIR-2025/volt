@@ -11,7 +11,7 @@ const enabledNow = new Set(String(current.VOLT_ADDONS || "").split(",").map((s) 
 
 const state = signal({
   addons: Object.fromEntries(available.map((a) => [a.name, enabledNow.has(a.name)])),
-  dbDriver: current.DB_DRIVER || "memory",
+  dbDriver: current.DB_DRIVER || "sqlite",
   mongoUri: current.MONGODB_URI || "",
   mongoDb: current.MONGODB_DATABASE || "",
   dbUrl: current.DATABASE_URL || "",
@@ -39,6 +39,7 @@ const state = signal({
   ogImage: current.OG_IMAGE || "",
   siteHero: current.SITE_HERO || "",
   siteSpa: current.SITE_SPA || "",
+  dateFormat: current.SITE_DATE_FORMAT || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
@@ -111,6 +112,7 @@ function genEnv(s) {
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteSpa) out.push(`SITE_SPA=${clean(s.siteSpa)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.dateFormat) out.push(`SITE_DATE_FORMAT=${clean(s.dateFormat)}`);
   if (s.siteLogo) out.push(`SITE_LOGO=${clean(s.siteLogo)}`); // media roles: logo / favicon / OG / hero
   if (s.siteFavicon) out.push(`SITE_FAVICON=${clean(s.siteFavicon)}`);
   if (s.ogImage) out.push(`OG_IMAGE=${clean(s.ogImage)}`);
@@ -307,19 +309,23 @@ const dbSettings = () =>
   html`<div class="mb-2">
       <label class="form-label small mb-1">Database (DB_DRIVER)</label>
       <select class="form-select" value=${() => dbDriver()} onchange=${(e) => set({ dbDriver: e.target.value })}>
-        <option value="memory">memory (no setup)</option>
-        <option value="mongodb">mongodb</option>
-        <option value="mysql">mysql</option>
+        <option value="sqlite">sqlite — file, persistent, no server (default)</option>
+        <option value="memory">memory — ephemeral (dev only)</option>
+        <option value="mongodb">mongodb — recommended at scale</option>
+        <option value="mysql">mysql / MariaDB</option>
         <option value="postgres">postgres</option>
       </select>
+      <div class="form-text"><strong>SQLite (default)</strong> persists to a file with no server to run — ideal for a single box. <strong>MongoDB</strong> is the pick once you scale out (multi-instance, native indexable queries). All share one document interface; call <code>store.index(coll, field)</code> for hot query fields.</div>
     </div>
     ${() =>
       dbDriver() === "mongodb"
         ? html`${field("MONGODB_URI", "mongoUri", "mongodb://user:pass@host:27017/db")}${field("MONGODB_DATABASE", "mongoDb", "db")}`
         : dbDriver() === "mysql" || dbDriver() === "postgres"
           ? field("DATABASE_URL", "dbUrl", dbDriver() + "://user:pass@host/db")
-          : null}
-    ${() => (dbDriver() !== "memory" ? html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>${() => testResult(dbTest())}` : null)}`;
+          : dbDriver() === "sqlite"
+            ? html`<div class="form-text mb-2">Stored at <code>.volt/data.db</code> — no connection string needed. Override the path with <code>SQLITE_FILE</code>. Needs Node 22.5+ (falls back to memory otherwise).</div>`
+            : null}
+    ${() => (["memory", "sqlite"].includes(dbDriver()) ? null : html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>${() => testResult(dbTest())}`)}`;
 
 const mediaSettings = () =>
   html`<div class="mb-2">
@@ -742,6 +748,48 @@ const siteUrlField = () =>
     ${() => testResult(siteUrlDns())}
   </div>`;
 
+// Dates & timezone — SITE_TZ (auto-detected, overridable) + SITE_DATE_FORMAT (how post/
+// page dates render). Live-previews today's date in the chosen format + zone.
+const DATE_FMT = { long: "January 2, 2026", medium: "Jan 2, 2026", dmy: "2 January 2026", "dmy-short": "2 Jan 2026", iso: "2026-01-02" };
+const DATE_FMT_OPTS = {
+  long: ["en-US", { year: "numeric", month: "long", day: "numeric" }],
+  medium: ["en-US", { year: "numeric", month: "short", day: "numeric" }],
+  dmy: ["en-GB", { year: "numeric", month: "long", day: "numeric" }],
+  "dmy-short": ["en-GB", { year: "numeric", month: "short", day: "numeric" }],
+};
+const COMMON_TZ = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Kolkata", "Asia/Tokyo", "Australia/Sydney"];
+function previewDate() {
+  const fmt = state().dateFormat || "long";
+  const tz = state().tz || undefined;
+  const now = new Date();
+  try {
+    if (fmt === "iso") return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz }).format(now);
+    const [loc, opts] = DATE_FMT_OPTS[fmt] || DATE_FMT_OPTS.long;
+    return now.toLocaleDateString(loc, tz ? { ...opts, timeZone: tz } : opts);
+  } catch {
+    return "—";
+  }
+}
+const datesSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">Dates &amp; timezone</h2>
+    <p class="small text-muted mb-2">How post and page dates display. Timezone was auto-detected from your browser — override it for a different audience.</p>
+    <div class="row g-2">
+      <div class="col-sm-6">
+        <label class="form-label small mb-1">Timezone (SITE_TZ)</label>
+        <input class="form-control" list="tzlist" value=${() => state().tz} oninput=${(e) => set({ tz: e.target.value })} placeholder="America/New_York" />
+        <datalist id="tzlist">${COMMON_TZ.map((z) => html`<option value=${z}></option>`)}</datalist>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label small mb-1">Date format (SITE_DATE_FORMAT)</label>
+        <select class="form-select" value=${() => state().dateFormat || "long"} onchange=${(e) => set({ dateFormat: e.target.value })}>
+          ${Object.keys(DATE_FMT).map((k) => html`<option value=${k}>${DATE_FMT[k]}</option>`)}
+        </select>
+      </div>
+    </div>
+    <div class="small text-muted mt-2">Today: <strong>${() => previewDate()}</strong>${() => (state().tz ? ` · ${state().tz}` : "")}</div>
+  </div>`;
+
 const configView = () =>
   html`${() => {
       const u = upgrade();
@@ -755,6 +803,7 @@ const configView = () =>
       ${field("PORT", "port", String(defaultPort))}
       ${field("SITE_NAME", "siteName", "My Site")}
       ${() => (hasContent() ? themePicker() : null)}
+      ${() => (hasContent() ? datesSettings() : null)}
       ${() => (hasDb() ? dbSettings() : null)}
       ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
       ${() => (hasMedia() ? mediaSettings() : null)}

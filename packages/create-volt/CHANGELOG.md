@@ -4,6 +4,43 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.64.0] - 2026-07-06
+
+### Added
+- **SQLite is the default database.** New `sqlite` driver on Node's **built-in `node:sqlite`**
+  (zero dependency) — persistent to `.volt/data.db` with no server to run, WAL mode, JSON
+  filter pushdown + expression indexes. `DB_DRIVER` now defaults to `sqlite` (was `memory`); on
+  Node < 22.5 it falls back to in-memory with a warning. Fills the gap between ephemeral
+  (memory) and needs-a-server (mongo/mysql/postgres) — a new site persists with zero infra.
+- **Query pushdown + pagination on every driver.** `find(query, { limit, offset, sort, dir })`
+  and `all(opts)` now filter **in the database** (JSON extraction) instead of reading a whole
+  collection into Node, and paginate. Field names are validated (injection-safe). Mongo uses
+  native cursors; SQL/SQLite use `json_extract` / `->>`.
+- **`store.index(coll, field)`** — index a JSON field so `find()`/sort stops scanning: a
+  generated-column index (MySQL/MariaDB), a composite functional index (Postgres), an
+  expression index (SQLite), a native btree index (Mongo), a no-op (memory).
+- **Seed data (`data/*.json`).** Each `data/<name>.json` (an array of docs) seeds the `<name>`
+  collection on first boot **only if it's empty** — fixtures, demo content, or migration output.
+  `_`-prefixed files are reserved (manifests). A doc's `id` is its key, else generated.
+- **`volt-addon-antispam` — built-in spam protection, no API key, no third party.** Layers a
+  honeypot, a signed time-trap token, and content heuristics; a hard **429 at 20 known probes
+  per IP**. `app.locals.spam.fields()` (embed) + `.check()` (verify). Nothing about a
+  submission ever leaves the app.
+- **Custom timezone + date format.** The config exposes an editable `SITE_TZ` and a new
+  `SITE_DATE_FORMAT` (long / medium / dmy / dmy-short / iso) with a live preview; posts/pages
+  render dates accordingly (display only — stored dates stay ISO).
+- **Nested navigation.** `pages/_nav.md` now supports 2-space-indented children → hover/focus
+  **dropdowns** (expanded inline under the mobile hamburger). Active state bubbles to the parent.
+- **YAML-array front-matter + multiple categories.** `parseFrontMatter` parses inline arrays
+  (`tags: [a, b, c]`) and strips quotes; `category` accepts an array, so a post can be in
+  multiple categories (renders + routes on all). Comma-strings and single values still work.
+- **`SITE_URL` DNS affirmation** in the config — checks the domain resolves on blur (existence,
+  not ownership), catching typos before canonical/OG/RSS rely on it.
+
+### Changed
+- The DB picker labels **MongoDB "recommended at scale"** (native indexable queries) and SQLite
+  the default for a single box; `memory` is marked dev-only.
+
 ## [0.63.1] - 2026-07-06
 
 ### Added
@@ -884,6 +921,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.64.0]: https://github.com/MIR-2025/volt/releases/tag/v0.64.0
 [0.63.1]: https://github.com/MIR-2025/volt/releases/tag/v0.63.1
 [0.63.0]: https://github.com/MIR-2025/volt/releases/tag/v0.63.0
 [0.62.0]: https://github.com/MIR-2025/volt/releases/tag/v0.62.0

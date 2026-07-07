@@ -41,9 +41,17 @@ export function parseFrontMatter(src) {
   const m = src.match(FM);
   if (!m) return { meta: {}, body: src };
   const meta = {};
+  const unquote = (s) => s.replace(/^["']|["']$/g, "");
   for (const line of m[1].split(/\r?\n/)) {
     const i = line.indexOf(":");
-    if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    if (i <= 0) continue;
+    const key = line.slice(0, i).trim();
+    const raw = line.slice(i + 1).trim();
+    // YAML inline array (tags: [a, b, c]) → string[]; otherwise a scalar with quotes stripped.
+    meta[key] =
+      raw.startsWith("[") && raw.endsWith("]")
+        ? raw.slice(1, -1).split(",").map((s) => unquote(s.trim())).filter(Boolean)
+        : unquote(raw);
   }
   return { meta, body: src.slice(m[0].length) };
 }
@@ -205,6 +213,14 @@ export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:cal
 .nav-links a{text-decoration:none;color:var(--muted)}
 .nav-links a:hover,.nav-links a.active{color:var(--brand)}
 @media(max-width:640px){.nav-burger{display:inline-block}.nav-links{display:none;flex-direction:column;align-items:flex-start;width:100%;gap:.5rem;margin:.4rem 0 0}.nav-toggle:checked~.nav-links{display:flex}}
+.nav-dd{position:relative}
+.nav-dd>a,.nav-parent{color:var(--muted);cursor:pointer}
+.nav-dd>*:first-child::after{content:"▾";font-size:.7em;margin-left:.25em;opacity:.55}
+.nav-dd:hover>a,.nav-dd:hover>.nav-parent,.nav-dd:focus-within>a,.nav-dd:focus-within>.nav-parent,.nav-dd>a.active,.nav-dd>.nav-parent.active{color:var(--brand)}
+.nav-sub{display:none;position:absolute;top:100%;left:0;min-width:11rem;flex-direction:column;gap:.35rem;padding:.5rem;margin-top:.35rem;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:30}
+.nav-dd:hover>.nav-sub,.nav-dd:focus-within>.nav-sub{display:flex}
+.nav-sub a{white-space:nowrap;color:var(--muted)}.nav-sub a:hover,.nav-sub a.active{color:var(--brand)}
+@media(max-width:640px){.nav-dd{width:100%}.nav-sub{display:flex;position:static;box-shadow:none;border:0;background:transparent;margin:.15rem 0 .3rem;padding:.15rem 0 .2rem 1rem;min-width:0}}
 .volt-hero{position:relative;overflow:hidden}
 .vh-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .8s ease}`;
 
@@ -270,17 +286,35 @@ export function loadNav(dir, activePath = "/") {
   const f = path.join(dir, "_nav.md");
   if (!fs.existsSync(f)) return [];
   const md = fs.readFileSync(f, "utf8");
-  const items = [];
-  const re = /\[([^\]]+)\]\(\s*([^)\s]+)[^)]*\)/g;
-  let m;
-  while ((m = re.exec(md))) {
-    const href = m[2].trim();
-    items.push({ label: m[1].trim(), href, active: href === activePath || (href.length > 1 && activePath.startsWith(href)) });
+  const isActive = (href) => href !== "#" && (href === activePath || (href.length > 1 && activePath.startsWith(href)));
+  // A nav item is a markdown link on its own line (optionally list-marked). 2-space
+  // indentation nests it under the previous shallower item → a dropdown submenu.
+  const re = /^(\s*)(?:[-*+]\s+)?\[([^\]]+)\]\(\s*([^)\s]+)[^)]*\)/;
+  const roots = [];
+  const stack = []; // { indent, item }
+  for (const line of md.split(/\r?\n/)) {
+    const m = re.exec(line);
+    if (!m) continue;
+    const indent = m[1].replace(/\t/g, "  ").length;
+    const href = m[3].trim();
+    const item = { label: m[2].trim(), href, active: isActive(href), children: [] };
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    (stack.length ? stack[stack.length - 1].item.children : roots).push(item);
+    stack.push({ indent, item });
   }
-  return items;
+  return roots;
 }
-// Render nav items to <a> tags a theme can drop into its header (active gets .active).
-export const navLinks = (nav = []) => nav.map((i) => `<a href="${esc(i.href)}"${i.active ? ' class="active" aria-current="page"' : ""}>${esc(i.label)}</a>`).join("");
+// Render nav items to a theme's header: a flat item is an <a>; an item with children becomes
+// a hover/tap dropdown (.nav-dd → .nav-sub). Active bubbles up so a parent highlights when a
+// child is current. One level of dropdown (deeper nesting flattens into it).
+const navItem = (it) => {
+  const link = (x) => `<a href="${esc(x.href)}"${x.active ? ' class="active" aria-current="page"' : ""}>${esc(x.label)}</a>`;
+  if (!it.children.length) return link(it);
+  const on = it.active || it.children.some((c) => c.active);
+  const toggle = it.href && it.href !== "#" ? `<a href="${esc(it.href)}"${on ? ' class="active"' : ""}>${esc(it.label)}</a>` : `<span class="nav-parent${on ? " active" : ""}" tabindex="0">${esc(it.label)}</span>`;
+  return `<div class="nav-dd">${toggle}<div class="nav-sub">${it.children.map(link).join("")}</div></div>`;
+};
+export const navLinks = (nav = []) => nav.map(navItem).join("");
 // Absolute URL for a path, for auto-canonical + og:url. Needs SITE_URL; else undefined.
 export const absUrl = (p) => (process.env.SITE_URL ? process.env.SITE_URL.replace(/\/+$/, "") + p : undefined);
 // media role: logo. The brand mark — a logo image when SITE_LOGO is set, else the name.

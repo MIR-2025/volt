@@ -13,19 +13,36 @@ const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-"
 const postLink = (slug) => "/blog/" + slug;
 const catLink = (c) => `<a href="/category/${slugify(c)}">${esc(c)}</a>`;
 const tagLink = (t) => `<a class="post-tag" href="/tag/${slugify(t)}">${esc(t)}</a>`;
-const tagsOf = (meta) => String(meta.tags || "").split(",").map((s) => s.trim()).filter(Boolean);
+// tags accept a YAML array ([a, b]) or a comma-string ("a, b"); category accepts an array
+// (multiple) or a single value — mirrors WordPress, where a post can be in many categories.
+const tagsOf = (meta) => (Array.isArray(meta.tags) ? meta.tags : String(meta.tags || "").split(",")).map((s) => String(s).trim()).filter(Boolean);
+const catsOf = (meta) => (Array.isArray(meta.category) ? meta.category : meta.category ? [meta.category] : []).map((c) => String(c).trim()).filter(Boolean);
+const catLinks = (meta) => catsOf(meta).map(catLink).join(", ");
 
+// Named date formats (SITE_DATE_FORMAT) → [locale, Intl options]. "iso" is special
+// (YYYY-MM-DD); default is "long".
+const DATE_FORMATS = {
+  long: ["en-US", { year: "numeric", month: "long", day: "numeric" }], // January 2, 2026
+  medium: ["en-US", { year: "numeric", month: "short", day: "numeric" }], // Jan 2, 2026
+  dmy: ["en-GB", { year: "numeric", month: "long", day: "numeric" }], // 2 January 2026
+  "dmy-short": ["en-GB", { year: "numeric", month: "short", day: "numeric" }], // 2 Jan 2026
+};
 function fmtDate(d) {
   if (!d) return "";
-  const opts = { year: "numeric", month: "long", day: "numeric" };
-  // A date-only value (YYYY-MM-DD) is a calendar day with no timezone — parse it
-  // as local midnight and render that day (new Date("2026-06-28") would be UTC →
-  // off by a day in negative-offset zones). A full timestamp is rendered in the
-  // admin's timezone (SITE_TZ, detected by the setup wizard), not the server's.
+  const fmt = process.env.SITE_DATE_FORMAT || "long";
+  const tz = process.env.SITE_TZ;
+  // A date-only value (YYYY-MM-DD) is a calendar day with no timezone — parse it as local
+  // midnight and render that day (new Date("2026-06-28") would be UTC → off by a day in
+  // negative-offset zones). A full timestamp renders in the admin's SITE_TZ, not the server's.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d).trim());
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("en-US", opts);
-  const t = new Date(d);
-  return isNaN(t.getTime()) ? esc(d) : t.toLocaleDateString("en-US", process.env.SITE_TZ ? { ...opts, timeZone: process.env.SITE_TZ } : opts);
+  const t = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
+  if (isNaN(t.getTime())) return esc(d);
+  if (fmt === "iso") {
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", ...(tz ? { timeZone: tz } : {}) }).format(t);
+  }
+  const [loc, opts] = DATE_FORMATS[fmt] || DATE_FORMATS.long;
+  return t.toLocaleDateString(loc, !m && tz ? { ...opts, timeZone: tz } : opts);
 }
 
 function excerpt(p) {
@@ -64,7 +81,7 @@ function renderList(posts, { heading, page = 1, totalPages = 1, baseUrl }) {
         .map(
           (p) => `<li class="post-item" style="margin:0 0 1.5rem">
     <a href="${postLink(p.slug)}" style="font-size:1.2rem;font-weight:600">${esc(p.meta.title || p.slug)}</a>
-    <div class="post-meta" style="opacity:.7;font-size:.9rem">${fmtDate(p.date)}${p.meta.category ? " &middot; " + catLink(p.meta.category) : ""}</div>
+    <div class="post-meta" style="opacity:.7;font-size:.9rem">${fmtDate(p.date)}${catsOf(p.meta).length ? " &middot; " + catLinks(p.meta) : ""}</div>
     <p style="margin:.3rem 0 0">${esc(excerpt(p))}</p>
   </li>`,
         )
@@ -83,7 +100,7 @@ function renderPost(p, marked) {
   const title = p.meta.title || p.slug;
   const body = p.meta.format === "html" ? p.body : marked.parse(p.body);
   const tags = tagsOf(p.meta);
-  const meta = `<div class="post-meta" style="opacity:.7;font-size:.9rem;margin-bottom:1rem">${fmtDate(p.date)}${p.meta.author ? " &middot; " + esc(p.meta.author) : ""}${p.meta.category ? " &middot; " + catLink(p.meta.category) : ""}</div>`;
+  const meta = `<div class="post-meta" style="opacity:.7;font-size:.9rem;margin-bottom:1rem">${fmtDate(p.date)}${p.meta.author ? " &middot; " + esc(p.meta.author) : ""}${catsOf(p.meta).length ? " &middot; " + catLinks(p.meta) : ""}</div>`;
   const tagHtml = tags.length ? `<div class="post-tags" style="margin-top:1.5rem">Tags: ${tags.map(tagLink).join(" ")}</div>` : "";
   return `<article><h1>${esc(title)}</h1>${meta}${body}${tagHtml}</article>`;
 }
@@ -158,7 +175,7 @@ export async function postsRouter({ dir, themeDir }) {
 
   r.get("/category/:name", async (req, res, next) => {
     if (!isSafeSlug(req.params.name)) return next();
-    const list = readPosts(dir).filter((p) => slugify(p.meta.category) === req.params.name);
+    const list = readPosts(dir).filter((p) => catsOf(p.meta).some((c) => slugify(c) === req.params.name));
     if (!list.length) return next();
     res.type("html").send(await render({ title: "Category: " + req.params.name, path: req.path, content: renderList(list, { heading: "Category: " + req.params.name, baseUrl: "/category/" + req.params.name }) }));
   });
