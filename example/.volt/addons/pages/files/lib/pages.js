@@ -101,13 +101,15 @@ export function metaHead(meta) {
 
 // Canonical color tokens with an automatic dark set (prefers-color-scheme), so the
 // bare default still adapts to the OS AND a SITE_SCHEME can override the palette.
-const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff }
+const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff; --font-body: system-ui, -apple-system, sans-serif; --font-heading: var(--font-body); --font-subhead: var(--font-heading); --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 } }
 :root[data-theme="dark"] { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 }
-body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink) }
-h1, h2, h3 { line-height: 1.25; margin: 1.6rem 0 .6rem }
+body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 var(--font-body); background: var(--bg); color: var(--ink) }
+h1, h2, h3, h4 { line-height: 1.25; margin: 1.6rem 0 .6rem }
+h1 { font-family: var(--font-heading) }
+h2, h3, h4 { font-family: var(--font-subhead) }
 pre { background: #0b0d11; color: #cfe3ff; padding: 1rem; border-radius: 10px; overflow: auto }
-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em }
+code { font-family: var(--font-mono); font-size: .9em }
 :not(pre) > code { background: color-mix(in srgb, var(--ink) 12%, transparent); padding: .1em .35em; border-radius: 5px }
 img { max-width: 100% } a { color: var(--brand) }
 blockquote { border-left: 3px solid var(--line); margin: 1rem 0; padding: .2rem 1rem; color: var(--muted) }
@@ -201,6 +203,52 @@ export function injectScheme(html, env) {
 // class="full-bleed" to break it OUT of the content column to full viewport width —
 // e.g. a hero image or video from the editor. The theme keeps its readable text
 // column; only flagged blocks span edge-to-edge. No editor change needed.
+// Curated self-hostable fonts (SIL OFL / Apache). slug = fontsource slug; the config
+// downloads their woff2 to public/fonts/<slug>/<weight>.woff2, so at runtime nothing loads
+// from a third party (unlike Google Fonts — no visitor IPs leak to Google). family = CSS name.
+export const FONTS = [
+  { slug: "inter", family: "Inter", cat: "Sans-serif", stack: "sans-serif" },
+  { slug: "roboto", family: "Roboto", cat: "Sans-serif", stack: "sans-serif" },
+  { slug: "open-sans", family: "Open Sans", cat: "Sans-serif", stack: "sans-serif" },
+  { slug: "work-sans", family: "Work Sans", cat: "Sans-serif", stack: "sans-serif" },
+  { slug: "nunito", family: "Nunito", cat: "Sans-serif", stack: "sans-serif" },
+  { slug: "poppins", family: "Poppins", cat: "Display", stack: "sans-serif" },
+  { slug: "montserrat", family: "Montserrat", cat: "Display", stack: "sans-serif" },
+  { slug: "merriweather", family: "Merriweather", cat: "Serif", stack: "serif" },
+  { slug: "lora", family: "Lora", cat: "Serif", stack: "serif" },
+  { slug: "source-serif-4", family: "Source Serif 4", cat: "Serif", stack: "serif" },
+  { slug: "playfair-display", family: "Playfair Display", cat: "Serif", stack: "serif" },
+  { slug: "jetbrains-mono", family: "JetBrains Mono", cat: "Monospace", stack: "monospace" },
+  { slug: "fira-code", family: "Fira Code", cat: "Monospace", stack: "monospace" },
+  { slug: "ibm-plex-mono", family: "IBM Plex Mono", cat: "Monospace", stack: "monospace" },
+];
+export const FONT_WEIGHTS = [400, 700];
+const FONT_BY_SLUG = Object.fromEntries(FONTS.map((f) => [f.slug, f]));
+// @font-face + the four role variables from FONT_HEADING/FONT_SUBHEAD/FONT_BODY/FONT_MONO
+// (each a font slug). Appended to /_theme.css; overrides the theme's system-font defaults.
+export function fontsCss(env = process.env) {
+  const roles = { heading: env.FONT_HEADING, subhead: env.FONT_SUBHEAD, body: env.FONT_BODY, mono: env.FONT_MONO };
+  // A .volt/fonts.json override (written live by the web admin) wins over .env — so a remote
+  // owner can retune typography without an .env edit or a restart (served per-request).
+  try {
+    const o = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".volt", "fonts.json"), "utf8"));
+    for (const k of ["heading", "subhead", "body", "mono"]) if (o[k] != null) roles[k] = o[k];
+  } catch {}
+  const used = new Set();
+  let faces = "";
+  const vars = [];
+  for (const [role, slug] of Object.entries(roles)) {
+    const f = slug && FONT_BY_SLUG[slug];
+    if (!f) continue;
+    if (!used.has(slug)) {
+      used.add(slug);
+      for (const w of FONT_WEIGHTS) faces += `@font-face{font-family:'${f.family}';font-style:normal;font-weight:${w};font-display:swap;src:url(/fonts/${slug}/${w}.woff2) format('woff2')}\n`;
+    }
+    vars.push(`--font-${role}:'${f.family}',${f.stack}`);
+  }
+  return faces + (vars.length ? `:root{${vars.join(";")}}\n` : "");
+}
+
 export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
 .full-bleed>img,.full-bleed>video{width:100%;display:block}
 .site-nav{border-bottom:1px solid var(--line);margin-bottom:1.5rem;padding:.5rem 0}
@@ -359,7 +407,7 @@ export async function pagesRouter({ dir }) {
     res.type("html").send(injectHot(injectSpa(injectHero(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env), process.env), process.env)));
   };
   const r = express.Router();
-  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS));
+  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS + "\n" + fontsCss(process.env)));
   // themed home: pages/index.md takes over "/" (the site's front page) when present
   r.get("/", async (_req, res, next) => {
     const file = path.join(dir, "index.md");

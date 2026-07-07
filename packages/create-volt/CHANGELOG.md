@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.65.0] - 2026-07-07
+
+### Added
+- **Typography — self-hosted fonts, chosen per role, with live previews.** Pick a font for
+  **Headings / Subsections / Body / Code** from a curated 14-font catalog (Inter, Roboto, Poppins,
+  Merriweather, Lora, JetBrains Mono, …). Chosen fonts are **downloaded and self-hosted** into
+  `public/fonts/` — nothing loads from Google on the live site (no visitor-IP leak; the WordPress
+  self-hosting-plugin problem, solved natively). The theme exposes `--font-heading` /
+  `--font-subhead` / `--font-body` / `--font-mono` variables (an unset role cascades body → system).
+  - Set them in the **5050 config** (writes `FONT_*` to `.env`) **or the web admin** (writes
+    `.volt/fonts.json`, a live override applied on the next page load — no restart, no `.env` edit).
+  - Both pickers **render each font in its own typeface** and show a **live specimen panel**; the
+    preview fonts load from a CDN in the admin page only, so the public site stays fully self-hosted.
+
 ## [0.64.0] - 2026-07-06
 
 ### Added
@@ -921,6 +935,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.65.0]: https://github.com/MIR-2025/volt/releases/tag/v0.65.0
 [0.64.0]: https://github.com/MIR-2025/volt/releases/tag/v0.64.0
 [0.63.1]: https://github.com/MIR-2025/volt/releases/tag/v0.63.1
 [0.63.0]: https://github.com/MIR-2025/volt/releases/tag/v0.63.0

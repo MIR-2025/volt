@@ -251,6 +251,55 @@ export function register({ app, express, mailer, env, log }) {
     child.on("close", (code) => res.end(`\n[exit ${code}]\n`));
   });
 
+  // ── typography: fetch self-hosted fonts + set the live override (.volt/fonts.json) ──
+  // No .env edit, no restart — the theme reads .volt/fonts.json per request, so a remote
+  // owner (no shell) can retune fonts and see it on the next page load.
+  const FONTS = [
+    { slug: "inter", family: "Inter", cat: "Sans" }, { slug: "roboto", family: "Roboto", cat: "Sans" },
+    { slug: "open-sans", family: "Open Sans", cat: "Sans" }, { slug: "work-sans", family: "Work Sans", cat: "Sans" },
+    { slug: "nunito", family: "Nunito", cat: "Sans" }, { slug: "poppins", family: "Poppins", cat: "Display" },
+    { slug: "montserrat", family: "Montserrat", cat: "Display" }, { slug: "merriweather", family: "Merriweather", cat: "Serif" },
+    { slug: "lora", family: "Lora", cat: "Serif" }, { slug: "source-serif-4", family: "Source Serif 4", cat: "Serif" },
+    { slug: "playfair-display", family: "Playfair Display", cat: "Serif" }, { slug: "jetbrains-mono", family: "JetBrains Mono", cat: "Mono" },
+    { slug: "fira-code", family: "Fira Code", cat: "Mono" }, { slug: "ibm-plex-mono", family: "IBM Plex Mono", cat: "Mono" },
+  ];
+  app.get(base + "/api/fonts", guard, (_req, res) => {
+    let current = {};
+    try {
+      current = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".volt", "fonts.json"), "utf8"));
+    } catch {
+      /* none set */
+    }
+    res.json({ ok: true, fonts: FONTS, current });
+  });
+  app.post(base + "/api/fonts", guard, express.json(), async (req, res) => {
+    try {
+      const clean = {};
+      const roles = req.body?.roles || {};
+      for (const k of ["heading", "subhead", "body", "mono"]) {
+        const v = String(roles[k] || "");
+        if (v && FONTS.some((f) => f.slug === v)) clean[k] = v; // catalog whitelist guards the path/URL
+      }
+      const fontsDir = path.join(process.cwd(), "public", "fonts");
+      for (const slug of [...new Set(Object.values(clean))]) {
+        const dir = path.join(fontsDir, slug);
+        fs.mkdirSync(dir, { recursive: true });
+        for (const w of [400, 700]) {
+          const file = path.join(dir, w + ".woff2");
+          if (fs.existsSync(file)) continue;
+          const r = await fetch(`https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${w}-normal.woff2`);
+          if (!r.ok) continue;
+          fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+        }
+      }
+      fs.mkdirSync(path.join(process.cwd(), ".volt"), { recursive: true });
+      fs.writeFileSync(path.join(process.cwd(), ".volt", "fonts.json"), JSON.stringify(clean, null, 2));
+      res.json({ ok: true, applied: clean });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
   log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint)${allowIps.size ? `, IP allowlist (${allowIps.size})` : ""}, for ${adminEmail}`);
 }
 
@@ -314,6 +363,19 @@ const adminPage = (base, email) =>
   <input id="up" type="file" class="form-control mb-2" accept="image/*,video/*" multiple />
   <p class="small text-secondary">Uploads go to <code>public/media/</code>, served at <code>/media/&lt;name&gt;</code>.</p>
   <div id="grid" class="row row-cols-2 row-cols-md-4 g-3"></div></div></div>
+<div class="card mt-3"><div class="card-header">Typography</div><div class="card-body">
+  <style id="fontPrev"></style>
+  <p class="small text-secondary">A font per role, shown in its own type below. Downloaded + self-hosted on your live site — previews here load from a CDN in this admin only. Applies live; reload the site to see it.</p>
+  <div class="row" id="fontRoles"></div>
+  <div class="rounded p-2 mb-2" style="background:#fff;color:#111;border:1px solid #ddd">
+    <div id="spH" style="font-weight:700;font-size:1.35rem;line-height:1.15">The quick brown fox</div>
+    <div id="spS" style="font-weight:600">jumps over the lazy dog</div>
+    <div id="spB" class="small" style="margin:.25rem 0">Pack my box with five dozen liquor jugs. 0123456789</div>
+    <code id="spM">const x = 42; // il1 O0</code>
+  </div>
+  <button id="fontApply" class="btn btn-sm btn-outline-primary">Download &amp; apply</button>
+  <span id="fontMsg" class="small ms-2 text-secondary"></span>
+</div></div>
 <p class="small text-secondary mt-3">Content editing mounts here next — this is the secure shell.</p>
 <script>
 const B=${JSON.stringify(base)},grid=document.getElementById("grid");
@@ -344,5 +406,19 @@ document.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{
   document.querySelectorAll("[data-act]").forEach(x=>x.disabled=false);
 });
 load();
+const FROLES=[["heading","Headings (H1)","spH"],["subhead","Subsections (H2-H4)","spS"],["body","Body / paragraphs","spB"],["mono","Code / mono","spM"]];
+const fstack=c=>c==="Serif"?"serif":c==="Mono"?"monospace":"sans-serif";let FCAT=[];
+function fontSpec(){FROLES.forEach(([k,,id])=>{const s=document.querySelector('[data-frole="'+k+'"]');const f=FCAT.find(x=>x.slug===(s&&s.value));const el=document.getElementById(id);if(el)el.style.fontFamily=f?"'"+f.family+"',"+fstack(f.cat):"inherit";});}
+async function loadFonts(){const d=await (await fetch(B+"/api/fonts")).json();FCAT=d.fonts||[];
+document.getElementById("fontPrev").textContent=FCAT.map(f=>"@font-face{font-family:'"+f.family+"';font-weight:400;font-display:swap;src:url(https://cdn.jsdelivr.net/fontsource/fonts/"+f.slug+"@latest/latin-400-normal.woff2) format('woff2')}").join("");
+const w=document.getElementById("fontRoles");w.innerHTML="";
+FROLES.forEach(([k,label])=>{const col=document.createElement("div");col.className="col-sm-6 mb-2";
+let o='<option value="">System default</option>';FCAT.forEach(f=>{o+='<option value="'+f.slug+'"'+((d.current&&d.current[k])===f.slug?' selected':'')+'>'+f.family+' - '+f.cat+'</option>';});
+col.innerHTML='<label class="form-label small mb-1">'+label+'</label><select class="form-select form-select-sm" data-frole="'+k+'">'+o+'</select>';w.appendChild(col);});
+document.querySelectorAll("[data-frole]").forEach(s=>s.onchange=fontSpec);fontSpec();}
+document.getElementById("fontApply").onclick=async()=>{const roles={};document.querySelectorAll("[data-frole]").forEach(s=>{if(s.value)roles[s.dataset.frole]=s.value;});
+const m=document.getElementById("fontMsg");m.textContent="downloading...";
+try{const r=await (await fetch(B+"/api/fonts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({roles})})).json();m.textContent=r.ok?"applied - reload the site to see it":"error: "+r.error;}catch(e){m.textContent="error: "+e.message;}};
+loadFonts();
 </script>`
   );

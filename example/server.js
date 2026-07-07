@@ -24,7 +24,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 const PKG_PATH = path.join(__dirname, "package.json");
 const ADDONS_DIR = path.join(__dirname, ".volt", "addons"); // bundled add-on sources
 const THEMES_DIR = path.join(__dirname, ".volt", "themes"); // bundled themes the wizard can pick
-const DEFAULT_PORT = 26706; // create-volt stamps this with the project's date-port
+const DEFAULT_PORT = 26707; // create-volt stamps this with the project's date-port
 const CONFIG_DEFAULT_PORT = 5050; // the --edit/--studio config UI's default port (its own, so it never clashes with a running app)
 
 // `--port <n>` (or --port=<n>) overrides the listen port for this run — lets
@@ -520,6 +520,38 @@ function startSetup() {
           const data = await r.json().catch(() => ({}));
           if (!r.ok) return done({ ok: false, error: data.error || data.message || "MIR HTTP " + r.status });
           done({ ok: true, apiKey: data.apiKey, environment: data.environment, status: data.status, domain: data.domain, alreadyVerified: data.alreadyVerified });
+        } catch (e) {
+          done({ ok: false, error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
+    // download chosen fonts' woff2 (self-hosted, from fontsource/jsDelivr) into public/fonts/
+    if (req.method === "POST" && p === "/setup/fonts") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { slugs = [] } = JSON.parse(body || "{}");
+          const weights = [400, 700];
+          const fontsDir = path.join(__dirname, "public", "fonts");
+          const downloaded = [];
+          for (const slug of slugs) {
+            if (!/^[a-z0-9-]+$/.test(String(slug))) continue; // guard the URL/path
+            const dir = path.join(fontsDir, slug);
+            fs.mkdirSync(dir, { recursive: true });
+            for (const w of weights) {
+              const file = path.join(dir, w + ".woff2");
+              if (fs.existsSync(file)) continue; // already have it
+              const r = await fetch(`https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${w}-normal.woff2`);
+              if (!r.ok) continue; // weight unavailable — skip (font-display:swap falls back)
+              fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+            }
+            downloaded.push(slug);
+          }
+          done({ ok: true, downloaded });
         } catch (e) {
           done({ ok: false, error: String((e && e.message) || e) });
         }

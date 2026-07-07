@@ -40,6 +40,10 @@ const state = signal({
   siteHero: current.SITE_HERO || "",
   siteSpa: current.SITE_SPA || "",
   dateFormat: current.SITE_DATE_FORMAT || "",
+  fontHeading: current.FONT_HEADING || "",
+  fontSubhead: current.FONT_SUBHEAD || "",
+  fontBody: current.FONT_BODY || "",
+  fontMono: current.FONT_MONO || "",
   aiProvider: current.AI_PROVIDER || "anthropic",
   aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
   aiToken: current.VOLT_AI_TOKEN || "",
@@ -113,6 +117,12 @@ function genEnv(s) {
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.siteSpa) out.push(`SITE_SPA=${clean(s.siteSpa)}`);
   if ((eff.includes("pages") || eff.includes("posts")) && s.dateFormat) out.push(`SITE_DATE_FORMAT=${clean(s.dateFormat)}`);
+  if (eff.includes("pages") || eff.includes("posts")) {
+    if (s.fontHeading) out.push(`FONT_HEADING=${clean(s.fontHeading)}`);
+    if (s.fontSubhead) out.push(`FONT_SUBHEAD=${clean(s.fontSubhead)}`);
+    if (s.fontBody) out.push(`FONT_BODY=${clean(s.fontBody)}`);
+    if (s.fontMono) out.push(`FONT_MONO=${clean(s.fontMono)}`);
+  }
   if (s.siteLogo) out.push(`SITE_LOGO=${clean(s.siteLogo)}`); // media roles: logo / favicon / OG / hero
   if (s.siteFavicon) out.push(`SITE_FAVICON=${clean(s.siteFavicon)}`);
   if (s.ogImage) out.push(`OG_IMAGE=${clean(s.ogImage)}`);
@@ -790,6 +800,64 @@ const datesSettings = () =>
     <div class="small text-muted mt-2">Today: <strong>${() => previewDate()}</strong>${() => (state().tz ? ` · ${state().tz}` : "")}</div>
   </div>`;
 
+// Typography — a font per role, downloaded + self-hosted (no Google Fonts CDN). Mirrors the
+// FONTS catalog in the pages add-on.
+const SETUP_FONTS = [
+  { slug: "inter", family: "Inter", cat: "Sans" }, { slug: "roboto", family: "Roboto", cat: "Sans" },
+  { slug: "open-sans", family: "Open Sans", cat: "Sans" }, { slug: "work-sans", family: "Work Sans", cat: "Sans" },
+  { slug: "nunito", family: "Nunito", cat: "Sans" }, { slug: "poppins", family: "Poppins", cat: "Display" },
+  { slug: "montserrat", family: "Montserrat", cat: "Display" }, { slug: "merriweather", family: "Merriweather", cat: "Serif" },
+  { slug: "lora", family: "Lora", cat: "Serif" }, { slug: "source-serif-4", family: "Source Serif 4", cat: "Serif" },
+  { slug: "playfair-display", family: "Playfair Display", cat: "Serif" }, { slug: "jetbrains-mono", family: "JetBrains Mono", cat: "Mono" },
+  { slug: "fira-code", family: "Fira Code", cat: "Mono" }, { slug: "ibm-plex-mono", family: "IBM Plex Mono", cat: "Mono" },
+];
+const FONT_ROLES = [["fontHeading", "Headings (H1)"], ["fontSubhead", "Subsections (H2–H4)"], ["fontBody", "Body / paragraphs"], ["fontMono", "Code / monospace"]];
+const fontStack = (cat) => (cat === "Serif" ? "serif" : cat === "Mono" ? "monospace" : "sans-serif");
+// @font-face for previewing every catalog font — loaded from the CDN, in this admin page ONLY
+// (the live site stays self-hosted). Lets the picker render each font in its own type.
+const FONT_PREVIEW_CSS = SETUP_FONTS.map((f) => `@font-face{font-family:'${f.family}';font-weight:400;font-display:swap;src:url(https://cdn.jsdelivr.net/fontsource/fonts/${f.slug}@latest/latin-400-normal.woff2) format('woff2')}`).join("");
+const fontFam = (slug) => { const f = SETUP_FONTS.find((x) => x.slug === slug); return f ? `'${f.family}',${fontStack(f.cat)}` : "inherit"; };
+const fontBusy = signal(false);
+const fontMsg = signal("");
+async function downloadFonts() {
+  if (fontBusy()) return;
+  const slugs = [...new Set(FONT_ROLES.map(([k]) => state()[k]).filter(Boolean))];
+  if (!slugs.length) return fontMsg("✗ pick at least one font first");
+  fontBusy(true);
+  fontMsg("downloading + self-hosting…");
+  try {
+    const r = await (await fetch("/setup/fonts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slugs }) })).json();
+    fontMsg(r.ok ? `✓ downloaded ${r.downloaded.length} font(s) to public/fonts — Apply to use them` : "✗ " + r.error);
+  } catch (e) {
+    fontMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    fontBusy(false);
+  }
+}
+const fontSelect = ([key, label]) =>
+  html`<div class="col-sm-6 mb-2">
+    <label class="form-label small mb-1">${label}</label>
+    <select class="form-select form-select-sm" value=${() => state()[key] || ""} onchange=${(e) => set({ [key]: e.target.value })}>
+      <option value="">System default</option>
+      ${SETUP_FONTS.map((f) => html`<option value=${f.slug} style=${`font-family:'${f.family}',${fontStack(f.cat)}`}>${f.family} · ${f.cat}</option>`)}
+    </select>
+  </div>`;
+const fontsSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <style>${FONT_PREVIEW_CSS}</style>
+    <h2 class="h6 mb-1">Typography</h2>
+    <p class="small text-muted mb-2">A font per role, rendered in its own type below. Picks are <strong>downloaded and self-hosted</strong> in <code>public/fonts</code> — nothing loads from Google on your live site (the previews here load from a CDN in this config page only).</p>
+    <div class="row">${FONT_ROLES.map(fontSelect)}</div>
+    <div class="rounded p-2 mb-2" style="background:#fff;color:#111;border:1px solid #ddd">
+      <div style=${() => `font-family:${fontFam(state().fontHeading)};font-weight:700;font-size:1.35rem;line-height:1.15`}>The quick brown fox</div>
+      <div style=${() => `font-family:${fontFam(state().fontSubhead)};font-weight:600`}>jumps over the lazy dog</div>
+      <div class="small" style=${() => `font-family:${fontFam(state().fontBody)};margin:.25rem 0`}>Pack my box with five dozen liquor jugs. 0123456789</div>
+      <code style=${() => `font-family:${fontFam(state().fontMono)}`}>const x = 42; // il1 O0</code>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" disabled=${() => fontBusy()} onclick=${downloadFonts}>${() => (fontBusy() ? "Downloading…" : "Download selected fonts")}</button>
+    ${() => testResult(fontMsg())}
+  </div>`;
+
 const configView = () =>
   html`${() => {
       const u = upgrade();
@@ -804,6 +872,7 @@ const configView = () =>
       ${field("SITE_NAME", "siteName", "My Site")}
       ${() => (hasContent() ? themePicker() : null)}
       ${() => (hasContent() ? datesSettings() : null)}
+      ${() => (hasContent() ? fontsSettings() : null)}
       ${() => (hasDb() ? dbSettings() : null)}
       ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
       ${() => (hasMedia() ? mediaSettings() : null)}

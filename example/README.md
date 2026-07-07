@@ -10,7 +10,7 @@ Not React: no JSX, no virtual DOM, no re-render-the-world. State lives in
 
 ```bash
 npm install        # if you scaffolded with --skip-install
-npm run dev        # → http://localhost:26706
+npm run dev        # → http://localhost:26707
 ```
 
 The **first run opens a quick setup page** in your browser (configure settings,

@@ -526,6 +526,38 @@ function startSetup() {
       });
       return;
     }
+    // download chosen fonts' woff2 (self-hosted, from fontsource/jsDelivr) into public/fonts/
+    if (req.method === "POST" && p === "/setup/fonts") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json");
+        const done = (o) => res.end(JSON.stringify(o));
+        try {
+          const { slugs = [] } = JSON.parse(body || "{}");
+          const weights = [400, 700];
+          const fontsDir = path.join(__dirname, "public", "fonts");
+          const downloaded = [];
+          for (const slug of slugs) {
+            if (!/^[a-z0-9-]+$/.test(String(slug))) continue; // guard the URL/path
+            const dir = path.join(fontsDir, slug);
+            fs.mkdirSync(dir, { recursive: true });
+            for (const w of weights) {
+              const file = path.join(dir, w + ".woff2");
+              if (fs.existsSync(file)) continue; // already have it
+              const r = await fetch(`https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${w}-normal.woff2`);
+              if (!r.ok) continue; // weight unavailable — skip (font-display:swap falls back)
+              fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+            }
+            downloaded.push(slug);
+          }
+          done({ ok: true, downloaded });
+        } catch (e) {
+          done({ ok: false, error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
     if (req.method === "GET" && p === "/setup/schemes") {
       res.setHeader("Content-Type", "application/json");
       (async () => {
