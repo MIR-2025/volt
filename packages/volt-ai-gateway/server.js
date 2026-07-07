@@ -73,6 +73,9 @@ function mirEmit(userExternalId, eventType) {
     .then((r) => { if (!r.ok) console.warn(`[mir] ${eventType} → HTTP ${r.status}`); })
     .catch((e) => console.warn(`[mir] ${eventType} failed:`, e.message));
 }
+// Never emit for a localhost request — dev/test traffic must not reach prod MIR. In prod the
+// request arrives via nginx with Host: voltjs.com; in dev it's localhost:8787.
+const mirLocalReq = (req) => /^(localhost|127\.|0\.0\.0\.0|::1)/i.test(String(req.headers["x-forwarded-host"] || req.headers.host || "").replace(/^\[/, "").split(":")[0].toLowerCase());
 
 // Pay-as-you-go: usage beyond the free daily cap is billed against prepaid USD
 // credits at MARKUP times the underlying Anthropic cost. PRICING is $/Mtok
@@ -161,7 +164,7 @@ app.post("/webhooks/stripe", express.raw({ type: "application/json" }), (req, re
         save(TOK_FILE, tokens);
         charges.push({ stripeSessionId: s.id, token, amountUsd, at: new Date().toISOString() });
         save(CHG_FILE, charges);
-        mirEmit(mirParticipant(token), "transaction.completed"); // MIR: a paid top-up completed
+        if (!mirLocalReq(req)) mirEmit(mirParticipant(token), "transaction.completed"); // MIR: a paid top-up completed (never on localhost)
         console.log(`[credit] +$${amountUsd} → ${rec.app} (balance $${rec.creditBalanceUsd.toFixed(2)})`);
       }
     }
@@ -242,7 +245,7 @@ app.post("/api/register", (req, res) => {
   const rec = { token: "volt_" + crypto.randomBytes(24).toString("base64url"), app: String(req.body?.app || "app").slice(0, 64), dailyCap: DEFAULT_APP_DAILY_CAP, tier: "free", creditBalanceUsd: 0, disabled: false, createdAt: today() };
   tokens.push(rec);
   save(TOK_FILE, tokens);
-  mirEmit(mirParticipant(rec.token), "account.created"); // MIR: a new participant onboarded
+  if (!mirLocalReq(req)) mirEmit(mirParticipant(rec.token), "account.created"); // MIR: a new participant onboarded (never on localhost)
   res.json({ ok: true, token: rec.token, tier: "free", dailyCap: rec.dailyCap });
 });
 
