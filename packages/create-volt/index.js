@@ -398,77 +398,49 @@ VOLT_ADDONS=${v("VOLT_ADDONS", "pages")}      # pages,posts,db,auth,mailer,media
   process.exit(0);
 }
 
-// Write imported markdown pages to disk and print a summary (shared by both importers).
-function emitImported(imported, stats, outDir) {
-  fs.mkdirSync(outDir, { recursive: true });
-  let written = 0;
-  let skippedExisting = 0;
-  for (const d of imported) {
-    const dest = path.join(outDir, d.filename);
-    if (fs.existsSync(dest) && !flags.has("--force")) {
-      skippedExisting++;
-      continue;
-    }
-    fs.writeFileSync(dest, d.markdown);
-    written++;
-    console.log("  " + dim(path.relative(process.cwd(), dest)));
-  }
-  const types = Object.entries(stats.byType).map(([t, n]) => `${n} ${t}`).join(", ");
-  console.log(`\n${cyan(`✓ Imported ${written}`)} page(s) → ${outDir}`);
-  console.log(dim(`  source: ${stats.total} items (${types}); skipped ${stats.draftsSkipped} draft(s), ${stats.otherTypeSkipped} non-page/post item(s)${skippedExisting ? `, ${skippedExisting} already-present (use --force)` : ""}.`));
-  console.log(dim("  Enable the pages add-on to serve them: npm run dev -- --edit"));
-}
-
-// --- `import-wxr` subcommand: import an offline WordPress export (WXR file) ---
-if (positionals[0] === "import-wxr") {
-  const xmlPath = positionals[1];
-  if (!xmlPath) die(`Usage: ${cyan("create-volt import-wxr <export.xml>")} [--out pages] [--drafts] [--force]`);
-  if (!fs.existsSync(xmlPath)) die(`No such file: ${cyan(xmlPath)}`);
-  const { runImport } = await import("./lib/import-wxr.js");
-  const { imported, stats } = runImport(fs.readFileSync(xmlPath, "utf8"), { drafts: flags.has("--drafts") });
-  emitImported(imported, stats, path.resolve(outArg || "pages"));
-  process.exit(0);
-}
-
-// --- `import-wp` subcommand: pull a live WordPress site over the REST API ---
-if (positionals[0] === "import-wp") {
-  const site = positionals[1];
-  if (!site || !/^https?:\/\//i.test(site)) die(`Usage: ${cyan("create-volt import-wp <https://site.com>")} [--out pages] [--drafts] [--user U]\n  Credentials (for drafts/private): set ${cyan("WP_APP_PASSWORD")} (an Application Password) and ${cyan("WP_USER")} or --user.`);
-  const user = userArg || process.env.WP_USER;
-  const appPassword = process.env.WP_APP_PASSWORD;
-  if ((user || appPassword) && !/^https:\/\//i.test(site)) die("Refusing to send credentials over a non-HTTPS URL.");
-  const { runImportFromWP } = await import("./lib/import-wxr.js");
-  console.log(dim(`Fetching ${site} via the WordPress REST API…${appPassword ? " (authenticated)" : ""}`));
-  let result;
-  try {
-    result = await runImportFromWP(site, { user, appPassword, drafts: flags.has("--drafts") });
-  } catch (e) {
-    die(`${e.message}\n  If the REST API is disabled, export a WXR file and use ${cyan("create-volt import-wxr <export.xml>")}.`);
-  }
-  emitImported(result.imported, result.stats, path.resolve(outArg || "pages"));
-  process.exit(0);
-}
-
-// --- `import-wp-db` subcommand: read a WordPress MySQL database directly ---
-if (positionals[0] === "import-wp-db") {
-  const dbUrl = positionals[1] || process.env.WP_DB_URL || process.env.DATABASE_URL;
-  if (!dbUrl) {
+// --- WordPress import → delegates to @voltjscom/wp-volt (the full WP→Volt migrator) ---
+// import-wxr / import-wp / import-wp-db are thin front-ends for `wp-volt migrate`, which
+// writes a COMPLETE Volt tree (pages/ + posts/ + public/media/ + pages/_nav.md + .env) —
+// not just flat pages. wp-volt owns the migration engine (fingerprinting, adapters, media);
+// create-volt just plumbs the three sources through. See ~/.claude/COORDINATION.md.
+if (positionals[0] === "import-wxr" || positionals[0] === "import-wp" || positionals[0] === "import-wp-db") {
+  const cmd = positionals[0];
+  const src = positionals[1] || (cmd === "import-wp-db" ? process.env.WP_DB_URL || process.env.DATABASE_URL : "");
+  if (!src)
     die(
-      `Usage: ${cyan("create-volt import-wp-db <mysql://user:pass@host/db>")} [--prefix wp_] [--out pages] [--drafts] [--force]\n` +
-        `  Tip: set ${cyan("WP_DB_URL")} instead of passing the URL, so credentials stay out of shell history.\n` +
-        `  WordPress DBs are usually firewalled to localhost — run this on the server or over an SSH tunnel. Requires ${cyan("mysql2")} (npm i mysql2).`,
+      cmd === "import-wp-db"
+        ? `Usage: ${cyan("create-volt import-wp-db <mysql://user:pass@host/db>")}  (or set ${cyan("WP_DB_URL")})\n  WordPress DBs are usually localhost-only — run on the server or over an SSH tunnel.`
+        : cmd === "import-wp"
+          ? `Usage: ${cyan("create-volt import-wp <https://site.com>")}  (published content, via the WordPress REST API)`
+          : `Usage: ${cyan("create-volt import-wxr <export.xml>")}`,
     );
+  if (cmd === "import-wxr" && !fs.existsSync(src)) die(`No such file: ${cyan(src)}`);
+  if (cmd === "import-wp" && !/^https?:\/\//i.test(src)) die(`import-wp needs an https:// URL — got ${cyan(src)}`);
+  if (flags.has("--drafts") || flags.has("--prefix") || userArg)
+    console.warn(dim("note: --drafts/--user/--prefix aren't in wp-volt v1 (published content, default wp_ prefix). Ask in ~/.claude/COORDINATION.md if you need them."));
+
+  const out = outArg ? path.resolve(outArg) : process.cwd();
+  const migrateArgs = cmd === "import-wp-db" ? ["migrate", "--db", src, "--out", out] : ["migrate", src, "--out", out];
+
+  // wp-volt writes a full tree at --out INCLUDING a migrated .env. Snapshot the app's existing
+  // .env so its config isn't clobbered; the migrated one is stashed as .env.migrated.
+  const envPath = path.join(out, ".env");
+  const envBackup = fs.existsSync(envPath) ? fs.readFileSync(envPath) : null;
+
+  console.log(dim("Delegating to @voltjscom/wp-volt (the full WordPress→Volt migrator)…"));
+  const r = spawnSync("npx", ["--yes", "@voltjscom/wp-volt", ...migrateArgs], { stdio: "inherit" });
+  if (r.error) die(`Couldn't run @voltjscom/wp-volt: ${r.error.message}`);
+
+  if (envBackup !== null) {
+    try {
+      if (fs.existsSync(envPath)) fs.renameSync(envPath, path.join(out, ".env.migrated"));
+    } catch {
+      /* best-effort */
+    }
+    fs.writeFileSync(envPath, envBackup);
+    console.log(dim("Kept your existing .env; the migrated site config is in .env.migrated for reference."));
   }
-  const { runImportFromDB } = await import("./lib/import-wp-db.js");
-  console.log(dim(`Reading WordPress database (prefix ${prefixArg || "wp_"})…`));
-  let result;
-  try {
-    result = await runImportFromDB(dbUrl, { prefix: prefixArg || "wp_", drafts: flags.has("--drafts") });
-  } catch (e) {
-    die(e.message);
-  }
-  emitImported(result.imported, result.stats, path.resolve(outArg || "pages"));
-  process.exit(0);
+  process.exit(r.status || 0);
 }
 
 // --- `studio` subcommand: ephemeral, localhost-only data browser (server.js --studio) ---

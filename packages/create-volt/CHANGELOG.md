@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.68.0] - 2026-07-07
+
+### Changed
+- **WordPress import now delegates to `@voltjscom/wp-volt`** — the full WordPress→Volt migrator.
+  `import-wxr` / `import-wp` / `import-wp-db` are thin front-ends for `wp-volt migrate <source>
+  --out <dir>`, which writes a **complete** Volt tree (`pages/` + `posts/` + `public/media/` +
+  `pages/_nav.md`) instead of the old flat `pages/` dump. Your app's existing `.env` is preserved
+  (the migrated site config is stashed as `.env.migrated` for reference).
+
+### Removed
+- The in-tree readers `lib/import-wxr.js` + `lib/import-wp-db.js` and their tests — superseded by
+  `@voltjscom/wp-volt`. Deltas in v1: no `--drafts`/auth and no `--prefix` (published content only,
+  default `wp_` prefix); passing them prints a note.
+
 ## [0.67.0] - 2026-07-07
 
 ### Changed
@@ -953,6 +967,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.68.0]: https://github.com/MIR-2025/volt/releases/tag/v0.68.0
 [0.67.0]: https://github.com/MIR-2025/volt/releases/tag/v0.67.0
 [0.66.0]: https://github.com/MIR-2025/volt/releases/tag/v0.66.0
 [0.65.0]: https://github.com/MIR-2025/volt/releases/tag/v0.65.0
