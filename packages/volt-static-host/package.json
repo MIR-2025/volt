@@ -1,0 +1,14 @@
+{
+  "name": "volt-static-host",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Shared multi-tenant static origin for hosted Volt sites — one process routes by hostname and serves each site's compiled static content from disk, with hard tenant isolation. Zero runtime deps (node: builtins only). Sits behind a CDN; media comes from Spaces (volt-image-host).",
+  "bin": { "volt-static-host": "server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {},
+  "engines": { "node": ">=18" }
+}

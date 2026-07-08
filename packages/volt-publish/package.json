@@ -1,0 +1,13 @@
+{
+  "name": "volt-publish",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Build/publish worker for hosted Volt sites — boots a Volt project, crawls it, and writes a static tree into SITES_ROOT/<siteId>/, pushing images to Spaces (volt-image-host) on the way. Treats core Volt as a black box: no changes to it. Zero runtime deps.",
+  "bin": { "volt-publish": "worker.js" },
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {},
+  "engines": { "node": ">=18" }
+}
