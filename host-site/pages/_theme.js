@@ -4,6 +4,9 @@
 // into from the config editor.
 const NAME = process.env.SITE_NAME || "Northwind Co";
 const BRAND = process.env.SITE_LOGO ? `<img class="brand-logo" src="${process.env.SITE_LOGO}" alt="${NAME}" />` : NAME;
+const FAVICON = process.env.SITE_FAVICON
+  ? `<link rel="icon" href="${process.env.SITE_FAVICON}"/>`
+  : `<link rel="icon" type="image/svg+xml" href="/favicon.svg"/><link rel="alternate icon" href="/favicon.webp"/>`;
 
 export const css = `
 :root{--bg:#ffffff;--surface:#ffffff;--ink:#141a1f;--muted:#5c6a76;--line:#e6eaef;--brand:#0e7c66;--brand-ink:#ffffff;--radius:16px;--brand-2:color-mix(in srgb,var(--brand),#000 16%);--soft:color-mix(in srgb,var(--ink) 4%,var(--bg))}
@@ -15,7 +18,8 @@ img,video{max-width:100%;display:block}
 .wrap{max-width:1100px;margin:0 auto;padding:0 1.25rem}
 header.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 header.nav .wrap{display:flex;align-items:center;gap:1.5rem;height:64px}
-header.nav .brand{font-weight:800;font-size:1.15rem;color:var(--ink)}
+header.nav .brand{font-weight:800;font-size:1.15rem;color:var(--ink);display:flex;align-items:center}
+header.nav .brand-logo{height:30px;width:auto;display:block}
 header.nav nav{margin-left:auto;display:flex;gap:1.5rem;align-items:center}
 header.nav nav a{color:var(--muted);font-weight:500}
 header.nav nav a:hover{color:var(--ink)}
@@ -53,7 +57,7 @@ export function layout({ title, head, content, nav = [] }) {
   const links = nav.map((i) => `<a href="${i.href}"${i.active ? ' class="active"' : ""}>${i.label}</a>`).join("");
   const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${links}</nav>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${title}</title>${head}<link rel="stylesheet" href="/_theme.css"/></head><body>
+<title>${title}</title>${FAVICON}${head}<link rel="stylesheet" href="/_theme.css"/></head><body>
 <header class="nav"><div class="wrap nav-wrap"><a class="brand" href="/">${BRAND}</a>${menu}</div></header>
 ${content}
 <footer class="site"><div class="wrap"><span>© ${NAME}</span><span>Built with <a href="https://voltjs.com">Volt</a></span></div></footer>
