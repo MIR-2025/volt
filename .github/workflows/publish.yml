@@ -23,9 +23,10 @@ jobs:
         with:
           node-version: lts/*
 
-      # Trusted Publishing (OIDC) requires a recent npm (>= 11.5).
-      - name: Upgrade npm
-        run: npm install -g npm@latest
+      # Use the npm bundled with the Node LTS (11.16+ here) — it supports OIDC Trusted Publishing
+      # + provenance and ships a complete `sigstore`. We deliberately DON'T `npm install -g npm@latest`:
+      # on 2026-07-08 a bad npm@latest shipped missing its `sigstore` dep and broke `--provenance`
+      # (MODULE_NOT_FOUND). Dropping the global upgrade also sidesteps the whole `npm i -g` path.
 
       # No NODE_AUTH_TOKEN: npm exchanges the GitHub OIDC token automatically,
       # and attaches build provenance. The trusted publisher must be configured
