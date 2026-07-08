@@ -1,0 +1,6 @@
+{
+  "description": "Secure web admin for the live site — manage content + media without shell access. Behind a secret ADMIN_PATH + a hardened magic-link login: one-time nonce, same-browser challenge cookie, and device fingerprint (a link opened in a different browser is rejected). Gated to ADMIN_EMAIL, with an optional IP allowlist (ADMIN_ALLOW_IPS). Needs the mailer add-on.",
+  "dependsOn": ["mailer"],
+  "install": [],
+  "optional": {}
+}

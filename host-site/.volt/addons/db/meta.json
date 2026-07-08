@@ -1,0 +1,12 @@
+{
+  "description": "Pluggable document store: memory (default) / MongoDB / MySQL / Postgres, one interface.",
+  "dependsOn": [],
+  "sentinel": "lib/store.js",
+  "install": [],
+  "optional": {
+    "mongodb": "DB_DRIVER=mongodb",
+    "mysql2": "DB_DRIVER=mysql",
+    "pg": "DB_DRIVER=postgres"
+  },
+  "wiring": "import { createStore } from \"./lib/store.js\";\n\nconst store = await createStore();              // reads DB_DRIVER (default: memory)\nconst notes = store.collection(\"notes\");\nawait notes.put(\"abc\", { text: \"hi\" });\nconst one = await notes.get(\"abc\");\nconst all = await notes.all();\nconst some = await notes.find({ done: false });\n\nEnv for a real database:\n  DB_DRIVER=mongodb  MONGODB_URI=...  [MONGODB_DATABASE=...]\n  DB_DRIVER=mysql    DATABASE_URL=mysql://user:pass@host:3306/db   (npm i mysql2)\n  DB_DRIVER=postgres DATABASE_URL=postgres://user:pass@host:5432/db (npm i pg)"
+}

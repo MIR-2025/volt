@@ -1,0 +1,10 @@
+{
+  "description": "Email sender: prints to the console in dev, uses SMTP (nodemailer) when SMTP_URL is set.",
+  "dependsOn": [],
+  "sentinel": "lib/mailer.js",
+  "install": [],
+  "optional": {
+    "nodemailer": "real SMTP sending (set SMTP_URL)"
+  },
+  "wiring": "import { createMailer } from \"./lib/mailer.js\";\n\nconst mailer = await createMailer();\nawait mailer.send({ to, subject, text, html });\n\nEnv for real email:\n  SMTP_URL=smtp://user:pass@smtp.example.com:587   (npm i nodemailer)\n  MAIL_FROM=\"You <no-reply@you.com>\""
+}

@@ -17,6 +17,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { makeStore } from "./lib/store.js";
 import { PLANS, planOf } from "./lib/plans.js";
@@ -33,10 +34,36 @@ const DOMAINS_MAP = path.resolve(env.DOMAINS_MAP || "./domains.json");
 const TENANT_DOMAIN = env.TENANT_DOMAIN || "vsites.app";
 const PUBLISH_WORKER = env.PUBLISH_WORKER || path.join(HERE, "..", "volt-publish", "worker.js");
 const BASE_URL = env.BASE_URL || `http://localhost:${PORT}`;
+const SITE_ORIGIN = env.SITE_ORIGIN || BASE_URL.replace(/\/api\/?$/, ""); // the public site (host.voltjs.com)
 
 const store = makeStore(DATA_DIR);
 const resolveTxt = makeResolver(env);
 const nowISO = () => new Date().toISOString();
+
+// Send a magic-link email via SMTP (nodemailer, loaded lazily so the service runs
+// without it in dev). Falls back to logging the link if SMTP isn't configured.
+async function sendMagicLink(to, link) {
+  if (!env.SMTP_HOST) { console.log(`[auth] (no SMTP) link for ${to}: ${link}`); return; }
+  try {
+    const { default: nodemailer } = await import("nodemailer");
+    const t = nodemailer.createTransport({
+      host: env.SMTP_HOST,
+      port: Number(env.SMTP_PORT || 587),
+      secure: /^(1|true|yes|on)$/i.test(env.SMTP_SECURE || ""),
+      auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+    });
+    await t.sendMail({
+      from: env.SMTP_FROM || env.SMTP_USER,
+      to,
+      subject: "Your Volt Hosting sign-in link",
+      text: `Sign in to Volt Hosting:\n\n${link}\n\nThis link expires in 15 minutes. If you didn't request it, ignore this email.`,
+      html: `<p>Sign in to Volt Hosting:</p><p><a href="${link}">${link}</a></p><p style="color:#888;font-size:13px">Expires in 15 minutes. If you didn't request this, ignore it.</p>`,
+    });
+    console.log(`[auth] emailed sign-in link to ${to}`);
+  } catch (e) {
+    console.warn(`[auth] email failed (${e.message}) — link for ${to}: ${link}`);
+  }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const json = (res, code, obj, headers = {}) => {
@@ -86,7 +113,7 @@ on("POST", "/auth/request", async (req, res) => {
   const lt = token(24);
   store.put("logintokens", lt, { userId: user.id, exp: Date.now() + 15 * 60 * 1000 });
   const link = `${BASE_URL}/auth/verify?token=${lt}`;
-  console.log(`[auth] magic link for ${e}: ${link}`); // real: send via SMTP
+  await sendMagicLink(e, link);
   json(res, 200, { ok: true, sent: true, devLink: env.NODE_ENV === "production" ? undefined : link });
 });
 
@@ -97,7 +124,12 @@ on("GET", "/auth/verify", (req, res) => {
   store.del("logintokens", lt);
   const sid = token(24);
   store.put("sessions", sid, { userId: rec.userId, createdAt: nowISO() });
-  json(res, 200, { ok: true, userId: rec.userId }, { "Set-Cookie": `volt_sess=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000` });
+  // browser flow: set the session cookie and redirect into the dashboard
+  res.writeHead(302, {
+    "Set-Cookie": `volt_sess=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${env.NODE_ENV === "production" ? "; Secure" : ""}`,
+    Location: `${SITE_ORIGIN}/dashboard`,
+  });
+  res.end();
 });
 
 on("POST", "/auth/logout", (req, res) => {
@@ -191,9 +223,50 @@ on("POST", "/billing/upgrade", async (req, res) => {
   if (!user) return json(res, 401, { ok: false });
   const { plan } = await readBody(req);
   if (!PLANS[plan]) return json(res, 400, { ok: false, error: "unknown plan" });
-  if (env.STRIPE_SECRET_KEY) return json(res, 501, { ok: false, error: "Stripe checkout not wired in this MVP — add a Checkout session + webhook" });
-  store.put("users", user.id, { plan }); // dev/self-host upgrade (no Stripe configured)
-  json(res, 200, { ok: true, plan, note: "dev upgrade — no Stripe configured" });
+  // real Stripe Checkout when a secret key + a Pro price are configured
+  if (env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID && plan === "pro") {
+    try {
+      const body = new URLSearchParams({
+        mode: "subscription",
+        "line_items[0][price]": env.STRIPE_PRICE_ID,
+        "line_items[0][quantity]": "1",
+        success_url: `${SITE_ORIGIN}/dashboard?upgraded=1`,
+        cancel_url: `${SITE_ORIGIN}/pricing`,
+        client_reference_id: user.id,
+        customer_email: user.email,
+      });
+      const r = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+      const s = await r.json();
+      if (s.url) return json(res, 200, { ok: true, checkoutUrl: s.url });
+      return json(res, 502, { ok: false, error: (s.error && s.error.message) || "stripe error" });
+    } catch (e) {
+      return json(res, 502, { ok: false, error: "stripe: " + e.message });
+    }
+  }
+  store.put("users", user.id, { plan }); // dev/self-host upgrade (no Stripe price configured)
+  json(res, 200, { ok: true, plan, note: "dev upgrade — set STRIPE_PRICE_ID for real checkout" });
+});
+
+// Stripe webhook — verify the signature, then flip the plan on a completed checkout.
+on("POST", "/webhooks/stripe", async (req, res) => {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const raw = Buffer.concat(chunks).toString();
+  const parts = Object.fromEntries(String(req.headers["stripe-signature"] || "").split(",").map((p) => p.split("=")));
+  const expect = crypto.createHmac("sha256", env.STRIPE_WEBHOOK_SECRET || "x").update(`${parts.t}.${raw}`).digest("hex");
+  const good = env.STRIPE_WEBHOOK_SECRET && parts.v1 && parts.v1.length === expect.length && crypto.timingSafeEqual(Buffer.from(parts.v1), Buffer.from(expect));
+  if (!good) return json(res, 400, { ok: false, error: "bad signature" });
+  let evt;
+  try { evt = JSON.parse(raw); } catch { return json(res, 400, { ok: false }); }
+  if (evt.type === "checkout.session.completed") {
+    const uid = evt.data?.object?.client_reference_id;
+    if (uid && store.get("users", uid)) store.put("users", uid, { plan: "pro" });
+  }
+  json(res, 200, { received: true });
 });
 
 // ── serve ────────────────────────────────────────────────────────────────────

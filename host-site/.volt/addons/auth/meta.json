@@ -1,0 +1,8 @@
+{
+  "description": "Passwordless magic-link auth: single-use token, same-browser guard, session cookie. Builds on db + mailer.",
+  "dependsOn": ["db", "mailer"],
+  "sentinel": "lib/auth.js",
+  "install": ["express"],
+  "optional": {},
+  "wiring": "import { createStore } from \"./lib/store.js\";\nimport { createMailer } from \"./lib/mailer.js\";\nimport { authRouter, sessionFromReq, requireAuth } from \"./lib/auth.js\";\n\nconst store = await createStore();\nconst mailer = await createMailer();\n\napp.use(authRouter({ store, mailer }));   // adds /api/login, /verify, /api/confirm, /api/logout, /api/me\n\n// protect a route:\napp.post(\"/api/things\", requireAuth(store), (req, res) => {\n  res.json({ ok: true, you: req.user.email });\n});\n\n// or check anywhere:\nconst session = await sessionFromReq(store, req);   // { email } | null"
+}

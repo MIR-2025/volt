@@ -1,0 +1,894 @@
+// setup.js — first-run / --edit wizard, built with Volt. Tick add-ons + fill
+// settings → writes .env (a VOLT_ADDONS list + settings), adds any needed
+// packages, installs, and starts the app. Add-on code is bundled; enabling is
+// just config.
+import { signal, computed, effect, html, mount } from "/volt.js";
+
+const { available, themes = [], current, defaultPort, configDefaultPort = 5050, firstRun = false } = await (await fetch("/setup/state")).json();
+const depsOf = Object.fromEntries(available.map((a) => [a.name, a.dependsOn || []]));
+const order = available.map((a) => a.name);
+const enabledNow = new Set(String(current.VOLT_ADDONS || "").split(",").map((s) => s.trim()).filter(Boolean));
+
+const state = signal({
+  addons: Object.fromEntries(available.map((a) => [a.name, enabledNow.has(a.name)])),
+  dbDriver: current.DB_DRIVER || "sqlite",
+  mongoUri: current.MONGODB_URI || "",
+  mongoDb: current.MONGODB_DATABASE || "",
+  dbUrl: current.DATABASE_URL || "",
+  smtpUrl: current.SMTP_URL || "",
+  mailFrom: current.MAIL_FROM || "",
+  mediaDriver: current.MEDIA_DRIVER || "local",
+  s3Endpoint: current.S3_ENDPOINT || "",
+  s3Region: current.S3_REGION || "",
+  s3Bucket: current.S3_BUCKET || "",
+  s3Key: current.S3_KEY || "",
+  s3Secret: current.S3_SECRET || "",
+  s3PublicBase: current.S3_PUBLIC_BASE || "",
+  port: current.PORT || String(defaultPort),
+  // detect the admin's timezone from their browser (the wizard runs here), so
+  // dates render in their zone — not the server's (usually UTC on a host).
+  tz: current.SITE_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  siteName: current.SITE_NAME || "",
+  siteUrl: current.SITE_URL || "",
+  configPort: current.CONFIG_PORT || "",
+  theme: current.THEME || "",
+  siteScheme: current.SITE_SCHEME || "",
+  siteMode: current.SITE_MODE || "",
+  siteLogo: current.SITE_LOGO || "",
+  siteFavicon: current.SITE_FAVICON || "",
+  ogImage: current.OG_IMAGE || "",
+  siteHero: current.SITE_HERO || "",
+  siteSpa: current.SITE_SPA || "",
+  dateFormat: current.SITE_DATE_FORMAT || "",
+  fontHeading: current.FONT_HEADING || "",
+  fontSubhead: current.FONT_SUBHEAD || "",
+  fontBody: current.FONT_BODY || "",
+  fontMono: current.FONT_MONO || "",
+  aiProvider: current.AI_PROVIDER || "anthropic",
+  aiKey: current.ANTHROPIC_API_KEY || current.OPENAI_API_KEY || current.GEMINI_API_KEY || "",
+  aiToken: current.VOLT_AI_TOKEN || "",
+  adminEmail: current.ADMIN_EMAIL || "",
+  adminPath: current.ADMIN_PATH || "",
+  adminSecret: current.ADMIN_SECRET || "",
+  adminAllowIps: current.ADMIN_ALLOW_IPS || "",
+  mirEmail: current.MIR_EMAIL || "",
+  mirApiKey: current.MIR_API_KEY || "",
+  mirChallenge: current.MIR_CHALLENGE || "",
+  mirPartnerId: current.MIR_PARTNER_ID || "",
+  mirEnv: current.MIR_ENV || "",
+  mirEmit: current.MIR_EMIT || "",
+});
+const set = (patch) => state({ ...state(), ...patch });
+const toggle = (n) => state({ ...state(), addons: { ...state().addons, [n]: !state().addons[n] } });
+// browser CSPRNG → an unguessable admin path + session key (no human-picked secrets)
+const randHex = (n = 16) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || "").trim());
+// First run (no .env) → a guided, one-step-at-a-time wizard. --edit → the full form.
+const step = signal(0);
+const wizard = signal(firstRun);
+const status = signal("");
+// per-test inline results (shown right next to each Test button)
+const dbTest = signal("");
+const smtpTest = signal("");
+const aiTest = signal("");
+const genMsg = signal("");
+const testResult = (m) => (m ? html`<span class="small ms-2 ${m.startsWith("✓") ? "text-success" : m.startsWith("✗") ? "text-danger" : "text-muted"}">${m}</span>` : "");
+const envObj = () => Object.fromEntries(env().split("\n").filter((l) => /^[A-Za-z0-9_]+=/.test(l)).map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }));
+
+// selected add-ons, dependencies expanded, in display order
+function effective(s) {
+  const want = new Set();
+  const visit = (n) => {
+    if (want.has(n)) return;
+    want.add(n);
+    (depsOf[n] || []).forEach(visit);
+  };
+  for (const n of order) if (s.addons[n]) visit(n);
+  return order.filter((n) => want.has(n));
+}
+
+// which *enabled* add-ons pull in `name` as a (transitive) dependency
+function requiredBy(s, name) {
+  const causes = [];
+  for (const n of order) {
+    if (n === name || !s.addons[n]) continue;
+    const seen = new Set();
+    const visit = (x) => {
+      if (seen.has(x)) return;
+      seen.add(x);
+      (depsOf[x] || []).forEach(visit);
+    };
+    (depsOf[n] || []).forEach(visit);
+    if (seen.has(name)) causes.push(n);
+  }
+  return causes;
+}
+
+const clean = (v) => String(v).replace(/[\r\n]/g, "").trim(); // one value per line; no injection
+function genEnv(s) {
+  const eff = effective(s);
+  const out = [`VOLT_ADDONS=${eff.join(",")}`, `PORT=${clean(s.port)}`];
+  if (s.tz) out.push(`SITE_TZ=${clean(s.tz)}`); // admin's timezone, for date display
+  if (s.siteName) out.push(`SITE_NAME=${clean(s.siteName)}`);
+  if (s.siteUrl) out.push(`SITE_URL=${clean(s.siteUrl)}`);
+  if (s.configPort) out.push(`CONFIG_PORT=${clean(s.configPort)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.theme) out.push(`THEME=${clean(s.theme)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteScheme) out.push(`SITE_SCHEME=${clean(s.siteScheme)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteMode) out.push(`SITE_MODE=${clean(s.siteMode)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.siteSpa) out.push(`SITE_SPA=${clean(s.siteSpa)}`);
+  if ((eff.includes("pages") || eff.includes("posts")) && s.dateFormat) out.push(`SITE_DATE_FORMAT=${clean(s.dateFormat)}`);
+  if (eff.includes("pages") || eff.includes("posts")) {
+    if (s.fontHeading) out.push(`FONT_HEADING=${clean(s.fontHeading)}`);
+    if (s.fontSubhead) out.push(`FONT_SUBHEAD=${clean(s.fontSubhead)}`);
+    if (s.fontBody) out.push(`FONT_BODY=${clean(s.fontBody)}`);
+    if (s.fontMono) out.push(`FONT_MONO=${clean(s.fontMono)}`);
+  }
+  if (s.siteLogo) out.push(`SITE_LOGO=${clean(s.siteLogo)}`); // media roles: logo / favicon / OG / hero
+  if (s.siteFavicon) out.push(`SITE_FAVICON=${clean(s.siteFavicon)}`);
+  if (s.ogImage) out.push(`OG_IMAGE=${clean(s.ogImage)}`);
+  if (s.siteHero) out.push(`SITE_HERO=${clean(s.siteHero)}`);
+  if (s.aiKey) {
+    out.push(`AI_PROVIDER=${clean(s.aiProvider)}`);
+    const keyVar = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[s.aiProvider] || "ANTHROPIC_API_KEY";
+    out.push(`${keyVar}=${clean(s.aiKey)}`);
+  }
+  if (s.aiToken) out.push(`VOLT_AI_TOKEN=${clean(s.aiToken)}`); // hosted-tier token (used when no local key)
+  if (eff.includes("db")) {
+    out.push(`DB_DRIVER=${clean(s.dbDriver)}`);
+    if (s.dbDriver === "mongodb") {
+      out.push(`MONGODB_URI=${clean(s.mongoUri)}`);
+      if (s.mongoDb) out.push(`MONGODB_DATABASE=${clean(s.mongoDb)}`);
+    } else if (s.dbDriver === "mysql" || s.dbDriver === "postgres") {
+      out.push(`DATABASE_URL=${clean(s.dbUrl)}`);
+    }
+  }
+  if (eff.includes("mailer")) {
+    if (s.smtpUrl) out.push(`SMTP_URL=${clean(s.smtpUrl)}`);
+    else out.push("# SMTP_URL=        # unset → emails print to the console");
+    if (s.mailFrom) out.push(`MAIL_FROM=${clean(s.mailFrom)}`);
+  }
+  if (eff.includes("media")) {
+    out.push(`MEDIA_DRIVER=${clean(s.mediaDriver)}`);
+    if (s.mediaDriver === "s3") {
+      out.push(`S3_ENDPOINT=${clean(s.s3Endpoint)}`);
+      out.push(`S3_REGION=${clean(s.s3Region)}`);
+      out.push(`S3_BUCKET=${clean(s.s3Bucket)}`);
+      out.push(`S3_KEY=${clean(s.s3Key)}`);
+      out.push(`S3_SECRET=${clean(s.s3Secret)}`);
+      if (s.s3PublicBase) out.push(`S3_PUBLIC_BASE=${clean(s.s3PublicBase)}`);
+    }
+  }
+  if (eff.includes("admin")) {
+    if (s.adminPath) out.push(`ADMIN_PATH=${clean(s.adminPath)}`);
+    if (s.adminEmail) out.push(`ADMIN_EMAIL=${clean(s.adminEmail)}`);
+    if (s.adminSecret) out.push(`ADMIN_SECRET=${clean(s.adminSecret)}`);
+    if (s.adminAllowIps) out.push(`ADMIN_ALLOW_IPS=${clean(s.adminAllowIps)}`);
+  }
+  if (eff.includes("mir")) {
+    if (s.mirEmail) out.push(`MIR_EMAIL=${clean(s.mirEmail)}`);
+    if (s.mirApiKey) out.push(`MIR_API_KEY=${clean(s.mirApiKey)}`);
+    if (s.mirChallenge) out.push(`MIR_CHALLENGE=${clean(s.mirChallenge)}`);
+    if (s.mirPartnerId) out.push(`MIR_PARTNER_ID=${clean(s.mirPartnerId)}`);
+    if (s.mirEnv) out.push(`MIR_ENV=${clean(s.mirEnv)}`);
+    if (s.mirEmit) out.push(`MIR_EMIT=${clean(s.mirEmit)}`);
+  }
+  return out.join("\n") + "\n";
+}
+const env = computed(() => genEnv(state()));
+const eff = computed(() => effective(state()));
+// Memoized, primitive-valued derivations: a conditional section keyed on these
+// only re-renders when the *discriminant* changes — not on every keystroke in a
+// field it contains (which would recreate the input and drop focus).
+const dbDriver = computed(() => state().dbDriver);
+const mediaDriver = computed(() => state().mediaDriver);
+const hasDb = computed(() => eff().includes("db"));
+const hasMailer = computed(() => eff().includes("mailer"));
+const hasMedia = computed(() => eff().includes("media"));
+const hasAdmin = computed(() => eff().includes("admin"));
+// when web-admin is on, seed an unguessable path + session key if they're unset
+effect(() => {
+  if (!hasAdmin()) return;
+  const s = state();
+  const patch = {};
+  if (!s.adminPath) patch.adminPath = randHex(8);
+  if (!s.adminSecret) patch.adminSecret = randHex(32);
+  if (Object.keys(patch).length) set(patch);
+});
+const hasContent = computed(() => eff().includes("pages") || eff().includes("posts")); // themes apply to pages/posts
+
+// "Customize": copy the selected bundled theme to pages/_theme.js, then use it
+// locally (THEME cleared) so edits take effect.
+async function ejectTheme() {
+  const theme = state().theme;
+  if (!theme) return;
+  status("Copying theme…");
+  try {
+    const r = await (await fetch("/setup/eject-theme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) })).json();
+    if (r.ok) {
+      set({ theme: "" });
+      status(`Copied ${theme} → ${r.path}. Edit it freely; THEME was cleared so your local copy is used.`);
+    } else status("Error: " + (r.error || "?"));
+  } catch {
+    status("Network error copying theme.");
+  }
+}
+
+async function testDb() {
+  const s = state();
+  const e = { DB_DRIVER: s.dbDriver };
+  if (s.dbDriver === "mongodb") {
+    e.MONGODB_URI = s.mongoUri;
+    e.MONGODB_DATABASE = s.mongoDb;
+  } else if (s.dbDriver === "mysql" || s.dbDriver === "postgres") {
+    e.DATABASE_URL = s.dbUrl;
+  }
+  dbTest("Testing…");
+  try {
+    const r = await (await fetch("/setup/test-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: e }) })).json();
+    dbTest(r.ok ? `✓ Connected (${r.driver})` : `✗ ${r.error}`);
+  } catch {
+    dbTest("✗ network error");
+  }
+}
+async function testSmtp() {
+  smtpTest("Testing…");
+  try {
+    const r = await (await fetch("/setup/test-smtp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: envObj() }) })).json();
+    smtpTest(r.ok ? `✓ ${r.detail || "OK"}` : `✗ ${r.error}`);
+  } catch {
+    smtpTest("✗ network error");
+  }
+}
+async function testAi() {
+  aiTest("Testing…");
+  try {
+    const r = await (await fetch("/setup/test-ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ env: envObj() }) })).json();
+    aiTest(r.ok ? `✓ ${r.detail || "OK"}` : `✗ ${r.error}`);
+  } catch {
+    aiTest("✗ network error");
+  }
+}
+
+async function apply() {
+  status("Saving…");
+  let d;
+  try {
+    d = await (await fetch("/setup/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addons: eff(), env: env() }) })).json();
+  } catch {
+    return status("Network error.");
+  }
+  if (!d.ok) return status("Error: " + d.error);
+  status(d.installing?.length ? `Installing ${d.installing.join(", ")}, then starting…` : "Starting the app…");
+  const target = `http://localhost:${d.port}/`;
+  const tries = d.installing?.length ? 90 : 20; // npm install can take a while
+  const go = async (n) => {
+    try {
+      await fetch(target, { mode: "no-cors" });
+      location.href = target;
+    } catch {
+      if (n > 0) setTimeout(() => go(n - 1), 500);
+      else location.href = target;
+    }
+  };
+  setTimeout(() => go(tries), 600);
+}
+
+// --- views ---
+const field = (label, key, placeholder = "") =>
+  html`<div class="mb-2">
+    <label class="form-label small mb-1">${label}</label>
+    <input class="form-control" placeholder=${placeholder} value=${() => state()[key]} oninput=${(e) => set({ [key]: e.target.value })} />
+  </div>`;
+
+// Web-admin settings — a secret admin URL (auto-generated, unguessable) + the one
+// email allowed to sign in. Shown when the "admin" add-on is enabled.
+const adminSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">Web admin</h2>
+    <p class="small text-muted mb-2">Manage content + media over the web at a secret URL — a magic link secured by a one-time nonce, a same-browser check, and a device fingerprint. Only the email below can sign in.</p>
+    ${field("Admin email", "adminEmail", "you@example.com")}
+    <label class="form-label small mb-1">Secret admin URL</label>
+    <div class="input-group input-group-sm mb-1">
+      <span class="input-group-text text-truncate" style="max-width:55%">${() => (state().siteUrl || "your-site").replace(/\/+$/, "")}/</span>
+      <input class="form-control font-monospace" value=${() => state().adminPath} oninput=${(e) => set({ adminPath: e.target.value })} />
+      <button class="btn btn-outline-secondary" onclick=${() => { const u = (state().siteUrl || "").replace(/\/+$/, "") + "/" + state().adminPath; navigator.clipboard && navigator.clipboard.writeText(u); status(`Copied ${u}`); }}>Copy</button>
+      <button class="btn btn-outline-secondary" onclick=${() => set({ adminPath: randHex(8) })}>Regenerate</button>
+    </div>
+    <p class="small text-muted mb-2">Unguessable by design — bookmark it. A 256-bit <code>ADMIN_SECRET</code> (session key) is generated automatically.</p>
+    ${field("Allowed IPs (optional)", "adminAllowIps", "e.g. 203.0.113.7, 198.51.100.4")}
+    <p class="small text-muted mb-0">Blank = any IP (the magic link is still required). Set one or more to lock the admin to those addresses — everything else gets a 404. Behind a reverse proxy, make sure it sets a real <code>X-Real-IP</code>.</p>
+  </div>`;
+
+// A dependency pulled in by another enabled add-on shows as checked + disabled
+// (you can't turn it off while something needs it), with a "required by" note —
+// so the .env's VOLT_ADDONS always matches what the boxes show.
+const addonRow = (a) =>
+  html`<div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" id=${"x-" + a.name}
+      checked=${() => eff().includes(a.name)}
+      disabled=${() => !state().addons[a.name] && eff().includes(a.name)}
+      onchange=${() => toggle(a.name)} />
+    <label class="form-check-label" for=${"x-" + a.name}>
+      <span class="accent">${a.name}</span>${a.dependsOn?.length ? html` <span class="text-muted small">(needs ${a.dependsOn.join(", ")})</span>` : ""}${() =>
+        !state().addons[a.name] && eff().includes(a.name) ? html` <span class="text-muted small">· required by ${requiredBy(state(), a.name).join(", ")}</span>` : ""}
+      <div class="small text-muted">${a.description}</div>
+    </label>
+  </div>`;
+
+const dbSettings = () =>
+  html`<div class="mb-2">
+      <label class="form-label small mb-1">Database (DB_DRIVER)</label>
+      <select class="form-select" value=${() => dbDriver()} onchange=${(e) => set({ dbDriver: e.target.value })}>
+        <option value="sqlite">sqlite — file, persistent, no server (default)</option>
+        <option value="memory">memory — ephemeral (dev only)</option>
+        <option value="mongodb">mongodb — recommended at scale</option>
+        <option value="mysql">mysql / MariaDB</option>
+        <option value="postgres">postgres</option>
+      </select>
+      <div class="form-text"><strong>SQLite (default)</strong> persists to a file with no server to run — ideal for a single box. <strong>MongoDB</strong> is the pick once you scale out (multi-instance, native indexable queries). All share one document interface; call <code>store.index(coll, field)</code> for hot query fields.</div>
+    </div>
+    ${() =>
+      dbDriver() === "mongodb"
+        ? html`${field("MONGODB_URI", "mongoUri", "mongodb://user:pass@host:27017/db")}${field("MONGODB_DATABASE", "mongoDb", "db")}`
+        : dbDriver() === "mysql" || dbDriver() === "postgres"
+          ? field("DATABASE_URL", "dbUrl", dbDriver() + "://user:pass@host/db")
+          : dbDriver() === "sqlite"
+            ? html`<div class="form-text mb-2">Stored at <code>.volt/data.db</code> — no connection string needed. Override the path with <code>SQLITE_FILE</code>. Needs Node 22.5+ (falls back to memory otherwise).</div>`
+            : null}
+    ${() => (["memory", "sqlite"].includes(dbDriver()) ? null : html`<button class="btn btn-sm btn-outline-secondary mb-2" onclick=${testDb}>Test connection</button>${() => testResult(dbTest())}`)}`;
+
+const mediaSettings = () =>
+  html`<div class="mb-2">
+      <label class="form-label small mb-1">Media storage (MEDIA_DRIVER)</label>
+      <select class="form-select" value=${() => mediaDriver()} onchange=${(e) => set({ mediaDriver: e.target.value })}>
+        <option value="local">local (disk)</option>
+        <option value="s3">s3 — AWS S3 / DigitalOcean Spaces</option>
+      </select>
+    </div>
+    ${() =>
+      mediaDriver() === "s3"
+        ? html`${field("S3_ENDPOINT", "s3Endpoint", "https://nyc3.digitaloceanspaces.com")}${field("S3_REGION", "s3Region", "us-east-1")}${field("S3_BUCKET", "s3Bucket", "my-space")}${field("S3_KEY", "s3Key", "access key")}${field("S3_SECRET", "s3Secret", "secret key")}${field("S3_PUBLIC_BASE (optional CDN base)", "s3PublicBase", "https://cdn.example.com")}`
+        : null}`;
+
+// available color schemes (swatches for the picker) — a palette swap that any
+// scheme-ready theme (canonical tokens) picks up. Sourced from the pages add-on.
+const schemes = signal([]);
+fetch("/setup/schemes").then((r) => r.json()).then((d) => schemes(d.schemes || [])).catch(() => {});
+const schemeSwatch = (sc) =>
+  html`<button type="button" class=${() => "btn btn-sm p-0 " + (state().siteScheme === sc.id ? "border border-2 border-primary" : "border")} style="width:76px;overflow:hidden;border-radius:8px" title=${sc.label} onclick=${() => set({ siteScheme: sc.id })}>
+    <div class="d-flex align-items-center justify-content-center" style=${`height:32px;background:${sc.bg}`}><div style=${`width:18px;height:18px;border-radius:50%;background:${sc.brand}`}></div></div>
+    <div class="text-truncate px-1" style="font-size:.68rem">${sc.label}</div>
+  </button>`;
+
+// theme chooser: a bundled theme (or the built-in/local one), with Customize
+const themePicker = () =>
+  html`<div class="mb-2">
+    <label class="form-label small mb-1">Theme (THEME)</label>
+    <select class="form-select" value=${() => state().theme} onchange=${(e) => set({ theme: e.target.value })}>
+      <option value="">default — built-in, or your pages/_theme.js</option>
+      ${themes.map((t) => html`<option value=${t.name}>${t.name}${t.description ? " — " + t.description : ""}</option>`)}
+    </select>
+    ${() =>
+      state().theme
+        ? html`<button class="btn btn-sm btn-outline-secondary mt-1" onclick=${ejectTheme}>Customize → copy to pages/_theme.js</button>`
+        : html`<div class="small text-muted mt-1">Pick a starter theme, or keep the built-in / your local <code>pages/_theme.js</code>.</div>`}
+    <label class="form-label small mb-1 mt-3">Color scheme (SITE_SCHEME)</label>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class=${() => "btn btn-sm p-0 " + (state().siteScheme === "" ? "border border-2 border-primary" : "border")} style="width:76px;overflow:hidden;border-radius:8px" title="Theme default" onclick=${() => set({ siteScheme: "" })}>
+        <div class="bg-body-secondary small d-flex align-items-center justify-content-center" style="height:32px">Aa</div>
+        <div class="text-truncate px-1" style="font-size:.68rem">Default</div>
+      </button>
+      ${() => schemes().map(schemeSwatch)}
+    </div>
+    <div class="small text-muted mt-1">Swaps the palette; the theme's structure stays.</div>
+    <label class="form-label small mb-1 mt-3">Mode (SITE_MODE)</label>
+    <div class="btn-group btn-group-sm w-100" role="group">
+      ${["", "light", "dark"].map((m) => html`<button type="button" class=${() => "btn " + (state().siteMode === m ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteMode: m })}>${m === "" ? "Auto" : m === "light" ? "Light" : "Dark"}</button>`)}
+    </div>
+    <div class="small text-muted mt-1">Auto follows the visitor's device; Light/Dark force it (works with any color scheme).</div>
+    <label class="form-label small mb-1 mt-3">Navigation (SITE_SPA)</label>
+    <div class="btn-group btn-group-sm w-100" role="group">
+      <button type="button" class=${() => "btn " + (state().siteSpa !== "on" ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteSpa: "" })}>Normal</button>
+      <button type="button" class=${() => "btn " + (state().siteSpa === "on" ? "btn-primary" : "btn-outline-secondary")} onclick=${() => set({ siteSpa: "on" })}>SPA (no reload)</button>
+    </div>
+    <div class="small text-muted mt-1">SPA swaps pages client-side (no full reload). Pages stay <b>server-rendered</b>, so SEO is unaffected.</div>
+  </div>`;
+
+// AI keys (optional) — used by the WYSIWYG editor's assistant. Kept server-side.
+const AI_KEY_URL = {
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  gemini: "https://aistudio.google.com/app/apikey",
+};
+const aiSettings = () =>
+  html`<details class="mb-2"><summary class="form-label small mb-0" style="cursor:pointer">AI assistant for the editor (optional)</summary>
+    <div class="mt-2">
+      <p class="small text-muted mb-2">Powers the WYSIWYG editor's "write with AI" button. <strong>Totally optional</strong> — leave the key blank and the editor still works, just without AI.</p>
+      <label class="form-label small mb-1">Provider</label>
+      <select class="form-select mb-1" value=${() => state().aiProvider} onchange=${(e) => set({ aiProvider: e.target.value })}>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+      ${() => html`<a class="small d-inline-block mb-1" href=${AI_KEY_URL[state().aiProvider] || AI_KEY_URL.anthropic} target="_blank" rel="noopener">Get a ${state().aiProvider} key → paste it below (stays server-side in .env)</a>`}
+      ${field("API key", "aiKey", "sk-…")}
+      <div class="small text-muted mt-2 mb-1">— or — no key? Use the hosted tier (free, capped, then pay-as-you-go):</div>
+      ${() => (state().aiToken ? html`<div class="small">Hosted token: <code>${state().aiToken.slice(0, 14)}…</code> <button class="btn btn-sm btn-link p-0 ms-1" onclick=${() => set({ aiToken: "" })}>clear</button></div>` : html`<button class="btn btn-sm btn-outline-secondary" onclick=${genToken}>Generate a free hosted token</button>${() => testResult(genMsg())}`)}
+      <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testAi}>Test AI</button>${() => testResult(aiTest())}</div>
+    </div>
+  </details>`;
+
+// --- Manage content (a second screen reached via "Manage content →") ---
+const view = signal("config"); // "config" | "manage" | "media"
+// Desktop-only config: keep settings readable, but let the editor + library go wide.
+effect(() => {
+  const w = document.getElementById("wrap");
+  if (w) w.style.maxWidth = view() !== "config" ? "min(1200px, 95vw)" : "720px";
+});
+// --- media library: upload / browse / delete files served at /media/<name> ---
+const media = signal([]);
+const loadMedia = async () => media(((await (await fetch("/setup/media")).json()).items) || []);
+async function uploadMedia(file) {
+  status(`Uploading ${file.name}…`);
+  try {
+    const r = await (await fetch("/setup/media/upload?name=" + encodeURIComponent(file.name), { method: "POST", body: file })).json();
+    status(r.ok ? `Uploaded → ${r.url}` : `Upload failed: ${r.error || "?"}`);
+  } catch {
+    status("Upload failed.");
+  }
+  loadMedia();
+}
+async function delMedia(name) {
+  if (typeof confirm === "function" && !confirm(`Delete ${name}?`)) return;
+  await fetch("/setup/media/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+  loadMedia();
+}
+const isImg = (n) => /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(n);
+const isVid = (n) => /\.(mp4|webm|mov|ogg|ogv|m4v)$/i.test(n);
+const kb = (n) => (n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB");
+// media roles — single-value slots (logo/favicon/og) + hero (a list → carousel)
+const MEDIA_ROLES = [
+  { key: "siteLogo", label: "Logo" },
+  { key: "siteFavicon", label: "Icon" },
+  { key: "ogImage", label: "OG" },
+];
+const heroList = () => state().siteHero.split(",").map((s) => s.trim()).filter(Boolean);
+const toggleRole = (m, key) => set({ [key]: state()[key] === m.url ? "" : m.url });
+const toggleHero = (m) => {
+  const l = heroList();
+  set({ siteHero: (l.includes(m.url) ? l.filter((u) => u !== m.url) : [...l, m.url]).join(",") });
+};
+const mediaThumb = (m) =>
+  isImg(m.name)
+    ? html`<img src=${m.url} loading="lazy" class="object-fit-cover" alt=${m.name} />`
+    : isVid(m.name)
+      ? html`<video src=${m.url} muted class="object-fit-cover"></video>`
+      : html`<div class="d-flex align-items-center justify-content-center text-white-50 small text-uppercase">${m.name.split(".").pop()}</div>`;
+const mediaTile = (m) =>
+  html`<div class="col"><div class="card h-100 shadow-sm">
+    <div class="ratio ratio-4x3 bg-dark rounded-top overflow-hidden">${mediaThumb(m)}</div>
+    <div class="card-body p-2">
+      <div class="small text-truncate" title=${m.name}>${m.name}</div>
+      <div class="small text-muted mb-1">${kb(m.size)}</div>
+      ${() => (isImg(m.name) || isVid(m.name) ? html`<div class="d-flex flex-wrap gap-1 mb-2">
+        ${MEDIA_ROLES.map((r) => html`<button type="button" class=${() => "btn py-0 px-1 " + (state()[r.key] === m.url ? "btn-primary" : "btn-outline-secondary")} style="font-size:.62rem" title=${"Use as " + r.label} onclick=${() => toggleRole(m, r.key)}>${r.label}</button>`)}
+        <button type="button" class=${() => "btn py-0 px-1 " + (heroList().includes(m.url) ? "btn-primary" : "btn-outline-secondary")} style="font-size:.62rem" title="Add to the home hero (multiple → carousel)" onclick=${() => toggleHero(m)}>Hero</button>
+      </div>` : "")}
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button type="button" class="btn btn-outline-secondary" onclick=${() => (navigator.clipboard && navigator.clipboard.writeText(m.url), status(`Copied ${m.url}`))}>Copy URL</button>
+        <button type="button" class="btn btn-outline-danger flex-grow-0" title="Delete" onclick=${() => delMedia(m.name)}>✕</button>
+      </div>
+    </div>
+  </div></div>`;
+const mediaView = () =>
+  html`<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center"><h2 class="h6 mb-0">Media library</h2><button class="btn btn-sm btn-outline-secondary" onclick=${() => view("config")}>← Settings</button></div>
+    <div class="card-body">
+      <input type="file" class="form-control mb-2" accept="image/*,video/*" multiple onchange=${(e) => { for (const f of e.target.files) uploadMedia(f); e.target.value = ""; }} />
+      <p class="small text-muted">Uploads are stored in <code>public/media/</code> and served at <code>/media/&lt;name&gt;</code>. Copy a URL and paste it into a page's image slot in the editor. (Max 100&nbsp;MB per file.)</p>
+      ${() => (media().length ? html`<div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-3">${media().map(mediaTile)}</div>` : html`<div class="text-muted small border rounded p-4 text-center">No media yet — upload above.</div>`)}
+    </div>
+  </div>`;
+// upgrade check: compare bundled version to npm latest; offer a one-click upgrade
+const upgrade = signal(null); // { current, latest, available }
+fetch("/setup/upgrade-check").then((r) => r.json()).then((u) => upgrade(u)).catch(() => {});
+async function doUpgrade() {
+  status("Upgrading via npx create-volt@latest update…");
+  try {
+    const r = await (await fetch("/setup/upgrade", { method: "POST" })).json();
+    status(r.ok ? "Upgraded — restart the wizard/app to load the new version." : "Upgrade failed (see terminal).");
+    if (r.ok) upgrade({ ...upgrade(), available: false });
+  } catch {
+    status("Upgrade request failed.");
+  }
+}
+
+// AI credits — config-only purchase flow (gateway mode). Hidden unless a
+// VOLT_AI_TOKEN is set and the gateway answers.
+const aiCredits = signal(null); // { ok, tier, creditBalanceUsd, payments } | { ok:false }
+fetch("/setup/ai-credits").then((r) => r.json()).then((c) => aiCredits(c)).catch(() => {});
+async function buyCredits(amountUsd) {
+  status("Starting checkout…");
+  try {
+    const r = await (await fetch("/setup/ai-credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd }) })).json();
+    if (r.ok && r.url) window.open(r.url, "_blank");
+    else status("Checkout failed: " + (r.error || "?"));
+  } catch {
+    status("Checkout request failed.");
+  }
+}
+async function genToken() {
+  genMsg("Requesting…");
+  try {
+    const r = await (await fetch("/setup/gen-token", { method: "POST" })).json();
+    if (r.ok && r.token) {
+      set({ aiToken: r.token });
+      genMsg("✓ token generated — Apply to save");
+    } else genMsg("✗ " + (r.error || "no token"));
+  } catch {
+    genMsg("✗ request failed");
+  }
+}
+const items = signal({ pages: [], posts: [] });
+const editing = signal(null); // { type, slug, title, isNew } — set only on open/save/close
+let ed = null; // live RTEPro instance for the open editor
+let themeCss = ""; // active theme's CSS, so the editor renders pages themed
+fetch("/setup/theme-css").then((r) => r.text()).then((c) => { themeCss = c; }).catch(() => {});
+const loadItems = async () => items(await (await fetch("/setup/content")).json());
+// raw .md → { title, body, isHtml }; RTEPro takes markdown directly (setMarkdown),
+// so no markdown library is needed.
+function parseDoc(raw) {
+  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  const front = fm ? fm[1] : "";
+  const title = ((front.match(/^title:\s*(.+)$/m) || [])[1] || "").trim();
+  return { title, body: fm ? raw.slice(fm[0].length) : raw, isHtml: /^format:\s*html\s*$/m.test(front) };
+}
+function mountEditor(doc) {
+  ed = window.RTEPro.init("#mg-editor", { height: "60vh", placeholder: "Write…", aiProxy: "/setup/ai", aiProvider: state().aiProvider || "anthropic", exportCSS: themeCss });
+  if (doc && doc.isHtml) ed.setHTML(doc.body || "");
+  else ed.setMarkdown((doc && doc.body) || "");
+}
+async function editItem(type, slug) {
+  const d = await (await fetch(`/setup/content/raw?type=${type}&slug=${encodeURIComponent(slug)}`)).json();
+  const doc = parseDoc(d.body || "");
+  editing({ type, slug, title: doc.title, isNew: false });
+  queueMicrotask(() => mountEditor(doc));
+}
+function newItem(type) {
+  editing({ type, slug: "", title: "", isNew: true });
+  queueMicrotask(() => mountEditor({ body: "", isHtml: false }));
+}
+// markdown can't round-trip complex layouts (columns, inline styles, merged cells,
+// embeds) — save those as HTML so they aren't flattened.
+function isComplex(h) {
+  return /\bstyle\s*=\s*["'][^"']*(text-align|column|float|grid|flex|width|height|color|background|font|margin|padding)/i.test(h) || /\b(colspan|rowspan)\b/i.test(h) || /<(u|font|mark|sub|sup|iframe|video|audio|figure)\b/i.test(h) || /class\s*=\s*["'][^"']*(col|grid|row|flex|layout)/i.test(h);
+}
+async function saveItem() {
+  const e = editing();
+  const slug = (document.querySelector("#mg-slug").value || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return status("Slug must be lowercase letters, numbers, hyphens.");
+  const title = (document.querySelector("#mg-title").value || "").trim() || slug;
+  const htmlOut = ed ? ed.getHTML() : "";
+  const complex = isComplex(htmlOut);
+  const front = [`title: ${title}`];
+  if (complex) front.push("format: html");
+  const docBody = complex ? htmlOut : ed ? ed.getMarkdown() : "";
+  const body = `---\n${front.join("\n")}\n---\n\n${docBody}\n`;
+  const r = await (await fetch("/setup/content/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: e.type, slug, body }) })).json();
+  if (!r.ok) return status("Error: " + (r.error || "?"));
+  status("Saved → " + r.file + (complex ? " (HTML — complex layout)" : ""));
+  ed = null;
+  editing(null);
+  loadItems();
+}
+async function delItem(type, slug) {
+  if (typeof confirm === "function" && !confirm(`Delete ${slug}?`)) return;
+  await fetch("/setup/content/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, slug }) });
+  status("Deleted " + slug);
+  loadItems();
+}
+
+const itemRow = (it) =>
+  html`<li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-center py-1 px-2">
+    <span><a href=${"http://localhost:" + state().port + (it.type === "post" ? "/blog/" : "/") + it.slug} target="_blank" rel="noopener">${it.title}</a> <span class="text-muted small">/${it.type === "post" ? "blog/" : ""}${it.slug}</span></span>
+    <span><button class="btn btn-sm btn-link p-0 me-3" onclick=${() => editItem(it.type, it.slug)}>edit</button><button class="btn btn-sm btn-link p-0 text-danger" onclick=${() => delItem(it.type, it.slug)}>delete</button></span>
+  </li>`;
+const section = (label, type, key) =>
+  html`<div class="mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-1"><strong>${label}</strong><button class="btn btn-sm btn-outline-secondary" onclick=${() => newItem(type)}>+ New</button></div>
+    ${() => (items()[key].length ? html`<ul class="list-group">${items()[key].map(itemRow)}</ul>` : html`<div class="small text-muted">No ${key} yet.</div>`)}
+  </div>`;
+const editorPanel = () => {
+  const e = editing(); // inputs uncontrolled (read on Save); RTEPro mounts into #mg-editor
+  return html`<div class="p-3 mb-2" style="border:1px solid var(--border,#232a36);border-radius:10px">
+    <div class="d-flex gap-2 mb-2"><input id="mg-slug" class="form-control" placeholder="slug" value=${e.slug} readonly=${!e.isNew} style="max-width:200px" /><input id="mg-title" class="form-control" placeholder="Title" value=${e.title || ""} /><span class="align-self-center small text-muted">${e.type === "post" ? "posts/" : "pages/"}</span></div>
+    <div id="mg-editor"></div>
+    <div class="mt-2 d-flex gap-2"><button class="btn btn-primary btn-sm" onclick=${saveItem}>Save</button><button class="btn btn-outline-secondary btn-sm" onclick=${() => editing(null)}>Cancel</button></div>
+  </div>`;
+};
+const manageView = () =>
+  html`<div class="card-x p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h6 mb-0">Manage content</h2><button class="btn btn-sm btn-outline-secondary" onclick=${() => view("config")}>← Settings</button></div>
+    ${() => (editing() ? editorPanel() : html`${section("Pages", "page", "pages")}${section("Posts", "post", "posts")}<p class="small text-muted mb-0">Pages → <code>/slug</code>, posts → <code>/blog/slug</code>; <code>index</code> page is your home. All rendered in your theme. Edits hot-reload the running app.</p>`)}
+  </div>`;
+
+// --- MIR participation (volt-addon-mir) ---
+// The app is a MIR partner/market; its users are participants. Onboarding is register →
+// (deploy, serve the challenge) → promote. Only offered once SITE_URL is a public,
+// routable domain — a localhost/private site can never pass MIR's domain verification.
+const hasMir = computed(() => eff().includes("mir"));
+const siteHostOf = (u) => String(u || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+const siteIsPublic = computed(() => {
+  const h = siteHostOf(state().siteUrl);
+  return !!h && h.includes(".") && !h.endsWith(".local") && !/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h);
+});
+const mirMsg = signal("");
+const mirBusy = signal(false);
+const mirPost = (path, env) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ env }) }).then((r) => r.json());
+async function mirRegister() {
+  if (mirBusy()) return;
+  const email = state().mirEmail || state().adminEmail;
+  if (!validEmail(email)) return mirMsg("✗ enter a valid partner email first");
+  mirBusy(true);
+  mirMsg("registering…");
+  try {
+    const r = await mirPost("/setup/mir-register", { SITE_NAME: state().siteName, SITE_URL: state().siteUrl, MIR_EMAIL: email });
+    if (!r.ok) mirMsg("✗ " + r.error);
+    else {
+      set({ mirEmail: email, mirApiKey: r.apiKey, mirChallenge: r.challenge, mirPartnerId: r.partnerId, mirEnv: "sandbox" });
+      mirMsg("✓ registered (sandbox) — Apply, deploy, then Promote");
+    }
+  } catch (e) {
+    mirMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    mirBusy(false);
+  }
+}
+async function mirPromote() {
+  if (mirBusy()) return;
+  mirBusy(true);
+  mirMsg("verifying domain + promoting…");
+  try {
+    const r = await mirPost("/setup/mir-promote", { SITE_URL: state().siteUrl, MIR_API_KEY: state().mirApiKey });
+    if (!r.ok) mirMsg("✗ " + r.error);
+    else {
+      set({ mirApiKey: r.apiKey || state().mirApiKey, mirEnv: "production" });
+      mirMsg(r.alreadyVerified ? "✓ already in production" : "✓ promoted to production");
+    }
+  } catch (e) {
+    mirMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    mirBusy(false);
+  }
+}
+const mirSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">MIR participation <span class=${() => "badge " + (state().mirEnv === "production" ? "text-bg-success" : state().mirEnv ? "text-bg-secondary" : "text-bg-light text-dark")}>${() => state().mirEnv || "not registered"}</span></h2>
+    <p class="small text-muted mb-2">Make this site a Memory Infrastructure Registry partner — your users become participants who build portable, cross-partner reputation. The app records events and resolves neutral signals.</p>
+    ${() =>
+      !siteIsPublic()
+        ? html`<div class="alert alert-secondary small mb-0 py-2">Set a public <code>SITE_URL</code> above to use MIR — a localhost or private-network site can't be domain-verified.</div>`
+        : html`
+          ${field("MIR partner email", "mirEmail", "you@example.com")}
+          ${() =>
+            !state().mirApiKey
+              ? html`<div><button class="btn btn-primary btn-sm" disabled=${() => mirBusy()} onclick=${mirRegister}>Register with MIR (sandbox)</button>${() => testResult(mirMsg())}</div>`
+              : html`<div>
+                  <div class="small mb-1">Partner <code>${() => state().mirPartnerId || "—"}</code> · key <code>${() => (state().mirApiKey || "").slice(0, 14)}…</code></div>
+                  ${() =>
+                    state().mirEnv !== "production"
+                      ? html`<button class="btn btn-outline-primary btn-sm" disabled=${() => mirBusy()} onclick=${mirPromote}>Promote to production</button><div class="small text-muted mt-1">Apply + deploy first, so MIR can fetch <code>${() => (state().siteUrl || "").replace(/\/+$/, "")}/.well-known/mir-challenge</code>.</div>`
+                      : html`<span class="small text-success">✓ live in production</span>`}
+                  ${() => testResult(mirMsg())}
+                  <div class="form-check mt-2 pt-2 border-top">
+                    <input class="form-check-input" type="checkbox" id="mir-emit" checked=${() => state().mirEmit === "on"} onchange=${(e) => set({ mirEmit: e.target.checked ? "on" : "" })} />
+                    <label class="form-check-label small" for="mir-emit"><strong>Emit participation events</strong> — send events about your users' actions (onboarding, purchases, …) to MIR. Off = you're a registered partner but nothing is sent. Explicit opt-in.</label>
+                  </div>
+                </div>`}
+        `}
+  </div>`;
+
+// --- first-run wizard: the same config, one step at a time ---
+// Memoized string key → the wizard re-renders when the add-on set changes, but NOT
+// on every keystroke (reading the eff() array directly would drop input focus).
+const effKey = computed(() => eff().join(","));
+function wizardSteps(enabled) {
+  const has = (n) => enabled.includes(n);
+  const steps = [
+    { title: "Name your app", sub: "You can change any of this later from the config.", body: () => field("Site name", "siteName", "My Site"), valid: () => true },
+    { title: "Pick features", sub: "Turn on what you need — required dependencies are added for you.", body: () => html`<div class="d-flex flex-column gap-2">${available.map(addonRow)}</div>`, valid: () => true },
+  ];
+  if (has("pages") || has("posts")) steps.push({ title: "Appearance", sub: "The theme sets the layout; a color scheme + mode set the palette.", body: themePicker, valid: () => true });
+  if (has("db")) steps.push({ title: "Database", sub: "Where your data is stored. “Memory” needs no setup — fine to start.", body: dbSettings, valid: () => state().dbDriver === "memory" || (state().dbDriver === "mongodb" ? !!String(state().mongoUri).trim() : !!String(state().dbUrl).trim()) });
+  if (has("mailer")) steps.push({ title: "Email", sub: "Sends login + admin links. In dev, leave SMTP blank — emails print to the console.", body: () => html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}`, valid: () => true });
+  if (has("admin")) steps.push({ title: "Web admin", sub: "Manage your live site from a browser. The email below is the only one that can sign in — it's required.", body: adminSettings, valid: () => validEmail(state().adminEmail) });
+  if (has("mir")) steps.push({ title: "MIR participation", sub: "Optional — make your site a Memory Infrastructure Registry partner. Needs a public SITE_URL; you can register now or after you deploy.", body: mirSettings, valid: () => true });
+  steps.push({ title: "AI assistant", sub: "Optional — powers the editor's writing help. Skip if you don't need it.", body: aiSettings, valid: () => true });
+  steps.push({ title: "Review & launch", sub: "This is your .env. Launch writes it and starts your app.", body: () => html`<pre class="small p-2 rounded" style="background:#0b0d11;color:#cfe3ff;max-height:280px;overflow:auto;white-space:pre-wrap">${() => env()}</pre>`, valid: () => true });
+  return steps;
+}
+const wizardView = () =>
+  html`<div>${() => {
+    const enabled = effKey() ? effKey().split(",") : [];
+    const steps = wizardSteps(enabled);
+    const i = Math.max(0, Math.min(step(), steps.length - 1));
+    const cur = steps[i];
+    return html`
+      <div class="mb-3">
+        <div class="d-flex justify-content-between small text-muted mb-1"><span>Step ${i + 1} of ${steps.length}</span><span>${cur.title}</span></div>
+        <div class="progress" style="height:5px"><div class="progress-bar" style=${`width:${Math.round(((i + 1) / steps.length) * 100)}%`}></div></div>
+      </div>
+      <div class="card"><div class="card-body">
+        <h2 class="h5 mb-1">${cur.title}</h2>
+        <p class="text-muted small mb-3">${cur.sub}</p>
+        ${cur.body()}
+      </div></div>
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <button class="btn btn-outline-secondary" onclick=${() => (status(""), step(Math.max(0, i - 1)))} disabled=${i === 0}>← Back</button>
+        ${
+          i < steps.length - 1
+            ? html`<button class="btn btn-primary" onclick=${() => (cur.valid() ? (status(""), step(i + 1)) : status("⚠ Please complete this step before continuing."))}>Next →</button>`
+            : html`<button class="btn btn-success" onclick=${apply}>Launch app →</button>`
+        }
+      </div>
+      ${() => (status() ? html`<p class="small mt-2 accent mb-0">${status}</p>` : "")}
+      <p class="small text-muted mt-3 mb-0 text-center"><a href="#" onclick=${(ev) => (ev.preventDefault(), wizard(false))}>Prefer the full form? Switch to advanced →</a></p>`;
+  }}</div>`;
+
+// SITE_URL: on blur, affirm the domain actually resolves in DNS (existence, not
+// ownership) — catches typos before MIR / canonical / RSS rely on it. The lookup runs
+// server-side (browsers can't do arbitrary DNS).
+const siteUrlDns = signal("");
+async function checkSiteUrlDns() {
+  const host = String(state().siteUrl || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+  if (!host || !host.includes(".")) return siteUrlDns("");
+  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) || host.endsWith(".local")) return siteUrlDns("local/private — fine for dev, not a public domain");
+  siteUrlDns("checking DNS…");
+  try {
+    const r = await (await fetch("/setup/dns-check?host=" + encodeURIComponent(host))).json();
+    siteUrlDns(r.ok ? `✓ ${host} resolves (${r.ip})` : `✗ ${host} — ${r.error} (typo?)`);
+  } catch {
+    siteUrlDns("");
+  }
+}
+const siteUrlField = () =>
+  html`<div class="mb-2">
+    <label class="form-label small mb-1">SITE_URL (optional — absolute links, RSS, canonical)</label>
+    <input class="form-control" placeholder="https://example.com" value=${() => state().siteUrl} oninput=${(e) => set({ siteUrl: e.target.value })} onblur=${checkSiteUrlDns} />
+    ${() => testResult(siteUrlDns())}
+  </div>`;
+
+// Dates & timezone — SITE_TZ (auto-detected, overridable) + SITE_DATE_FORMAT (how post/
+// page dates render). Live-previews today's date in the chosen format + zone.
+const DATE_FMT = { long: "January 2, 2026", medium: "Jan 2, 2026", dmy: "2 January 2026", "dmy-short": "2 Jan 2026", iso: "2026-01-02" };
+const DATE_FMT_OPTS = {
+  long: ["en-US", { year: "numeric", month: "long", day: "numeric" }],
+  medium: ["en-US", { year: "numeric", month: "short", day: "numeric" }],
+  dmy: ["en-GB", { year: "numeric", month: "long", day: "numeric" }],
+  "dmy-short": ["en-GB", { year: "numeric", month: "short", day: "numeric" }],
+};
+const COMMON_TZ = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Kolkata", "Asia/Tokyo", "Australia/Sydney"];
+function previewDate() {
+  const fmt = state().dateFormat || "long";
+  const tz = state().tz || undefined;
+  const now = new Date();
+  try {
+    if (fmt === "iso") return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz }).format(now);
+    const [loc, opts] = DATE_FMT_OPTS[fmt] || DATE_FMT_OPTS.long;
+    return now.toLocaleDateString(loc, tz ? { ...opts, timeZone: tz } : opts);
+  } catch {
+    return "—";
+  }
+}
+const datesSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <h2 class="h6 mb-1">Dates &amp; timezone</h2>
+    <p class="small text-muted mb-2">How post and page dates display. Timezone was auto-detected from your browser — override it for a different audience.</p>
+    <div class="row g-2">
+      <div class="col-sm-6">
+        <label class="form-label small mb-1">Timezone (SITE_TZ)</label>
+        <input class="form-control" list="tzlist" value=${() => state().tz} oninput=${(e) => set({ tz: e.target.value })} placeholder="America/New_York" />
+        <datalist id="tzlist">${COMMON_TZ.map((z) => html`<option value=${z}></option>`)}</datalist>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label small mb-1">Date format (SITE_DATE_FORMAT)</label>
+        <select class="form-select" value=${() => state().dateFormat || "long"} onchange=${(e) => set({ dateFormat: e.target.value })}>
+          ${Object.keys(DATE_FMT).map((k) => html`<option value=${k}>${DATE_FMT[k]}</option>`)}
+        </select>
+      </div>
+    </div>
+    <div class="small text-muted mt-2">Today: <strong>${() => previewDate()}</strong>${() => (state().tz ? ` · ${state().tz}` : "")}</div>
+  </div>`;
+
+// Typography — a font per role, downloaded + self-hosted (no Google Fonts CDN). Mirrors the
+// FONTS catalog in the pages add-on.
+const SETUP_FONTS = [
+  { slug: "inter", family: "Inter", cat: "Sans" }, { slug: "roboto", family: "Roboto", cat: "Sans" },
+  { slug: "open-sans", family: "Open Sans", cat: "Sans" }, { slug: "work-sans", family: "Work Sans", cat: "Sans" },
+  { slug: "nunito", family: "Nunito", cat: "Sans" }, { slug: "poppins", family: "Poppins", cat: "Display" },
+  { slug: "montserrat", family: "Montserrat", cat: "Display" }, { slug: "merriweather", family: "Merriweather", cat: "Serif" },
+  { slug: "lora", family: "Lora", cat: "Serif" }, { slug: "source-serif-4", family: "Source Serif 4", cat: "Serif" },
+  { slug: "playfair-display", family: "Playfair Display", cat: "Serif" }, { slug: "jetbrains-mono", family: "JetBrains Mono", cat: "Mono" },
+  { slug: "fira-code", family: "Fira Code", cat: "Mono" }, { slug: "ibm-plex-mono", family: "IBM Plex Mono", cat: "Mono" },
+];
+const FONT_ROLES = [["fontHeading", "Headings (H1)"], ["fontSubhead", "Subsections (H2–H4)"], ["fontBody", "Body / paragraphs"], ["fontMono", "Code / monospace"]];
+const fontStack = (cat) => (cat === "Serif" ? "serif" : cat === "Mono" ? "monospace" : "sans-serif");
+// @font-face for previewing every catalog font — loaded from the CDN, in this admin page ONLY
+// (the live site stays self-hosted). Lets the picker render each font in its own type.
+const FONT_PREVIEW_CSS = SETUP_FONTS.map((f) => `@font-face{font-family:'${f.family}';font-weight:400;font-display:swap;src:url(https://cdn.jsdelivr.net/fontsource/fonts/${f.slug}@latest/latin-400-normal.woff2) format('woff2')}`).join("");
+const fontFam = (slug) => { const f = SETUP_FONTS.find((x) => x.slug === slug); return f ? `'${f.family}',${fontStack(f.cat)}` : "inherit"; };
+const fontBusy = signal(false);
+const fontMsg = signal("");
+async function downloadFonts() {
+  if (fontBusy()) return;
+  const slugs = [...new Set(FONT_ROLES.map(([k]) => state()[k]).filter(Boolean))];
+  if (!slugs.length) return fontMsg("✗ pick at least one font first");
+  fontBusy(true);
+  fontMsg("downloading + self-hosting…");
+  try {
+    const r = await (await fetch("/setup/fonts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slugs }) })).json();
+    fontMsg(r.ok ? `✓ downloaded ${r.downloaded.length} font(s) to public/fonts — Apply to use them` : "✗ " + r.error);
+  } catch (e) {
+    fontMsg("✗ " + ((e && e.message) || e));
+  } finally {
+    fontBusy(false);
+  }
+}
+const fontSelect = ([key, label]) =>
+  html`<div class="col-sm-6 mb-2">
+    <label class="form-label small mb-1">${label}</label>
+    <select class="form-select form-select-sm" value=${() => state()[key] || ""} onchange=${(e) => set({ [key]: e.target.value })}>
+      <option value="">System default</option>
+      ${SETUP_FONTS.map((f) => html`<option value=${f.slug} style=${`font-family:'${f.family}',${fontStack(f.cat)}`}>${f.family} · ${f.cat}</option>`)}
+    </select>
+  </div>`;
+const fontsSettings = () =>
+  html`<div class="mb-3 border rounded p-3">
+    <style>${FONT_PREVIEW_CSS}</style>
+    <h2 class="h6 mb-1">Typography</h2>
+    <p class="small text-muted mb-2">A font per role, rendered in its own type below. Picks are <strong>downloaded and self-hosted</strong> in <code>public/fonts</code> — nothing loads from Google on your live site (the previews here load from a CDN in this config page only).</p>
+    <div class="row">${FONT_ROLES.map(fontSelect)}</div>
+    <div class="rounded p-2 mb-2" style="background:#fff;color:#111;border:1px solid #ddd">
+      <div style=${() => `font-family:${fontFam(state().fontHeading)};font-weight:700;font-size:1.35rem;line-height:1.15`}>The quick brown fox</div>
+      <div style=${() => `font-family:${fontFam(state().fontSubhead)};font-weight:600`}>jumps over the lazy dog</div>
+      <div class="small" style=${() => `font-family:${fontFam(state().fontBody)};margin:.25rem 0`}>Pack my box with five dozen liquor jugs. 0123456789</div>
+      <code style=${() => `font-family:${fontFam(state().fontMono)}`}>const x = 42; // il1 O0</code>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" disabled=${() => fontBusy()} onclick=${downloadFonts}>${() => (fontBusy() ? "Downloading…" : "Download selected fonts")}</button>
+    ${() => testResult(fontMsg())}
+  </div>`;
+
+const configView = () =>
+  html`${() => {
+      const u = upgrade();
+      if (!u || !u.current || u.current === "?") return "";
+      return html`<div class="card-x p-3 mb-3 d-flex justify-content-between align-items-center"><span class="small">create-volt <strong>${u.current}</strong> ${u.available ? html`<span class="accent">(${u.latest} available)</span>` : u.latest && u.latest !== "?" ? html`<span class="text-muted">(up to date)</span>` : ""}</span>${u.available ? html`<button class="btn btn-sm btn-primary" onclick=${doUpgrade}>Upgrade</button>` : ""}</div>`;
+    }}
+    ${() => (aiCredits()?.ok ? html`<div class="card-x p-3 mb-3"><div class="d-flex justify-content-between align-items-center mb-2"><strong>AI credits</strong><span class="small text-muted">${aiCredits().tier}${typeof aiCredits().creditBalanceUsd === "number" ? ` · $${aiCredits().creditBalanceUsd.toFixed(2)} left` : ""}</span></div>${aiCredits().payments ? html`<div class="d-flex gap-2 align-items-center"><span class="small text-muted me-1">Top up:</span>${[10, 25, 50].map((a) => html`<button class="btn btn-sm btn-outline-primary" onclick=${() => buyCredits(a)}>$${a}</button>`)}</div>` : html`<div class="small text-muted">Pay-as-you-go isn't enabled on the gateway yet — using the free tier.</div>`}</div>` : "")}
+    ${available.length ? html`<div class="card-x p-4 mb-3"><h2 class="h6 mb-3">Features</h2>${available.map(addonRow)}<p class="small text-muted mb-0">Enabling a feature wires its backend automatically. Frontend UI (login form, chat) is yours to build — or start from <code>--template guestbook</code>.</p></div>` : ""}
+    <div class="card-x p-4 mb-3">
+      <h2 class="h6 mb-3">Settings</h2>
+      ${field("PORT", "port", String(defaultPort))}
+      ${field("SITE_NAME", "siteName", "My Site")}
+      ${() => (hasContent() ? themePicker() : null)}
+      ${() => (hasContent() ? datesSettings() : null)}
+      ${() => (hasContent() ? fontsSettings() : null)}
+      ${() => (hasDb() ? dbSettings() : null)}
+      ${() => (hasMailer() ? html`${field("SMTP_URL (optional)", "smtpUrl", "smtp://user:pass@smtp.host:587")}${field("MAIL_FROM", "mailFrom", "App <no-reply@you.com>")}<div class="mb-2"><button class="btn btn-sm btn-outline-secondary" onclick=${testSmtp}>Test SMTP</button>${() => testResult(smtpTest())}</div>` : null)}
+      ${() => (hasMedia() ? mediaSettings() : null)}
+      ${() => (hasAdmin() ? adminSettings() : null)}
+      ${() => (hasMir() ? mirSettings() : null)}
+      ${aiSettings()}
+      ${siteUrlField()}
+      ${field("CONFIG_PORT (this wizard's own port)", "configPort", String(configDefaultPort))}
+    </div>
+    <div class="card-x p-4 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">.env</h2><div class="d-flex gap-2">${() => (hasContent() ? html`<button class="btn btn-outline-secondary btn-sm" onclick=${() => (view("manage"), loadItems())}>Manage content →</button>` : "")}<button class="btn btn-outline-secondary btn-sm" onclick=${() => (view("media"), loadMedia())}>Media →</button><button class="btn btn-primary btn-sm" onclick=${apply}>Apply & start →</button></div></div>
+      <pre class="mb-0" style="background:#0b0d11;border:1px solid #232a36;border-radius:10px;padding:12px;color:#cfe3ff;white-space:pre-wrap">${env}</pre>
+    </div>`;
+
+mount(
+  "#app",
+  () => (view() === "config" ? (wizard() ? wizardView() : configView()) : view() === "media" ? mediaView() : manageView()),
+  () => (status() ? html`<p class="small accent">${status}</p>` : null),
+);

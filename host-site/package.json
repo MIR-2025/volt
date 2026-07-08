@@ -1,0 +1,21 @@
+{
+  "name": "host-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Volt app — no-build, signals-based UI with Socket.io hot reload.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "pm2": "npx --yes pm2 start ecosystem.config.cjs",
+    "pm2:restart": "npx --yes pm2 restart ecosystem.config.cjs",
+    "pm2:stop": "npx --yes pm2 delete ecosystem.config.cjs",
+    "pm2:logs": "npx --yes pm2 logs",
+    "logs": "node server.js --logs"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3"
+  }
+}
