@@ -176,10 +176,10 @@ async function startApp() {
   }
 
   app.get("/", (_req, res, next) => {
-    // a themed home page (pages/index.md) takes over "/" — else the app's index.html
+    // a themed home takes over "/": pages/index.md by default, or — via HOMEPAGE (admin-settable) —
+    // a chosen static page (HOMEPAGE=<slug>) or the blog index (HOMEPAGE=posts). Else the app's index.html.
     if (enabled.has("pages") && fs.existsSync(path.join(__dirname, "pages", "index.md"))) return next();
-    // a posts-home site (HOMEPAGE=posts — e.g. a migrated WordPress blog) serves the post index at "/"
-    if (enabled.has("posts") && String(process.env.HOMEPAGE || "").toLowerCase() === "posts") return next();
+    if (String(process.env.HOMEPAGE || "").trim() && (enabled.has("posts") || enabled.has("pages"))) return next();
     res.sendFile(path.join(__dirname, "views", "index.html"));
   });
 

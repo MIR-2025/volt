@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.73.0] - 2026-07-08
+
+### Added
+- **Set the home page from the web admin** — the WordPress "Settings → Reading" equivalent. The admin
+  add-on gains a **Home page** card: choose what `/` shows — **Default landing**, **Your latest posts**
+  (blog index), or **a static page** — which writes `HOMEPAGE` to `.env` (takes effect on restart).
+  Especially for WordPress migrators: change post-migration what wp-volt inferred from `show_on_front`.
+- **`HOMEPAGE=<page-slug>`** promotes any page to the front page (a "static front page"), complementing
+  `HOMEPAGE=posts` (blog index, 0.70.0). The chosen page keeps its own URL too. Wired into every
+  template's `/` handler + the pages add-on.
+
 ## [0.72.0] - 2026-07-08
 
 ### Added
@@ -1024,6 +1035,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.73.0]: https://github.com/MIR-2025/volt/releases/tag/v0.73.0
 [0.72.0]: https://github.com/MIR-2025/volt/releases/tag/v0.72.0
 [0.71.0]: https://github.com/MIR-2025/volt/releases/tag/v0.71.0
 [0.70.0]: https://github.com/MIR-2025/volt/releases/tag/v0.70.0

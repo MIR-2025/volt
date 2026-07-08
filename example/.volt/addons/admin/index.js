@@ -300,6 +300,55 @@ export function register({ app, express, mailer, env, log }) {
     }
   });
 
+  // ── home page: choose what "/" shows (WordPress "Reading" settings) ─────────
+  // Writes HOMEPAGE to .env: posts (blog index) | <page-slug> (static front page) | "" (default
+  // landing). Routing reads it at startup, so a change needs a Restart (the card says so).
+  const envPath = path.join(process.cwd(), ".env");
+  const readEnv = () => {
+    try {
+      return fs.readFileSync(envPath, "utf8");
+    } catch {
+      return "";
+    }
+  };
+  const envValue = (env, key) => {
+    const m = env.match(new RegExp(`^\\s*${key}\\s*=(.*)$`, "m"));
+    return m ? m[1].trim() : "";
+  };
+  const listPages = () => {
+    try {
+      return fs
+        .readdirSync(path.join(process.cwd(), "pages"))
+        .filter((f) => f.endsWith(".md") && !f.startsWith("_") && f !== "404.md")
+        .map((f) => f.slice(0, -3))
+        .sort();
+    } catch {
+      return [];
+    }
+  };
+  const postsOn = () => envValue(readEnv(), "VOLT_ADDONS").split(",").map((s) => s.trim()).includes("posts");
+  app.get(base + "/api/home", guard, (_req, res) => res.json({ ok: true, home: envValue(readEnv(), "HOMEPAGE"), pages: listPages(), posts: postsOn() }));
+  app.post(base + "/api/home", guard, express.json(), (req, res) => {
+    let val = String(req.body?.home || "").trim();
+    if (val.toLowerCase() === "posts") {
+      if (!postsOn()) return res.status(400).json({ ok: false, error: "the posts add-on isn't enabled" });
+      val = "posts";
+    } else if (val) {
+      // a static front page — must be an existing page slug (whitelist guards the .env write)
+      if (!/^[a-z0-9-]+$/i.test(val) || !listPages().includes(val)) return res.status(400).json({ ok: false, error: "no such page" });
+    }
+    let env = readEnv();
+    const re = /^\s*HOMEPAGE\s*=.*$/m;
+    if (val) env = re.test(env) ? env.replace(re, `HOMEPAGE=${val}`) : env.replace(/\n*$/, env ? "\n" : "") + `HOMEPAGE=${val}\n`;
+    else env = env.replace(/^\s*HOMEPAGE\s*=.*$\n?/m, "");
+    try {
+      fs.writeFileSync(envPath, env);
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+    res.json({ ok: true, home: val });
+  });
+
   log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint)${allowIps.size ? `, IP allowlist (${allowIps.size})` : ""}, for ${adminEmail}`);
 }
 
@@ -376,6 +425,12 @@ const adminPage = (base, email) =>
   <button id="fontApply" class="btn btn-sm btn-outline-primary">Download &amp; apply</button>
   <span id="fontMsg" class="small ms-2 text-secondary"></span>
 </div></div>
+<div class="card mt-3"><div class="card-header">Home page</div><div class="card-body">
+  <p class="small text-secondary mb-2">What visitors see at <code>/</code> — like WordPress → Settings → Reading. Takes effect after a <b>Restart</b>.</p>
+  <select id="homeSel" class="form-select form-select-sm mb-2" style="max-width:440px"></select>
+  <button id="homeApply" class="btn btn-sm btn-outline-primary">Save home page</button>
+  <span id="homeMsg" class="small ms-2 text-secondary"></span>
+</div></div>
 <p class="small text-secondary mt-3">Content editing mounts here next — this is the secure shell.</p>
 <script>
 const B=${JSON.stringify(base)},grid=document.getElementById("grid");
@@ -420,5 +475,14 @@ document.getElementById("fontApply").onclick=async()=>{const roles={};document.q
 const m=document.getElementById("fontMsg");m.textContent="downloading...";
 try{const r=await (await fetch(B+"/api/fonts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({roles})})).json();m.textContent=r.ok?"applied - reload the site to see it":"error: "+r.error;}catch(e){m.textContent="error: "+e.message;}};
 loadFonts();
+async function loadHome(){const d=await (await fetch(B+"/api/home")).json();const sel=document.getElementById("homeSel");
+let o='<option value="">Default landing page</option>';
+if(d.posts)o+='<option value="posts"'+(d.home==="posts"?' selected':'')+'>Your latest posts (blog index)</option>';
+(d.pages||[]).forEach(p=>{o+='<option value="'+p+'"'+(d.home===p?' selected':'')+'>Static page: '+p+'</option>';});
+sel.innerHTML=o;}
+document.getElementById("homeApply").onclick=async()=>{const m=document.getElementById("homeMsg");m.textContent="saving…";
+try{const r=await (await fetch(B+"/api/home",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({home:document.getElementById("homeSel").value})})).json();
+m.textContent=r.ok?"saved — click Restart to apply":"error: "+r.error;}catch(e){m.textContent="error: "+e.message;}};
+loadHome();
 </script>`
   );

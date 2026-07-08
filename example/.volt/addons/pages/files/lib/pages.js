@@ -473,11 +473,15 @@ export async function pagesRouter({ dir }) {
       renderFile(file, path.basename(file, ".md"), res, req.path).catch(next);
     });
   }
-  // themed home: pages/index.md takes over "/" (the site's front page) when present
+  // themed home: `/` is `pages/index.md` by default, but HOMEPAGE=<page-slug> promotes any
+  // page to the front page (WordPress "static front page"); HOMEPAGE=posts is served by the
+  // posts add-on. Admin-settable — see the web admin's "Home page" card.
   r.get("/", async (_req, res, next) => {
-    const file = path.join(dir, "index.md");
+    const home = String(process.env.HOMEPAGE || "").trim();
+    const slug = home && home.toLowerCase() !== "posts" && isSafeSlug(home) ? home : "index";
+    const file = path.join(dir, slug + ".md");
     if (!fs.existsSync(file)) return next();
-    await renderFile(file, "Home", res, "/");
+    await renderFile(file, slug === "index" ? "Home" : slug, res, "/");
   });
   r.get("/:slug", async (req, res, next) => {
     const slug = req.params.slug;
