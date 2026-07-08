@@ -6,7 +6,7 @@ const NAME = process.env.SITE_NAME || "Northwind Co";
 const BRAND = process.env.SITE_LOGO ? `<img class="brand-logo" src="${process.env.SITE_LOGO}" alt="${NAME}" />` : NAME;
 const FAVICON = process.env.SITE_FAVICON
   ? `<link rel="icon" href="${process.env.SITE_FAVICON}"/>`
-  : `<link rel="icon" type="image/svg+xml" href="/favicon.svg"/><link rel="alternate icon" href="/favicon.webp"/>`;
+  : `<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>`;
 
 export const css = `
 :root{--bg:#ffffff;--surface:#ffffff;--ink:#141a1f;--muted:#5c6a76;--line:#e6eaef;--brand:#0e7c66;--brand-ink:#ffffff;--radius:16px;--brand-2:color-mix(in srgb,var(--brand),#000 16%);--soft:color-mix(in srgb,var(--ink) 4%,var(--bg))}

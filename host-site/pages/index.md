@@ -10,7 +10,7 @@ format: html
     <p class="lead">Fast, portable sites built on plain files you own — not trapped in a database. One command moves your whole WordPress site over. Host it here from free, or self-host anywhere.</p>
     <p><a class="btn" href="/signup">Start free</a> &nbsp; <a class="btn ghost" href="/pricing">See pricing</a></p>
   </div>
-  <div class="slot wide"><span>⚡ Your site, in markdown + git — no build, no lock-in</span></div>
+  <div class="slot wide"><span>Your site, in markdown + git — no build, no lock-in</span></div>
 </div></section>
 
 <section class="alt"><div class="wrap">
