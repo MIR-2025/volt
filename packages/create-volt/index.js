@@ -411,16 +411,31 @@ if (positionals[0] === "import-wxr" || positionals[0] === "import-wp" || positio
       cmd === "import-wp-db"
         ? `Usage: ${cyan("create-volt import-wp-db <mysql://user:pass@host/db>")}  (or set ${cyan("WP_DB_URL")})\n  WordPress DBs are usually localhost-only — run on the server or over an SSH tunnel.`
         : cmd === "import-wp"
-          ? `Usage: ${cyan("create-volt import-wp <https://site.com>")}  (published content, via the WordPress REST API)`
+          ? `Usage: ${cyan("create-volt import-wp <https://site.com> --user <wp-user>")}  (published content, via the WordPress REST API)\n  Requires auth: set ${cyan("WP_APP_PASSWORD")} to a WordPress Application Password (wp-admin → Users → Profile → Application Passwords).`
           : `Usage: ${cyan("create-volt import-wxr <export.xml>")}`,
     );
   if (cmd === "import-wxr" && !fs.existsSync(src)) die(`No such file: ${cyan(src)}`);
   if (cmd === "import-wp" && !/^https?:\/\//i.test(src)) die(`import-wp needs an https:// URL — got ${cyan(src)}`);
-  if (flags.has("--drafts") || flags.has("--prefix") || userArg)
-    console.warn(dim("note: --drafts/--user/--prefix aren't in wp-volt v1 (published content, default wp_ prefix). Ask in ~/.claude/COORDINATION.md if you need them."));
+  // wp-volt gates live-URL migration behind WordPress auth — proof you're authorized to migrate
+  // the site (it's not an open cloner). File/DB imports stay ungated (possession proves access).
+  if (cmd === "import-wp" && (!userArg || !process.env.WP_APP_PASSWORD))
+    die(
+      `import-wp requires WordPress credentials — proof you're authorized to migrate this site.\n` +
+        `  Pass ${cyan("--user <wp-username>")} and set ${cyan("WP_APP_PASSWORD")} to a WordPress Application\n` +
+        `  Password (wp-admin → Users → Profile → Application Passwords) — read from the env, never argv.\n` +
+        `  No wp-admin access? Use ${cyan("import-wxr <export.xml>")} or ${cyan("import-wp-db <mysql://…>")} instead.`,
+    );
 
   const out = outArg ? path.resolve(outArg) : process.cwd();
-  const migrateArgs = cmd === "import-wp-db" ? ["migrate", "--db", src, "--out", out] : ["migrate", src, "--out", out];
+  // pass through the flags wp-volt now understands (WP_APP_PASSWORD rides the env, never argv)
+  const passthrough = [];
+  if (cmd === "import-wp" && userArg) passthrough.push("--user", userArg);
+  if (prefixArg) passthrough.push("--prefix", prefixArg);
+  if (flags.has("--drafts")) passthrough.push("--drafts");
+  const migrateArgs =
+    cmd === "import-wp-db"
+      ? ["migrate", "--db", src, "--out", out, ...passthrough]
+      : ["migrate", src, "--out", out, ...passthrough];
 
   // wp-volt writes a full tree at --out INCLUDING a migrated .env. Snapshot the app's existing
   // .env so its config isn't clobbered; the migrated one is stashed as .env.migrated.

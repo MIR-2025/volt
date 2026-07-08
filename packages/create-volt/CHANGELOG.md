@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.71.0] - 2026-07-08
+
+### Changed
+- **`import-wp <url>` now requires WordPress auth** — matches `@voltjscom/wp-volt@0.1.3`'s
+  ownership gate: a live-URL migration must prove authorization (it's not an open site-cloner).
+  Pass `--user <wp-user>` and set `WP_APP_PASSWORD` (a WordPress Application Password, read from
+  the env — never argv). `--drafts` and `--prefix` are forwarded to wp-volt too. `import-wxr` /
+  `import-wp-db` are unaffected (possessing the file/DB proves access).
+
 ## [0.70.0] - 2026-07-08
 
 ### Added
@@ -1006,6 +1015,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.71.0]: https://github.com/MIR-2025/volt/releases/tag/v0.71.0
 [0.70.0]: https://github.com/MIR-2025/volt/releases/tag/v0.70.0
 [0.69.0]: https://github.com/MIR-2025/volt/releases/tag/v0.69.0
 [0.68.2]: https://github.com/MIR-2025/volt/releases/tag/v0.68.2
