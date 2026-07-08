@@ -331,12 +331,17 @@ on("POST", "/billing/upgrade", async (req, res) => {
   if (!user) return json(res, 401, { ok: false });
   const { plan } = await readBody(req);
   if (!PLANS[plan]) return json(res, 400, { ok: false, error: "unknown plan" });
-  // real Stripe Checkout when a secret key + a Pro price are configured
-  if (env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID && plan === "pro") {
+  // real Stripe Checkout — inline ad-hoc price straight from the plan config. No
+  // pre-created Price ID to manage: change PLANS.pro.price and new checkouts follow,
+  // while existing subscriptions keep the rate they signed up at.
+  if (env.STRIPE_SECRET_KEY && plan === "pro") {
     try {
       const body = new URLSearchParams({
         mode: "subscription",
-        "line_items[0][price]": env.STRIPE_PRICE_ID,
+        "line_items[0][price_data][currency]": env.STRIPE_CURRENCY || "usd",
+        "line_items[0][price_data][product_data][name]": "Volt Hosting — Pro",
+        "line_items[0][price_data][unit_amount]": String(Math.round((PLANS.pro.price || 12) * 100)),
+        "line_items[0][price_data][recurring][interval]": "month",
         "line_items[0][quantity]": "1",
         success_url: `${SITE_ORIGIN}/dashboard?upgraded=1`,
         cancel_url: `${SITE_ORIGIN}/pricing`,
@@ -355,8 +360,8 @@ on("POST", "/billing/upgrade", async (req, res) => {
       return json(res, 502, { ok: false, error: "stripe: " + e.message });
     }
   }
-  store.put("users", user.id, { plan }); // dev/self-host upgrade (no Stripe price configured)
-  json(res, 200, { ok: true, plan, note: "dev upgrade — set STRIPE_PRICE_ID for real checkout" });
+  store.put("users", user.id, { plan }); // dev/self-host upgrade (no Stripe key configured)
+  json(res, 200, { ok: true, plan, note: "dev upgrade — no Stripe key configured" });
 });
 
 // Stripe webhook — verify the signature, then flip the plan on a completed checkout.
