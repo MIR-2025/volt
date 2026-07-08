@@ -391,6 +391,50 @@ export function notFound(dir) {
   };
 }
 
+// Normalize a URL path for matching: strip query/hash, ensure a leading slash, drop the
+// trailing slash (so "/x" and "/x/" match — WordPress permalinks end in "/").
+export function normPath(p) {
+  p = String(p || "").split("?")[0].split("#")[0];
+  if (!p.startsWith("/")) p = "/" + p;
+  if (p.length > 1) p = p.replace(/\/+$/, "");
+  return p || "/";
+}
+
+// Map of exact `permalink:` → source .md for pages carrying that front-matter field (e.g.
+// from a WordPress migration) — so a migrated page keeps its ORIGINAL WP URL, SEO intact.
+function pagePermalinks(dir) {
+  const map = new Map();
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith(".md") || f.startsWith("_") || f === "404.md") continue;
+      const { meta } = parseFrontMatter(fs.readFileSync(path.join(dir, f), "utf8"));
+      if (meta.permalink) map.set(normPath(meta.permalink), path.join(dir, f));
+    }
+  } catch {
+    /* no pages dir yet */
+  }
+  return map;
+}
+
+// Parse a root _redirects file (Netlify-style: `<from> <to> [status]`, one per line) →
+// Map<fromPath, { dest, status }>. For legacy WP URLs with no page/post (feeds, archives).
+export function loadRedirects(root) {
+  const map = new Map();
+  try {
+    const file = path.join(root, "_redirects");
+    if (!fs.existsSync(file)) return map;
+    for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t || t.startsWith("#")) continue;
+      const [from, dest, status] = t.split(/\s+/);
+      if (from && dest) map.set(normPath(from), { dest, status: Number(status) || 301 });
+    }
+  } catch {
+    /* none */
+  }
+  return map;
+}
+
 export async function pagesRouter({ dir }) {
   const express = (await import("express")).default;
   const { marked } = await import("marked");
@@ -401,13 +445,34 @@ export async function pagesRouter({ dir }) {
   const renderFile = async (file, fallbackTitle, res, activePath = "/") => {
     const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
     const content = meta.format === "html" ? body : marked.parse(body);
-    const m = { ...meta, title: meta.title || fallbackTitle, canonical: meta.canonical || absUrl(activePath) };
+    // a page's own permalink is its canonical URL unless one is set explicitly
+    const canonical = meta.canonical || (meta.permalink ? absUrl(normPath(meta.permalink)) : absUrl(activePath));
+    const m = { ...meta, title: meta.title || fallbackTitle, canonical };
     const { layout } = await getTheme();
     const nav = loadNav(dir, activePath);
     res.type("html").send(injectHot(injectSpa(injectHero(injectScheme(layout({ title: m.title, head: metaHead(m), content, meta: m, nav }), process.env), process.env), process.env)));
   };
+  const permalinks = pagePermalinks(dir);
+  const redirects = loadRedirects(path.join(dir, "..")); // _redirects sits at the app root
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS + "\n" + fontsCss(process.env)));
+  // 301 legacy WordPress URLs (feeds, archives, ?p= links) from the root _redirects file
+  if (redirects.size) {
+    r.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      const hit = redirects.get(normPath(req.path));
+      return hit ? res.redirect(hit.status, hit.dest) : next();
+    });
+  }
+  // serve pages at their exact `permalink:` path (migrated WP URLs survive, incl. nesting)
+  if (permalinks.size) {
+    r.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      const file = permalinks.get(normPath(req.path));
+      if (!file) return next();
+      renderFile(file, path.basename(file, ".md"), res, req.path).catch(next);
+    });
+  }
   // themed home: pages/index.md takes over "/" (the site's front page) when present
   r.get("/", async (_req, res, next) => {
     const file = path.join(dir, "index.md");

@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.69.0] - 2026-07-08
+
+### Added
+- **URL preservation for migrations — `permalink:` routing + `_redirects`.** A page or post
+  carrying a `permalink:` front-matter field is served at that EXACT path (multi-segment,
+  trailing-slash tolerant), overriding the default `/<slug>` / `/blog/<slug>`, and emits it as
+  `<link rel="canonical">`. A root `_redirects` file (Netlify-style `<from> <to> [status]`,
+  default 301) redirects legacy URLs that have no page/post (feeds, archives). So a WordPress
+  site migrated with `@voltjscom/wp-volt` keeps its original URLs — SEO + inbound links
+  survive, no 301 dance.
+
 ## [0.68.2] - 2026-07-08
 
 ### Changed
@@ -985,6 +996,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.69.0]: https://github.com/MIR-2025/volt/releases/tag/v0.69.0
 [0.68.2]: https://github.com/MIR-2025/volt/releases/tag/v0.68.2
 [0.68.1]: https://github.com/MIR-2025/volt/releases/tag/v0.68.1
 [0.68.0]: https://github.com/MIR-2025/volt/releases/tag/v0.68.0
