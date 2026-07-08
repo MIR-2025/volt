@@ -1,0 +1,11 @@
+{
+  "name": "volt-control",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Control plane for hosted Volt — accounts, site provisioning, plans/quotas, custom-domain verification (writes the DOMAINS_MAP the static host reads), and the publish trigger. MVP: JSON store, Stripe/email stubbed. Zero runtime deps.",
+  "bin": { "volt-control": "server.js" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": {},
+  "engines": { "node": ">=18" }
+}
