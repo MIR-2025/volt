@@ -437,7 +437,7 @@ All notable changes to `create-volt` are documented here. The format follows
   a content dashboard now, not just settings.
 
 ### Fixed
-- **Garbled characters in startup logs.** The `⚡`/`→`/`…`/`—` in server logs and
+- **Garbled characters in startup logs.** The `→`/`…`/`—` in server logs and
   source comments had been byte-corrupted (mojibake) by an earlier tooling pass.
   Console output is now clean ASCII ("Volt at http://…", "Volt setup at …").
 
@@ -560,10 +560,10 @@ All notable changes to `create-volt` are documented here. The format follows
 ## [0.32.0] - 2026-06-29
 
 ### Changed
-- **Brand refresh:** the ⚡ glyph is replaced with the Volt logo across the demo
+- **Brand refresh:** the lightning glyph is replaced with the Volt logo across the demo
   app, the setup wizard, and Studio; scaffolded apps now ship `logo.webp` +
   `favicon.webp` and link a favicon (so apps get a real tab icon). README titles
-  keep the ⚡.
+  keep the lightning bolt.
 
 ## [0.31.0] - 2026-06-29
 
