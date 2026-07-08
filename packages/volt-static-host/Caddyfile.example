@@ -35,14 +35,14 @@ host.voltjs.com {
 }
 
 # ── Tenant default URLs: ONE wildcard cert (DNS-01) covers every tenant ───────
-# acme.voltsites.app, jane.voltsites.app, … all match here. No per-tenant config.
-*.voltsites.app {
+# acme.vsites.app, jane.vsites.app, … all match here. No per-tenant config.
+*.vsites.app {
 	encode zstd gzip
 	tls {
 		dns digitalocean {env.DO_AUTH_TOKEN}
 	}
 	# reverse_proxy forwards the ORIGINAL Host header by default — that's what
-	# volt-static-host reads to resolve the tenant (BASE_DOMAIN=voltsites.app).
+	# volt-static-host reads to resolve the tenant (BASE_DOMAIN=vsites.app).
 	reverse_proxy 127.0.0.1:26708
 }
 

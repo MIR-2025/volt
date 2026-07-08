@@ -14,7 +14,7 @@ import { resolveSite, safeJoin, contentType, isHashed } from "./lib/serve.js";
 const env = process.env;
 const PORT = Number(env.PORT || 26708);
 const SITES_ROOT = path.resolve(env.SITES_ROOT || "./sites");
-const BASE_DOMAIN = String(env.BASE_DOMAIN || "").toLowerCase(); // e.g. volthost.com
+const BASE_DOMAIN = String(env.BASE_DOMAIN || "").toLowerCase(); // e.g. vsites.app
 
 // custom-domain → siteId map, hot-reloadable on SIGHUP (add a domain, no restart)
 let DOMAINS = {};

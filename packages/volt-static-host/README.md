@@ -15,8 +15,8 @@ a single droplet. Core Volt is untouched.
 
 | Host | Resolves to |
 |---|---|
-| `acme-blog.volthost.com` (`<tenant>.<BASE_DOMAIN>`) | site `acme-blog` |
-| `volthost.com` (apex) | nothing (`404` — the marketing site lives elsewhere) |
+| `acme-blog.vsites.app` (`<tenant>.<BASE_DOMAIN>`) | site `acme-blog` |
+| `vsites.app` (apex) | nothing (`404` — the marketing site lives elsewhere) |
 | `www.acme.com` (custom domain) | `DOMAINS_MAP["www.acme.com"]` |
 
 Custom domains come from a JSON map (`DOMAINS_MAP`), hot-reloadable with
@@ -54,7 +54,7 @@ This process speaks plain HTTP on purpose — it's an origin behind a reverse pr
 `Caddyfile.example` fronts this service (and the control plane) and does all the
 TLS in one binary — the wildcard cert for tenant subdomains *and* on-demand certs
 for arbitrary custom domains (what nginx makes painful). Two DNS records feed it:
-`*.voltsites.app A → box` (all tenants) and each customer's `CNAME → cname.voltsites.app`.
+`*.vsites.app A → box` (all tenants) and each customer's `CNAME → cname.vsites.app`.
 
 The clean part: **this service is also the on-demand-TLS gate.** Caddy asks
 `GET /_tls-allow?domain=<host>` before issuing a cert, and we answer `200` only
@@ -65,7 +65,7 @@ limits). Add a verified domain to `DOMAINS_MAP`, `kill -HUP` the process, and th
 next request mints its cert automatically — no proxy restart.
 
 ```
-GET /_tls-allow?domain=acme.voltsites.app   → 200   (known tenant, site exists)
+GET /_tls-allow?domain=acme.vsites.app   → 200   (known tenant, site exists)
 GET /_tls-allow?domain=www.acme.com         → 200   (verified custom domain)
 GET /_tls-allow?domain=random.evil.com      → 404   (Caddy refuses the cert)
 ```
