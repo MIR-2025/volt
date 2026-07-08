@@ -4,6 +4,17 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.68.1] - 2026-07-08
+
+### Fixed
+- **Scaffolds now declare their enabled add-ons' npm deps.** A generated app's
+  `package.json` was missing deps its enabled add-ons import (e.g. `pages`/`posts` need
+  `marked`, `media` needs `busboy`) — previously they only got installed if you opened the
+  5050 setup wizard. So an app scaffolded with `--skip-install`, or configured via `.env`
+  (`VOLT_ADDONS=…`) and deployed straight to a server, crashed with `Cannot find package
+  'marked'`. The scaffolder now merges each enabled add-on's `install` deps into
+  `package.json`, making it the complete source of truth regardless of the wizard.
+
 ## [0.68.0] - 2026-07-07
 
 ### Changed
@@ -967,6 +978,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.68.1]: https://github.com/MIR-2025/volt/releases/tag/v0.68.1
 [0.68.0]: https://github.com/MIR-2025/volt/releases/tag/v0.68.0
 [0.67.0]: https://github.com/MIR-2025/volt/releases/tag/v0.67.0
 [0.66.0]: https://github.com/MIR-2025/volt/releases/tag/v0.66.0

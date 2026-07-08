@@ -570,10 +570,28 @@ if (fs.existsSync(path.join(targetDir, "setup"))) {
   fs.writeFileSync(path.join(targetDir, ".volt", "version"), pkg.version + "\n"); // for the wizard's upgrade check
 }
 
-// --- stamp the project name into package.json ---
+// --- stamp the project name into package.json + declare enabled add-ons' deps ---
 const appPkgPath = path.join(targetDir, "package.json");
 const appPkg = JSON.parse(fs.readFileSync(appPkgPath, "utf8"));
 appPkg.name = appName;
+// Merge the npm deps each ENABLED add-on needs (its meta.json "install" list) into
+// dependencies, so the app declares everything it imports even when scaffolded with
+// --skip-install or deployed without ever opening the setup wizard.
+appPkg.dependencies = appPkg.dependencies || {};
+const ADDON_DEP_VERSIONS = { express: "^4.22.2", "socket.io": "^4.8.3", marked: "^12.0.0", busboy: "^1.6.0" };
+try {
+  const envTxt = fs.existsSync(path.join(targetDir, ".env")) ? fs.readFileSync(path.join(targetDir, ".env"), "utf8") : "";
+  const enabled = (envTxt.match(/^\s*VOLT_ADDONS\s*=(.*)$/m)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  for (const name of enabled) {
+    const metaPath = path.join(targetDir, ".volt", "addons", name, "meta.json");
+    if (!fs.existsSync(metaPath)) continue;
+    for (const dep of JSON.parse(fs.readFileSync(metaPath, "utf8")).install || []) {
+      if (!appPkg.dependencies[dep]) appPkg.dependencies[dep] = ADDON_DEP_VERSIONS[dep] || "latest";
+    }
+  }
+} catch {
+  /* non-fatal — the setup wizard still installs add-on deps on enable */
+}
 fs.writeFileSync(appPkgPath, JSON.stringify(appPkg, null, 2) + "\n");
 
 // --- stamp the chosen dev port into server.js + README ---
