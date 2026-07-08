@@ -10,7 +10,8 @@ import { parseFrontMatter, isSafeSlug, metaHead, themeResolver, injectHot, loadN
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-const postLink = (slug) => "/blog/" + slug;
+// a post's URL: its exact `permalink:` (e.g. a migrated WordPress path) when set, else /blog/<slug>
+const postLink = (p) => (p.meta && p.meta.permalink ? p.meta.permalink : "/blog/" + p.slug);
 const catLink = (c) => `<a href="/category/${slugify(c)}">${esc(c)}</a>`;
 const tagLink = (t) => `<a class="post-tag" href="/tag/${slugify(t)}">${esc(t)}</a>`;
 // tags accept a YAML array ([a, b]) or a comma-string ("a, b"); category accepts an array
@@ -80,7 +81,7 @@ function renderList(posts, { heading, page = 1, totalPages = 1, baseUrl }) {
     ? posts
         .map(
           (p) => `<li class="post-item" style="margin:0 0 1.5rem">
-    <a href="${postLink(p.slug)}" style="font-size:1.2rem;font-weight:600">${esc(p.meta.title || p.slug)}</a>
+    <a href="${postLink(p)}" style="font-size:1.2rem;font-weight:600">${esc(p.meta.title || p.slug)}</a>
     <div class="post-meta" style="opacity:.7;font-size:.9rem">${fmtDate(p.date)}${catsOf(p.meta).length ? " &middot; " + catLinks(p.meta) : ""}</div>
     <p style="margin:.3rem 0 0">${esc(excerpt(p))}</p>
   </li>`,
@@ -113,8 +114,8 @@ function feedXml(posts) {
     .map(
       (p) => `  <item>
     <title>${esc(p.meta.title || p.slug)}</title>
-    <link>${esc(base + postLink(p.slug))}</link>
-    <guid isPermaLink="${base ? "true" : "false"}">${esc(base + postLink(p.slug))}</guid>${p.date && !isNaN(new Date(p.date).getTime()) ? `\n    <pubDate>${new Date(p.date).toUTCString()}</pubDate>` : ""}
+    <link>${esc(base + postLink(p))}</link>
+    <guid isPermaLink="${base ? "true" : "false"}">${esc(base + postLink(p))}</guid>${p.date && !isNaN(new Date(p.date).getTime()) ? `\n    <pubDate>${new Date(p.date).toUTCString()}</pubDate>` : ""}
     <description>${esc(excerpt(p))}</description>
   </item>`,
     )
@@ -166,14 +167,28 @@ export async function postsRouter({ dir, themeDir }) {
     });
   }
 
-  r.get("/blog", async (req, res) => {
+  // the blog index (post list + pagination), served at /blog and — when HOMEPAGE=posts — at /
+  const blogIndex = async (req, res, baseUrl) => {
     const all = readPosts(dir);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const totalPages = Math.max(1, Math.ceil(all.length / PER));
     const slice = all.slice((page - 1) * PER, page * PER);
     const heading = process.env.SITE_NAME || "Blog";
-    res.type("html").send(await render({ title: heading, path: req.path, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl: "/blog" }) }));
-  });
+    res.type("html").send(await render({ title: heading, path: req.path, meta: { description: heading + " — latest posts" }, content: renderList(slice, { heading, page, totalPages, baseUrl }) }));
+  };
+  r.get("/blog", (req, res) => blogIndex(req, res, "/blog"));
+
+  // posts-home: a WordPress site whose FRONT PAGE is the blog keeps "/" as its home URL
+  // (true preservation, not a /→/blog redirect). Set HOMEPAGE=posts. A pages/index.md, if
+  // present, still wins at "/" (the pages add-on registers first), so this only fires when
+  // there's no explicit front page — exactly the posts-home case.
+  if (String(process.env.HOMEPAGE || "").toLowerCase() === "posts") {
+    r.get("/", (req, res, next) => {
+      // an explicit front page (pages/index.md) still wins over the post index
+      if (fs.existsSync(path.join(themeDir || dir, "index.md"))) return next();
+      return blogIndex(req, res, "/");
+    });
+  }
 
   r.get("/blog/:slug", async (req, res, next) => {
     if (!isSafeSlug(req.params.slug)) return next();

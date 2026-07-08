@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.70.0] - 2026-07-08
+
+### Added
+- **Posts-home + permalink-aware internal links — completes WordPress URL preservation.**
+  - **`HOMEPAGE=posts`** mounts the blog index at `/` (true preservation, not a `/`→`/blog`
+    redirect), so a WordPress site whose front page IS the blog keeps `/` as its home URL. An
+    explicit `pages/index.md` still wins. `@voltjscom/wp-volt` sets this for posts-home migrations.
+  - The **blog index and RSS feed now link each post at its `permalink:`** when present, so a
+    migrated site links internally to the original WordPress URLs, not the `/blog/<slug>` alias.
+
 ## [0.69.0] - 2026-07-08
 
 ### Added
@@ -996,6 +1006,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.70.0]: https://github.com/MIR-2025/volt/releases/tag/v0.70.0
 [0.69.0]: https://github.com/MIR-2025/volt/releases/tag/v0.69.0
 [0.68.2]: https://github.com/MIR-2025/volt/releases/tag/v0.68.2
 [0.68.1]: https://github.com/MIR-2025/volt/releases/tag/v0.68.1
