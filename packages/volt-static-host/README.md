@@ -46,9 +46,29 @@ cp .env.example .env    # set SITES_ROOT + BASE_DOMAIN
 npm start               # node 18+, no install needed
 ```
 
-Behind nginx/Caddy or a CDN, point the origin at this port. For TLS at scale,
-terminate at the CDN / a Caddy on-demand-TLS layer — this process speaks plain
-HTTP on purpose (it's an origin).
+This process speaks plain HTTP on purpose — it's an origin behind a reverse proxy
+(or CDN) that terminates TLS.
+
+## Reverse proxy + TLS (`Caddyfile.example`)
+
+`Caddyfile.example` fronts this service (and the control plane) and does all the
+TLS in one binary — the wildcard cert for tenant subdomains *and* on-demand certs
+for arbitrary custom domains (what nginx makes painful). Two DNS records feed it:
+`*.voltsites.app A → box` (all tenants) and each customer's `CNAME → cname.voltsites.app`.
+
+The clean part: **this service is also the on-demand-TLS gate.** Caddy asks
+`GET /_tls-allow?domain=<host>` before issuing a cert, and we answer `200` only
+for a host we actually serve — a known tenant subdomain, or a verified custom
+domain in `DOMAINS_MAP` whose site directory exists. So a random domain pointed
+at the box can't trigger cert issuance (which would burn Let's Encrypt rate
+limits). Add a verified domain to `DOMAINS_MAP`, `kill -HUP` the process, and the
+next request mints its cert automatically — no proxy restart.
+
+```
+GET /_tls-allow?domain=acme.voltsites.app   → 200   (known tenant, site exists)
+GET /_tls-allow?domain=www.acme.com         → 200   (verified custom domain)
+GET /_tls-allow?domain=random.evil.com      → 404   (Caddy refuses the cert)
+```
 
 ## How content gets here
 

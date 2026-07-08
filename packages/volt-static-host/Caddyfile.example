@@ -1,0 +1,66 @@
+# Caddyfile.example — reverse proxy + TLS for hosted Volt.
+#
+# Fronts:
+#   - the control plane / dashboard        (127.0.0.1:8080)
+#   - volt-static-host (all tenant serving) (127.0.0.1:26708)
+#
+# Caddy handles ALL of it in one binary: automatic HTTPS, a wildcard cert for
+# tenant subdomains, and on-demand certs for arbitrary custom domains — the thing
+# nginx makes painful. Build Caddy with the DigitalOcean DNS module so it can get
+# the wildcard cert via DNS-01:
+#
+#   xcaddy build --with github.com/caddy-dns/digitalocean
+#   export DO_AUTH_TOKEN=dop_v1_…      # a DO API token with DNS write
+#
+# Then: caddy run --config ./Caddyfile
+
+{
+	email admin@voltjs.com
+
+	# Before issuing a cert for a custom domain, Caddy asks this endpoint
+	# "?domain=<host>". volt-static-host answers 200 only for hostnames it actually
+	# serves (a known tenant, or a verified custom domain in DOMAINS_MAP), so a
+	# random domain pointed at us can't trigger issuance and blow LE rate limits.
+	on_demand_tls {
+		ask http://127.0.0.1:26708/_tls-allow
+		interval 2m
+		burst 5
+	}
+}
+
+# ── Platform: dashboard / API / marketing ────────────────────────────────────
+host.voltjs.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}
+
+# ── Tenant default URLs: ONE wildcard cert (DNS-01) covers every tenant ───────
+# acme.voltsites.app, jane.voltsites.app, … all match here. No per-tenant config.
+*.voltsites.app {
+	encode zstd gzip
+	tls {
+		dns digitalocean {env.DO_AUTH_TOKEN}
+	}
+	# reverse_proxy forwards the ORIGINAL Host header by default — that's what
+	# volt-static-host reads to resolve the tenant (BASE_DOMAIN=voltsites.app).
+	reverse_proxy 127.0.0.1:26708
+}
+
+# ── Custom domains: on-demand TLS, gated by the ask endpoint above ────────────
+# Catch-all for any hostname not matched above. Caddy fetches + caches a cert on
+# first request IF /_tls-allow approves it. volt-static-host resolves the tenant
+# from DOMAINS_MAP. Add a domain there (after ownership verification) and it just
+# works on the next hit — no restart, no config change here.
+https:// {
+	encode zstd gzip
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:26708
+}
+
+# ── (later) dynamic layer ─────────────────────────────────────────────────────
+# Route the few dynamic paths (forms, admin, API) to the scale-to-zero upstream
+# instead of the static host, e.g. inside the tenant blocks:
+#   @dynamic path /api/* /_admin/*
+#   reverse_proxy @dynamic 127.0.0.1:9000

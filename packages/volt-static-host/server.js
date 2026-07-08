@@ -61,6 +61,15 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.url === "/_health") return plain(200, "ok");
+    // Caddy on-demand-TLS gate: Caddy asks "?domain=<host>" before issuing a cert.
+    // Answer 200 only for a host we actually serve, so a random domain pointed at us
+    // can't trigger cert issuance (and exhaust Let's Encrypt rate limits).
+    if (req.url.startsWith("/_tls-allow")) {
+      const domain = (new URL(req.url, "http://x").searchParams.get("domain") || "").toLowerCase();
+      const sid = resolveSite(domain, { base: BASE_DOMAIN, domains: DOMAINS });
+      const okHost = sid && (await statOrNull(path.join(SITES_ROOT, sid)))?.isDirectory();
+      return plain(okHost ? 200 : 404, okHost ? "ok" : "unknown host");
+    }
     if (req.method !== "GET" && !head) return plain(405, "method not allowed", { Allow: "GET, HEAD" });
 
     const siteId = resolveSite(req.headers.host, { base: BASE_DOMAIN, domains: DOMAINS });
