@@ -83,6 +83,29 @@ function writeDomainsMap() {
   return Object.keys(map).length;
 }
 
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const confirmShell = (body) =>
+  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm sign-in — Volt Hosting</title>` +
+  `<style>body{font:16px/1.6 system-ui,-apple-system,sans-serif;max-width:440px;margin:12vh auto;padding:0 22px;color:#0f172a}` +
+  `.btn{display:inline-block;background:#111;color:#fff;border:0;padding:.85rem 1.5rem;border-radius:10px;font-size:1rem;cursor:pointer;text-decoration:none}` +
+  `.btn[disabled]{opacity:.5}.warn{background:#fef3c7;border:1px solid #f59e0b;padding:.7rem .9rem;border-radius:8px;font-size:.92rem;color:#92400e}` +
+  `.ok{color:#15803d;font-size:.92rem}a{color:#2563eb}</style><body>${body}</body>`;
+// The magic-link click lands here — it does NOT sign you in. It shows a device
+// check + a "Continue" button; the session is only minted at /auth/confirm.
+function confirmBody(user, lt, sameBrowser) {
+  return (
+    `<h1>Confirm sign-in</h1><p>Sign in to Volt Hosting as <b>${esc(user?.email || "")}</b>?</p>` +
+    (sameBrowser
+      ? `<p class="ok">✓ Same browser you requested the link from.</p>`
+      : `<p class="warn">⚠ This link was requested in a different browser or device. For your security, open it in the browser you started the sign-in from.</p>`) +
+    `<p style="margin-top:1.6rem"><button class="btn" id="go">Continue to login</button></p>` +
+    `<p id="msg" style="color:#b91c1c;min-height:1.2em"></p>` +
+    `<script>document.getElementById('go').onclick=async function(){this.disabled=true;` +
+    `var r=await fetch('/api/auth/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:${JSON.stringify(lt)}})});` +
+    `var d=await r.json();if(d.ok){location.href=d.redirect||'/dashboard';}else{document.getElementById('msg').textContent=d.error||'Could not sign in';this.disabled=false;}};</script>`
+  );
+}
+
 // ── router ───────────────────────────────────────────────────────────────────
 const routes = [];
 const on = (m, p, h) => routes.push({ m, parts: p.split("/"), h });
@@ -111,25 +134,42 @@ on("POST", "/auth/request", async (req, res) => {
   let user = store.find("users", (u) => u.email === e)[0];
   if (!user) user = store.put("users", token(8), { email: e, plan: "free", createdAt: nowISO() });
   const lt = token(24);
-  store.put("logintokens", lt, { userId: user.id, exp: Date.now() + 15 * 60 * 1000 });
+  const dn = token(18); // device nonce — binds the link to THIS browser (enforced at /auth/confirm)
+  store.put("logintokens", lt, { userId: user.id, exp: Date.now() + 15 * 60 * 1000, dn, ua: String(req.headers["user-agent"] || "").slice(0, 200) });
   const link = `${BASE_URL}/auth/verify?token=${lt}`;
   await sendMagicLink(e, link);
-  json(res, 200, { ok: true, sent: true, devLink: env.NODE_ENV === "production" ? undefined : link });
+  json(res, 200, { ok: true, sent: true, devLink: env.NODE_ENV === "production" ? undefined : link }, {
+    "Set-Cookie": `volt_dev=${dn}; HttpOnly; Path=/; SameSite=Lax; Max-Age=900${env.NODE_ENV === "production" ? "; Secure" : ""}`,
+  });
 });
 
 on("GET", "/auth/verify", (req, res) => {
+  // The magic-link click LANDS here but does not sign in — it renders a device
+  // check + a "Continue to login" button. The session is minted at /auth/confirm.
   const lt = new URL(req.url, "http://x").searchParams.get("token");
   const rec = lt && store.get("logintokens", lt);
-  if (!rec || rec.exp < Date.now()) return json(res, 400, { ok: false, error: "invalid or expired link" });
+  const html = (body) => { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(confirmShell(body)); };
+  if (!rec || rec.exp < Date.now()) return html(`<h1>Link expired</h1><p>This sign-in link is invalid or has expired. <a href="${SITE_ORIGIN}/signup">Request a new one</a>.</p>`);
+  const user = store.get("users", rec.userId);
+  const sameBrowser = !!cookies(req).volt_dev && cookies(req).volt_dev === rec.dn;
+  html(confirmBody(user, lt, sameBrowser));
+});
+
+// The secondary step: only here is the session created, and only if the device
+// nonce matches (same browser that requested the link) — enforced, not advisory.
+on("POST", "/auth/confirm", async (req, res) => {
+  const { token: lt } = await readBody(req);
+  const rec = lt && store.get("logintokens", lt);
+  if (!rec || rec.exp < Date.now()) return json(res, 400, { ok: false, error: "link expired — request a new one" });
+  if (!cookies(req).volt_dev || cookies(req).volt_dev !== rec.dn) {
+    return json(res, 403, { ok: false, error: "Open the link in the same browser you requested it from." });
+  }
   store.del("logintokens", lt);
   const sid = token(24);
-  store.put("sessions", sid, { userId: rec.userId, createdAt: nowISO() });
-  // browser flow: set the session cookie and redirect into the dashboard
-  res.writeHead(302, {
+  store.put("sessions", sid, { userId: rec.userId, createdAt: nowISO(), ua: rec.ua });
+  json(res, 200, { ok: true, redirect: `${SITE_ORIGIN}/dashboard` }, {
     "Set-Cookie": `volt_sess=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${env.NODE_ENV === "production" ? "; Secure" : ""}`,
-    Location: `${SITE_ORIGIN}/dashboard`,
   });
-  res.end();
 });
 
 on("POST", "/auth/logout", (req, res) => {
