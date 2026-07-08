@@ -4,6 +4,13 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.68.2] - 2026-07-08
+
+### Changed
+- **Removed the lightning-bolt glyph from create-volt's branding** — the CLI banners, the
+  scaffold READMEs, and the package README — per a brand decision to drop lightning
+  imagery. No functional change.
+
 ## [0.68.1] - 2026-07-08
 
 ### Fixed
@@ -978,6 +985,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.68.2]: https://github.com/MIR-2025/volt/releases/tag/v0.68.2
 [0.68.1]: https://github.com/MIR-2025/volt/releases/tag/v0.68.1
 [0.68.0]: https://github.com/MIR-2025/volt/releases/tag/v0.68.0
 [0.67.0]: https://github.com/MIR-2025/volt/releases/tag/v0.67.0

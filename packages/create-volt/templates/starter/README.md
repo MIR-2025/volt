@@ -1,4 +1,4 @@
-# ⚡ Volt starter
+# Volt starter
 
 A complete, **no-build** app shell — auth, realtime chat, a per-user notes CRUD,
 and a database, all wired and turned on out of the box. Edit files and save;

@@ -30,7 +30,7 @@ function die(msg) {
 }
 
 const HELP = `
-${bold("⚡ create-volt")} — scaffold a new Volt app
+${bold("create-volt")} — scaffold a new Volt app
 
 ${bold("Usage")}
   npm create volt@latest <project-directory> [options]
@@ -271,7 +271,7 @@ if (positionals[0] === "update") {
   fs.mkdirSync(path.join(cwd, ".volt"), { recursive: true });
   fs.writeFileSync(path.join(cwd, ".volt", "version"), pkg.version + "\n");
 
-  // Self-heal: older scaffolds have byte-corrupted ⚡/→/…/— in server.js's startup
+  // Self-heal: older scaffolds have byte-corrupted /→/…/— in server.js's startup
   // logs (a tooling bug). Repair is SURGICAL — it only swaps the corrupted byte-runs
   // and rewrites the brand console.log lines to plain ASCII; no logic is touched.
   const srv = path.join(cwd, "server.js");
@@ -520,7 +520,7 @@ if (fs.existsSync(targetDir)) {
 
 // --- dry run: print the plan and exit without writing anything ---
 if (dryRun) {
-  console.log(`\n${bold("⚡ Dry run")} — would create a ${cyan(templateName)} Volt app in ${cyan(targetDir)}\n`);
+  console.log(`\n${bold("Dry run")} — would create a ${cyan(templateName)} Volt app in ${cyan(targetDir)}\n`);
   console.log("Would write:");
   for (const f of listTemplateFiles(templateDir).sort()) {
     // the shipped "gitignore" is renamed to ".gitignore" on scaffold
@@ -536,7 +536,7 @@ if (dryRun) {
 
 if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
-console.log(`\n${bold("⚡ Creating a new Volt app in")} ${cyan(targetDir)}\n`);
+console.log(`\n${bold("Creating a new Volt app in")} ${cyan(targetDir)}\n`);
 
 // --- copy the template tree (recursive, cross-platform) ---
 fs.cpSync(templateDir, targetDir, { recursive: true });

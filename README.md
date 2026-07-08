@@ -1,4 +1,4 @@
-# ⚡ Volt
+# Volt
 
 A tiny, **no-build**, signals-based UI library with **Socket.io hot reload** —
 and a `create-react-app`-style scaffolder to start a new app in one command.

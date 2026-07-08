@@ -1,4 +1,4 @@
-# ⚡ Volt app
+# Volt app
 
 A tiny, **no-build**, signals-based UI app with **Socket.io hot reload**.
 Not React: no JSX, no virtual DOM, no re-render-the-world. State lives in
