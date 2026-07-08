@@ -28,7 +28,7 @@ format: html
   <h2>Start free. Upgrade when you grow.</h2>
   <div class="grid c3">
     <div class="card"><h3>Free</h3><p class="price">$0</p><p>3 sites, 1&nbsp;GB storage, a <b>yourname.vsites.app</b> address. Everything you need to launch.</p><p><a class="btn" href="/signup">Get started</a></p></div>
-    <div class="card"><h3>Pro</h3><p class="price">$12<span style="font-size:1rem">/mo</span></p><p>25 sites, 10&nbsp;GB, custom domains, and video. For when it's real.</p><p><a class="btn ghost" href="/pricing">Compare plans</a></p></div>
+    <div class="card"><h3>Pro</h3><p class="price">$12<span style="font-size:1rem">/mo</span></p><p>10 sites, 10&nbsp;GB, custom domains, and video. For when it's real.</p><p><a class="btn ghost" href="/pricing">Compare plans</a></p></div>
     <div class="card"><h3>Self-host</h3><p class="price">Free</p><p>It's open. Run Volt on your own box, forever, with the same one-command tools.</p><p><a class="btn ghost" href="https://voltjs.com" target="_blank" rel="noopener">voltjs.com →</a></p></div>
   </div>
 </div></section>

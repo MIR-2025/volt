@@ -4,7 +4,7 @@
 
 export const PLANS = {
   free: { name: "Free", price: 0, sites: 3, storageMB: 1024, bandwidthGB: 20, customDomains: 0, video: false },
-  pro: { name: "Pro", price: 12, sites: 25, storageMB: 10240, bandwidthGB: 500, customDomains: 10, video: true },
+  pro: { name: "Pro", price: 12, sites: 10, storageMB: 10240, bandwidthGB: 500, customDomains: 10, video: true },
 };
 
 export const planOf = (user) => PLANS[user?.plan] || PLANS.free;

@@ -22,7 +22,7 @@ format: html
     <div class="card">
       <h3>Pro</h3><p class="price">$12<span style="font-size:1rem">/mo</span></p>
       <ul>
-        <li>25 sites</li>
+        <li>10 sites</li>
         <li>10&nbsp;GB storage</li>
         <li><b>Custom domains</b></li>
         <li>Video hosting</li>
