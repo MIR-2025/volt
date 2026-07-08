@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.72.0] - 2026-07-08
+
+### Added
+- **`import-wp` accepts the domain-control challenge (`--verify <token>`)** as an alternative to
+  `--user` + `WP_APP_PASSWORD`, in lockstep with `@voltjscom/wp-volt@0.1.4`. A live-URL migration
+  now proves authorization by EITHER (A) a WordPress Application Password OR (B) `--verify <token>` —
+  run `npx @voltjscom/wp-volt verify <url>`, drop the token at `/.well-known/wp-volt-challenge`, then
+  re-run with it (domain control = authorization, no wp-admin needed). `--verify` is forwarded to wp-volt.
+
 ## [0.71.0] - 2026-07-08
 
 ### Changed
@@ -1015,6 +1024,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.72.0]: https://github.com/MIR-2025/volt/releases/tag/v0.72.0
 [0.71.0]: https://github.com/MIR-2025/volt/releases/tag/v0.71.0
 [0.70.0]: https://github.com/MIR-2025/volt/releases/tag/v0.70.0
 [0.69.0]: https://github.com/MIR-2025/volt/releases/tag/v0.69.0

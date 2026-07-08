@@ -65,6 +65,7 @@ let templateArg = null;
 let outArg = null;
 let userArg = null;
 let prefixArg = null;
+let verifyArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--port") portArg = argv[++i];
@@ -77,6 +78,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith("--user=")) userArg = a.slice("--user=".length);
   else if (a === "--prefix") prefixArg = argv[++i];
   else if (a.startsWith("--prefix=")) prefixArg = a.slice("--prefix=".length);
+  else if (a === "--verify") verifyArg = argv[++i];
+  else if (a.startsWith("--verify=")) verifyArg = a.slice("--verify=".length);
   else if (a.startsWith("-")) flags.add(a);
   else positionals.push(a);
 }
@@ -411,25 +414,30 @@ if (positionals[0] === "import-wxr" || positionals[0] === "import-wp" || positio
       cmd === "import-wp-db"
         ? `Usage: ${cyan("create-volt import-wp-db <mysql://user:pass@host/db>")}  (or set ${cyan("WP_DB_URL")})\n  WordPress DBs are usually localhost-only — run on the server or over an SSH tunnel.`
         : cmd === "import-wp"
-          ? `Usage: ${cyan("create-volt import-wp <https://site.com> --user <wp-user>")}  (published content, via the WordPress REST API)\n  Requires auth: set ${cyan("WP_APP_PASSWORD")} to a WordPress Application Password (wp-admin → Users → Profile → Application Passwords).`
+          ? `Usage: ${cyan("create-volt import-wp <https://site.com> --user <wp-user>")}  (published content, via the WordPress REST API)\n  Requires proof of authorization: ${cyan("--user")} + ${cyan("WP_APP_PASSWORD")} env, OR ${cyan("--verify <token>")} (a domain-control challenge).`
           : `Usage: ${cyan("create-volt import-wxr <export.xml>")}`,
     );
   if (cmd === "import-wxr" && !fs.existsSync(src)) die(`No such file: ${cyan(src)}`);
   if (cmd === "import-wp" && !/^https?:\/\//i.test(src)) die(`import-wp needs an https:// URL — got ${cyan(src)}`);
-  // wp-volt gates live-URL migration behind WordPress auth — proof you're authorized to migrate
-  // the site (it's not an open cloner). File/DB imports stay ungated (possession proves access).
-  if (cmd === "import-wp" && (!userArg || !process.env.WP_APP_PASSWORD))
+  // wp-volt gates live-URL migration behind proof of authorization (it's not an open cloner) —
+  // either WP auth (A) or a domain-control challenge (B). File/DB imports stay ungated (possession
+  // proves access). Accept either here; wp-volt performs the actual verification.
+  const hasWpAuth = userArg && process.env.WP_APP_PASSWORD;
+  if (cmd === "import-wp" && !hasWpAuth && !verifyArg)
     die(
-      `import-wp requires WordPress credentials — proof you're authorized to migrate this site.\n` +
-        `  Pass ${cyan("--user <wp-username>")} and set ${cyan("WP_APP_PASSWORD")} to a WordPress Application\n` +
-        `  Password (wp-admin → Users → Profile → Application Passwords) — read from the env, never argv.\n` +
-        `  No wp-admin access? Use ${cyan("import-wxr <export.xml>")} or ${cyan("import-wp-db <mysql://…>")} instead.`,
+      `import-wp requires proof you're authorized to migrate this site — either:\n` +
+        `  A) ${cyan("--user <wp-username>")} + ${cyan("WP_APP_PASSWORD")} env (a wp-admin Application Password,\n` +
+        `     wp-admin → Users → Profile → Application Passwords — read from the env, never argv), or\n` +
+        `  B) ${cyan("--verify <token>")} — run ${cyan("npx @voltjscom/wp-volt verify " + src)}, drop the token at\n` +
+        `     ${cyan("https://…/.well-known/wp-volt-challenge")}, then re-run with ${cyan("--verify <token>")}.\n` +
+        `  No site access at all? Use ${cyan("import-wxr <export.xml>")} or ${cyan("import-wp-db <mysql://…>")}.`,
     );
 
   const out = outArg ? path.resolve(outArg) : process.cwd();
   // pass through the flags wp-volt now understands (WP_APP_PASSWORD rides the env, never argv)
   const passthrough = [];
   if (cmd === "import-wp" && userArg) passthrough.push("--user", userArg);
+  if (cmd === "import-wp" && verifyArg) passthrough.push("--verify", verifyArg);
   if (prefixArg) passthrough.push("--prefix", prefixArg);
   if (flags.has("--drafts")) passthrough.push("--drafts");
   const migrateArgs =
