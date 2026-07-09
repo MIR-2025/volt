@@ -81,6 +81,7 @@ function renderList(posts, { heading, page = 1, totalPages = 1, baseUrl }) {
     ? posts
         .map(
           (p) => `<li class="post-item" style="margin:0 0 1.5rem">
+    ${p.meta.image ? `<a href="${postLink(p)}"><img class="post-thumb" src="${esc(p.meta.image)}" alt="" loading="lazy" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:.5rem" /></a>` : ""}
     <a href="${postLink(p)}" style="font-size:1.2rem;font-weight:600">${esc(p.meta.title || p.slug)}</a>
     <div class="post-meta" style="opacity:.7;font-size:.9rem">${fmtDate(p.date)}${catsOf(p.meta).length ? " &middot; " + catLinks(p.meta) : ""}</div>
     <p style="margin:.3rem 0 0">${esc(excerpt(p))}</p>
@@ -103,7 +104,9 @@ function renderPost(p, marked) {
   const tags = tagsOf(p.meta);
   const meta = `<div class="post-meta" style="opacity:.7;font-size:.9rem;margin-bottom:1rem">${fmtDate(p.date)}${p.meta.author ? " &middot; " + esc(p.meta.author) : ""}${catsOf(p.meta).length ? " &middot; " + catLinks(p.meta) : ""}</div>`;
   const tagHtml = tags.length ? `<div class="post-tags" style="margin-top:1.5rem">Tags: ${tags.map(tagLink).join(" ")}</div>` : "";
-  return `<article><h1>${esc(title)}</h1>${meta}${body}${tagHtml}</article>`;
+  // featured image (front-matter `image:`) as a leading hero — matches WP's featured-image-atop-post
+  const hero = p.meta.image ? `<figure class="post-hero" style="margin:0 0 1.2rem"><img src="${esc(p.meta.image)}" alt="${esc(title)}" loading="lazy" style="width:100%;height:auto;border-radius:10px" /></figure>` : "";
+  return `<article><h1>${esc(title)}</h1>${hero}${meta}${body}${tagHtml}</article>`;
 }
 
 function feedXml(posts) {

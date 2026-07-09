@@ -4,6 +4,20 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.77.0] - 2026-07-09
+
+### Added
+- **Featured images render natively.** A page/post's `image:` front-matter now renders as a leading
+  hero `<figure class="post-hero">` on the single post AND as a `<img class="post-thumb">` on the blog
+  index — not just `og:image`. So a migrated WordPress post's featured image actually shows up.
+
+### Fixed
+- **`npm run dev` no longer lies about "already running — reloaded it".** On `EADDRINUSE`, the server now
+  confirms the process on the port is genuinely a Volt instance (a marker in the `/__volt/reload` response)
+  before it reloads + exits. If a foreign/stale process holds the port, it **fails loudly** — "port N is in
+  use by another process — free it, or start on a different port" (exit 1) — instead of pretending success
+  while the new app silently never starts.
+
 ## [0.76.0] - 2026-07-09
 
 ### Added
@@ -1064,6 +1078,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.77.0]: https://github.com/MIR-2025/volt/releases/tag/v0.77.0
 [0.76.0]: https://github.com/MIR-2025/volt/releases/tag/v0.76.0
 [0.75.0]: https://github.com/MIR-2025/volt/releases/tag/v0.75.0
 [0.74.0]: https://github.com/MIR-2025/volt/releases/tag/v0.74.0

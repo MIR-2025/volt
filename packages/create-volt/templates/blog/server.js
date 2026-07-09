@@ -203,7 +203,7 @@ async function startApp() {
   // the app already running (see the EADDRINUSE handler below) instead of crashing.
   app.get("/__volt/reload", (_req, res) => {
     io.emit("volt:reload", { file: "__manual__" });
-    res.json({ ok: true });
+    res.json({ ok: true, volt: "reload" }); // marker so a second `npm run dev` can confirm the occupant is a Volt app, not a stranger on this port
   });
 
   // third-party add-ons — register(ctx). When auth is on, requireAuth/sessionFromReq
@@ -267,13 +267,19 @@ async function startApp() {
   // running instance to refresh browsers) and exit, instead of an EADDRINUSE crash.
   server.on("error", async (e) => {
     if (e.code === "EADDRINUSE") {
+      let ours = false;
       try {
-        await fetch(`http://localhost:${PORT}/__volt/reload`);
+        const r = await fetch(`http://localhost:${PORT}/__volt/reload`);
+        ours = r.ok && (await r.json().catch(() => ({})))?.volt === "reload";
       } catch {
-        /* old instance without the reload route, or not ours */
+        /* nothing we can reach on this port */
       }
-      console.log(`\n[volt] already running at http://localhost:${PORT} — reloaded it. (Stop that process, or use pm2, to restart.)`);
-      process.exit(0);
+      if (ours) {
+        console.log(`\n[volt] already running at http://localhost:${PORT} — reloaded it. (Stop that process, or use pm2, to restart.)`);
+        process.exit(0);
+      }
+      console.error(`\n[volt] port ${PORT} is in use by another process — free it, or start on a different port:\n  PORT=<n> npm run dev    (or set PORT in .env)\n`);
+      process.exit(1);
     }
     throw e;
   });
