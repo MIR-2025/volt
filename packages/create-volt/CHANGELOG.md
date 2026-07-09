@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.76.0] - 2026-07-09
+
+### Added
+- **`npm run dev` opens the browser to the running app.** The scaffolded server now opens
+  `http://localhost:<port>` on a normal dev listen (the setup wizard already opened its own port on
+  first run). Guarded: skips in CI, with no TTY, on headless Linux (no `DISPLAY`), and honors
+  `--no-open` / `NO_OPEN` / `VOLT_NO_OPEN`. Closes the "nothing happened" gap after a migration.
+  (The 5 setup-wizard templates; the standalone `guestbook` demo is unchanged.)
+
 ## [0.75.0] - 2026-07-09
 
 ### Changed
@@ -1055,6 +1064,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.76.0]: https://github.com/MIR-2025/volt/releases/tag/v0.76.0
 [0.75.0]: https://github.com/MIR-2025/volt/releases/tag/v0.75.0
 [0.74.0]: https://github.com/MIR-2025/volt/releases/tag/v0.74.0
 [0.73.0]: https://github.com/MIR-2025/volt/releases/tag/v0.73.0

@@ -127,7 +127,7 @@ async function loadAddon(name) {
 }
 
 function openBrowser(url) {
-  if (process.env.VOLT_NO_OPEN || process.argv.includes("--no-open")) return false;
+  if (process.env.VOLT_NO_OPEN || process.env.NO_OPEN || process.env.CI || process.argv.includes("--no-open") || !process.stdout.isTTY) return false;
   const plat = process.platform;
   if (plat === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return false;
   const cmd = plat === "darwin" ? "open" : plat === "win32" ? "cmd" : "xdg-open";
@@ -277,7 +277,10 @@ async function startApp() {
     }
     throw e;
   });
-  server.listen(PORT, () => console.log(`Volt at http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`));
+  server.listen(PORT, () => {
+    console.log(`Volt at http://localhost:${PORT}${on.length ? "  (add-ons: " + on.join(", ") + ")" : ""}`);
+    openBrowser(`http://localhost:${PORT}`); // dev convenience: open the running app; guarded (CI/no-TTY/--no-open all skip)
+  });
 }
 
 // Packages an .env's selections need, beyond what package.json already has.
