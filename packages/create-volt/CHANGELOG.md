@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.74.0] - 2026-07-09
+
+### Changed
+- **A fresh site's home is now a clean themed welcome, not the Volt framework demo.** With no
+  `pages/index.md` and no `HOMEPAGE` set, the pages add-on renders a minimal "Welcome to <site> —
+  your site is ready" page in the site's OWN theme (with its nav), instead of falling through to the
+  `views/index.html` framework showcase. No boilerplate `index.md` is written, so it never shadows
+  `HOMEPAGE=posts` (blog-home migrations stay intact). Add `pages/index.md`, or set the home in the
+  web admin, to replace it.
+
 ## [0.73.0] - 2026-07-08
 
 ### Added
@@ -1035,6 +1045,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.74.0]: https://github.com/MIR-2025/volt/releases/tag/v0.74.0
 [0.73.0]: https://github.com/MIR-2025/volt/releases/tag/v0.73.0
 [0.72.0]: https://github.com/MIR-2025/volt/releases/tag/v0.72.0
 [0.71.0]: https://github.com/MIR-2025/volt/releases/tag/v0.71.0

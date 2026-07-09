@@ -480,8 +480,24 @@ export async function pagesRouter({ dir }) {
     const home = String(process.env.HOMEPAGE || "").trim();
     const slug = home && home.toLowerCase() !== "posts" && isSafeSlug(home) ? home : "index";
     const file = path.join(dir, slug + ".md");
-    if (!fs.existsSync(file)) return next();
-    await renderFile(file, slug === "index" ? "Home" : slug, res, "/");
+    if (fs.existsSync(file)) {
+      await renderFile(file, slug === "index" ? "Home" : slug, res, "/");
+      return;
+    }
+    if (home) return next(); // HOMEPAGE points elsewhere (posts, or a page not present yet)
+    // No home content yet — a clean, themed welcome in the site's own theme, NOT the Volt
+    // framework demo. The owner sets a real home from the admin (Home page card) or by adding
+    // pages/index.md. No file is written, so it never shadows HOMEPAGE=posts (blog-home migrations).
+    const name = process.env.SITE_NAME || "your new site";
+    const content = `<div style="max-width:40rem;margin:13vh auto;text-align:center;padding:0 1rem">
+  <h1 style="margin-bottom:.4rem">Welcome to ${esc(name)}</h1>
+  <p style="font-size:1.15rem;opacity:.85;margin-bottom:.4rem">Your site is ready.</p>
+  <p style="opacity:.6">Set your home page from the admin, or add <code>pages/index.md</code> to replace this.</p>
+</div>`;
+    const { layout } = await getTheme();
+    const title = process.env.SITE_NAME || "Home";
+    const html = layout({ title, head: metaHead({ title }), content, meta: {}, nav: loadNav(dir, "/") });
+    res.type("html").send(injectHot(injectScheme(html, process.env)));
   });
   r.get("/:slug", async (req, res, next) => {
     const slug = req.params.slug;
