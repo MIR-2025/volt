@@ -2,7 +2,7 @@
   "description": "Email sender: prints to the console in dev, uses SMTP (nodemailer) when SMTP_URL is set.",
   "dependsOn": [],
   "sentinel": "lib/mailer.js",
-  "install": [],
+  "install": {},
   "optional": {
     "nodemailer": "real SMTP sending (set SMTP_URL)"
   },

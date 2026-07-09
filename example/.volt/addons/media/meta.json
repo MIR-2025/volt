@@ -2,7 +2,7 @@
   "description": "Media uploads to local disk or any S3-compatible store (AWS S3, DigitalOcean Spaces, etc.). POST /api/media (signed-in only) returns a public URL. Choose the driver in the wizard.",
   "dependsOn": ["auth"],
   "sentinel": "lib/media.js",
-  "install": ["busboy"],
+  "install": { "busboy": "^1.6.0" },
   "optional": { "s3": ["@aws-sdk/client-s3"] },
   "wiring": "Set MEDIA_DRIVER=local|s3. For s3 set S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_KEY, S3_SECRET (and optionally S3_PUBLIC_BASE for a CDN URL). Uploads require a signed-in user; uploaded objects are public-read."
 }

@@ -601,15 +601,19 @@ appPkg.name = appName;
 // dependencies, so the app declares everything it imports even when scaffolded with
 // --skip-install or deployed without ever opening the setup wizard.
 appPkg.dependencies = appPkg.dependencies || {};
-const ADDON_DEP_VERSIONS = { express: "^4.22.2", "socket.io": "^4.8.3", marked: "^12.0.0", busboy: "^1.6.0" };
 try {
   const envTxt = fs.existsSync(path.join(targetDir, ".env")) ? fs.readFileSync(path.join(targetDir, ".env"), "utf8") : "";
   const enabled = (envTxt.match(/^\s*VOLT_ADDONS\s*=(.*)$/m)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
   for (const name of enabled) {
     const metaPath = path.join(targetDir, ".volt", "addons", name, "meta.json");
     if (!fs.existsSync(metaPath)) continue;
-    for (const dep of JSON.parse(fs.readFileSync(metaPath, "utf8")).install || []) {
-      if (!appPkg.dependencies[dep]) appPkg.dependencies[dep] = ADDON_DEP_VERSIONS[dep] || "latest";
+    // An add-on declares its npm deps in meta.json "install" as { name: semver } — the SINGLE
+    // source of truth (consumed here + by wp-volt). A legacy ["name", …] array still works,
+    // pinned to "latest".
+    const install = JSON.parse(fs.readFileSync(metaPath, "utf8")).install || {};
+    const deps = Array.isArray(install) ? Object.fromEntries(install.map((d) => [d, "latest"])) : install;
+    for (const [dep, ver] of Object.entries(deps)) {
+      if (!appPkg.dependencies[dep]) appPkg.dependencies[dep] = ver || "latest";
     }
   }
 } catch {

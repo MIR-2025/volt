@@ -1,6 +1,6 @@
 {
   "description": "Make this app a Memory Infrastructure Registry (MIR) partner — its users become participants whose actions build portable, cross-partner reputation. Records participation events and resolves a participant's neutral signals (tier, history, claim status) via mirregistry.org. Onboarding (register → verify domain → promote) is driven from the config and only offered once SITE_URL is a public, DNS-resolving domain. Exposes app.locals.mir { submitEvent, resolveUser } to your routes and other add-ons.",
   "dependsOn": [],
-  "install": [],
+  "install": {},
   "optional": {}
 }

@@ -1,6 +1,6 @@
 {
   "description": "Built-in spam protection — no API key, no third-party service. Unlike hosted filters (Akismet et al.), nothing about your users' submissions ever leaves the app; every check runs locally. Layers a honeypot, a signed time-trap token, per-IP rate limiting, and content heuristics into one verdict. Any form opts in via app.locals.spam.fields() (embed) + app.locals.spam.check() (verify).",
   "dependsOn": [],
-  "install": [],
+  "install": {},
   "optional": {}
 }

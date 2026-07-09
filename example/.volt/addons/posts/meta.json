@@ -2,7 +2,7 @@
   "description": "Blog posts with dates, authors, tags + categories. Drop markdown in posts/ → a paginated index at /blog, single posts at /blog/<slug>, /category/<name>, /tag/<name>, and an RSS feed at /feed.xml. Renders in your site theme and reuses pages' SEO (OG + JSON-LD).",
   "dependsOn": ["pages"],
   "sentinel": "lib/posts.js",
-  "install": ["marked"],
+  "install": { "marked": "^18.0.5" },
   "optional": {},
   "wiring": "Add markdown files to posts/ (created on first run), e.g. posts/2026-06-29-hello.md with front-matter: title, date, author, category, tags (comma-separated), description. The date can also come from a YYYY-MM-DD- filename prefix. Set SITE_URL in .env for absolute links in the RSS feed; POSTS_PER_PAGE (default 10) controls pagination."
 }

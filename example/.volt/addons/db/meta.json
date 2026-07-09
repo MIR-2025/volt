@@ -2,7 +2,7 @@
   "description": "Pluggable document store: memory (default) / MongoDB / MySQL / Postgres, one interface.",
   "dependsOn": [],
   "sentinel": "lib/store.js",
-  "install": [],
+  "install": {},
   "optional": {
     "mongodb": "DB_DRIVER=mongodb",
     "mysql2": "DB_DRIVER=mysql",

@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.75.0] - 2026-07-09
+
+### Changed
+- **Add-on npm deps now carry pinned versions in each add-on's `meta.json` `install`** — a
+  `{ "<pkg>": "<semver>" }` object (was a bare name array). This is the **single source of truth**
+  for an add-on's deps: create-volt reads it when merging deps into a scaffold's `package.json`, and
+  `@voltjscom/wp-volt` reads the same file instead of mirroring a copy — no more version drift across
+  repos. A legacy `["<pkg>"]` array still works (pinned to `latest`). Removed the internal
+  `ADDON_DEP_VERSIONS` map, and corrected `marked` to `^18.0.5` to match the templates.
+
 ## [0.74.0] - 2026-07-09
 
 ### Changed
@@ -1045,6 +1055,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.75.0]: https://github.com/MIR-2025/volt/releases/tag/v0.75.0
 [0.74.0]: https://github.com/MIR-2025/volt/releases/tag/v0.74.0
 [0.73.0]: https://github.com/MIR-2025/volt/releases/tag/v0.73.0
 [0.72.0]: https://github.com/MIR-2025/volt/releases/tag/v0.72.0
