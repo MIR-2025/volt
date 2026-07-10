@@ -264,12 +264,16 @@ export function register({ app, express, mailer, env, log }) {
     { slug: "fira-code", family: "Fira Code", cat: "Mono" }, { slug: "ibm-plex-mono", family: "IBM Plex Mono", cat: "Mono" },
   ];
   app.get(base + "/api/fonts", guard, (_req, res) => {
-    let current = {};
+    // Show the theme's EFFECTIVE fonts: the .env FONT_* base, overridden by a live
+    // .volt/fonts.json (same precedence as the pages add-on's fontsCss). So the panel reflects
+    // what the site actually uses — not just the live override, which is empty on a migrated app.
+    const current = { heading: env.FONT_HEADING, subhead: env.FONT_SUBHEAD, body: env.FONT_BODY, mono: env.FONT_MONO };
     try {
-      current = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".volt", "fonts.json"), "utf8"));
+      Object.assign(current, JSON.parse(fs.readFileSync(path.join(process.cwd(), ".volt", "fonts.json"), "utf8")));
     } catch {
-      /* none set */
+      /* no live override */
     }
+    for (const k of Object.keys(current)) if (!current[k]) delete current[k];
     res.json({ ok: true, fonts: FONTS, current });
   });
   app.post(base + "/api/fonts", guard, express.json(), async (req, res) => {

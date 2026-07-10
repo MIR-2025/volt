@@ -4,6 +4,15 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.78.0] - 2026-07-10
+
+### Fixed
+- **Web admin Typography panel now reflects the site's actual fonts.** `/api/fonts` read the current
+  selection only from `.volt/fonts.json` (the live override), so on an app whose fonts are set via `.env`
+  (`FONT_HEADING`/`FONT_SUBHEAD`/`FONT_BODY`/`FONT_MONO` — e.g. a WordPress migration) the four role selects
+  fell back to "System default" and previewed nothing. It now computes the effective fonts the same way the
+  theme does (`.env` base, overridden by `.volt/fonts.json`), so the panel shows + previews the fonts in use.
+
 ## [0.77.0] - 2026-07-09
 
 ### Added
@@ -1078,6 +1087,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.78.0]: https://github.com/MIR-2025/volt/releases/tag/v0.78.0
 [0.77.0]: https://github.com/MIR-2025/volt/releases/tag/v0.77.0
 [0.76.0]: https://github.com/MIR-2025/volt/releases/tag/v0.76.0
 [0.75.0]: https://github.com/MIR-2025/volt/releases/tag/v0.75.0
