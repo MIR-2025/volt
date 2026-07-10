@@ -4,6 +4,16 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.79.0] - 2026-07-10
+
+### Added
+- **Create / edit / delete pages + posts from the web admin.** The `admin` add-on gains a **Content** panel:
+  list your pages + posts, open one in a markdown editor, save (live on the next page load), delete, or create a
+  new page/post — the WordPress "edit my site from the browser" core, no `:5050` wizard needed. Pasted/inline
+  base64 media is extracted to `public/media/`. Safe-slug validation; session-gated.
+- **`ADMIN_EMAIL` accepts a comma-separated allowlist.** Multiple admins can each sign in with a magic link (it
+  goes to whichever listed address requested it); unlisted addresses get nothing.
+
 ## [0.78.0] - 2026-07-10
 
 ### Fixed
@@ -1087,6 +1097,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.79.0]: https://github.com/MIR-2025/volt/releases/tag/v0.79.0
 [0.78.0]: https://github.com/MIR-2025/volt/releases/tag/v0.78.0
 [0.77.0]: https://github.com/MIR-2025/volt/releases/tag/v0.77.0
 [0.76.0]: https://github.com/MIR-2025/volt/releases/tag/v0.76.0

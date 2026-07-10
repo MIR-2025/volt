@@ -47,9 +47,9 @@ function parseCookies(header = "") {
 
 export function register({ app, express, mailer, env, log }) {
   const raw = String(env.ADMIN_PATH || "").trim().replace(/^\/+|\/+$/g, "");
-  const adminEmail = String(env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const adminEmails = String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean); // one or a comma-separated allowlist
   if (!raw) return log("ADMIN_PATH not set — web admin disabled (fail-closed).");
-  if (!adminEmail) return log("ADMIN_EMAIL not set — web admin disabled (fail-closed).");
+  if (!adminEmails.length) return log("ADMIN_EMAIL not set — web admin disabled (fail-closed).");
   if (!mailer) return log("web admin needs the mailer add-on (to send magic links) — disabled.");
   const base = "/" + raw;
   // Opt-in IP allowlist (ADMIN_ALLOW_IPS=comma,separated). Fail-closed with a plain
@@ -120,14 +120,14 @@ export function register({ app, express, mailer, env, log }) {
     res.setHeader("Set-Cookie", `${CHAL}=${chal}; HttpOnly; SameSite=Lax; Path=${base}; Max-Age=${NONCE_TTL / 1000}${secureAttr(req)}`);
 
     const email = String(req.body?.email || "").trim().toLowerCase();
-    if (email === adminEmail) {
+    if (adminEmails.includes(email)) {
       sweep();
       const nonce = rand();
-      nonces.set(nonce, { chalHash: sha(chal), fp: fingerprint(req), exp: now + NONCE_TTL, used: false });
+      nonces.set(nonce, { chalHash: sha(chal), fp: fingerprint(req), exp: now + NONCE_TTL, used: false, email });
       const link = `${req.protocol}://${req.get("host")}${base}/verify?nonce=${nonce}`;
       try {
         await mailer.send({
-          to: adminEmail,
+          to: email,
           subject: "Your admin sign-in link",
           text: `Sign in to the admin: ${link}\n\nOpen it in THIS browser. Single use, expires in 15 minutes. If you didn't request this, ignore it.`,
           html: `<p>Sign in to the admin: <a href="${link}">${link}</a></p><p>Open it in <b>this</b> browser. Single use, expires in 15 minutes.</p>`,
@@ -160,7 +160,7 @@ export function register({ app, express, mailer, env, log }) {
     if (!eq(fingerprint(req), rec.fp)) return res.status(400).json({ ok: false, error: "Device fingerprint mismatch." });
     rec.used = true;
     res.setHeader("Set-Cookie", [
-      `${SESS}=${sign(adminEmail)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}${secureAttr(req)}`,
+      `${SESS}=${sign(rec.email)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}${secureAttr(req)}`,
       `${CHAL}=; HttpOnly; Path=${base}; Max-Age=0`,
     ]);
     res.json({ ok: true, redirect: base });
@@ -353,7 +353,70 @@ export function register({ app, express, mailer, env, log }) {
     res.json({ ok: true, home: val });
   });
 
-  log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint)${allowIps.size ? `, IP allowlist (${allowIps.size})` : ""}, for ${adminEmail}`);
+  // ── content: create / edit / delete pages + posts (the WordPress "edit my site" core) ──
+  // Writes pages/<slug>.md · posts/<slug>.md; changes are live on the next page load (no restart).
+  const cdir = (type) => path.join(process.cwd(), type === "posts" ? "posts" : "pages");
+  const safeSlug = (s) => /^[a-z0-9][a-z0-9-]*$/i.test(String(s || ""));
+  app.get(base + "/api/content", guard, (_req, res) => {
+    const list = (type) => {
+      try {
+        return fs
+          .readdirSync(cdir(type))
+          .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+          .map((f) => {
+            const slug = f.replace(/\.md$/, "");
+            const title = (fs.readFileSync(path.join(cdir(type), f), "utf8").match(/^title:\s*(.+)$/m) || [])[1];
+            return { slug, title: (title || slug).trim() };
+          })
+          .sort((a, b) => a.slug.localeCompare(b.slug));
+      } catch {
+        return [];
+      }
+    };
+    res.json({ ok: true, pages: list("pages"), posts: list("posts") });
+  });
+  app.get(base + "/api/content/raw", guard, (req, res) => {
+    const type = req.query.type === "posts" ? "posts" : "pages";
+    const slug = String(req.query.slug || "");
+    if (!safeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
+    const file = path.join(cdir(type), slug + ".md");
+    res.json({ ok: true, body: fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "" });
+  });
+  app.post(base + "/api/content/save", guard, express.json({ limit: "25mb" }), (req, res) => {
+    const type = req.body?.type === "posts" ? "posts" : "pages";
+    const slug = String(req.body?.slug || "");
+    if (!safeSlug(slug)) return res.status(400).json({ ok: false, error: "slug: lowercase letters, numbers, hyphens" });
+    const dir = cdir(type);
+    fs.mkdirSync(dir, { recursive: true });
+    // extract inline base64 media (pasted / data: URLs) to public/media so pages stay lean
+    const mediaDir = path.join(process.cwd(), "public", "media");
+    const extFor = (mime) =>
+      ({ "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/avif": "avif", "image/svg+xml": "svg", "video/mp4": "mp4", "video/webm": "webm", "audio/mpeg": "mp3" })[mime.toLowerCase()] || (mime.split("/")[1] || "bin").replace(/[^a-z0-9]+/gi, "").slice(0, 8) || "bin";
+    const body = String(req.body?.body ?? "").replace(/(<(?:img|video|audio|source)\b[^>]*?\ssrc=")data:([\w.+-]+\/[\w.+-]+);base64,([^"]+)(")/gi, (m, pre, mime, b64, post) => {
+      try {
+        const buf = Buffer.from(b64, "base64");
+        const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + "." + extFor(mime);
+        fs.mkdirSync(mediaDir, { recursive: true });
+        const dest = path.join(mediaDir, name);
+        if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
+        return pre + "/media/" + name + post;
+      } catch {
+        return m;
+      }
+    });
+    fs.writeFileSync(path.join(dir, slug + ".md"), body);
+    res.json({ ok: true, file: type + "/" + slug + ".md" });
+  });
+  app.post(base + "/api/content/delete", guard, express.json(), (req, res) => {
+    const type = req.body?.type === "posts" ? "posts" : "pages";
+    const slug = String(req.body?.slug || "");
+    if (!safeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
+    const file = path.join(cdir(type), slug + ".md");
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    res.json({ ok: true });
+  });
+
+  log(`web admin at ${base} — magic-link (nonce + same-browser + fingerprint)${allowIps.size ? `, IP allowlist (${allowIps.size})` : ""}, for ${adminEmails.join(", ")}`);
 }
 
 // ── pages (self-contained, Bootstrap from CDN) ─────────────────────────────
@@ -435,7 +498,28 @@ const adminPage = (base, email) =>
   <button id="homeApply" class="btn btn-sm btn-outline-primary">Save home page</button>
   <span id="homeMsg" class="small ms-2 text-secondary"></span>
 </div></div>
-<p class="small text-secondary mt-3">Content editing mounts here next — this is the secure shell.</p>
+<div class="card mt-3"><div class="card-header d-flex justify-content-between align-items-center"><span>Content</span>
+  <span><button class="btn btn-sm btn-outline-primary" id="newPage">+ New page</button> <button class="btn btn-sm btn-outline-primary" id="newPost">+ New post</button></span></div>
+<div class="card-body"><div class="row g-3">
+  <div class="col-md-4"><div id="clist" class="small"></div></div>
+  <div class="col-md-8">
+    <p id="cempty" class="small text-secondary">Pick a page or post to edit, or create a new one.</p>
+    <div id="ceditor" style="display:none">
+      <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
+        <span class="badge text-bg-secondary" id="ctype"></span>
+        <input id="cslug" class="form-control form-control-sm" placeholder="slug (lowercase-hyphens)" style="max-width:240px" />
+      </div>
+      <textarea id="cbody" rows="16" class="form-control" spellcheck="false" style="font:12px/1.5 ui-monospace,monospace" placeholder="---&#10;title: My Page&#10;---&#10;&#10;Your markdown here."></textarea>
+      <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
+        <button class="btn btn-sm btn-primary" id="csave">Save</button>
+        <a class="btn btn-sm btn-outline-secondary" id="cview" target="_blank" rel="noopener">View →</a>
+        <button class="btn btn-sm btn-outline-danger" id="cdel">Delete</button>
+        <span id="cmsg" class="small text-secondary"></span>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<p class="small text-secondary mt-3">Changes are live on the next page load — no restart needed.</p>
 <script>
 const B=${JSON.stringify(base)},grid=document.getElementById("grid");
 const kb=n=>n<1024?n+" B":n<1048576?Math.round(n/1024)+" KB":(n/1048576).toFixed(1)+" MB";
@@ -488,5 +572,26 @@ document.getElementById("homeApply").onclick=async()=>{const m=document.getEleme
 try{const r=await (await fetch(B+"/api/home",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({home:document.getElementById("homeSel").value})})).json();
 m.textContent=r.ok?"saved — click Restart to apply":"error: "+r.error;}catch(e){m.textContent="error: "+e.message;}};
 loadHome();
+var CT='pages';
+async function loadContent(){var d=await (await fetch(B+'/api/content')).json();
+  var mk=function(t,items){return '<div class="fw-bold mt-2 mb-1 text-secondary">'+(t==='pages'?'Pages':'Posts')+'</div>'+((items&&items.length)?items.map(function(x){return '<a href="#" class="d-block text-truncate citem" data-type="'+t+'" data-slug="'+x.slug+'">'+(x.title||x.slug)+'</a>';}).join(''):'<div class="text-secondary">none</div>');};
+  document.getElementById('clist').innerHTML=mk('pages',d.pages)+mk('posts',d.posts);
+  document.querySelectorAll('.citem').forEach(function(a){a.onclick=function(e){e.preventDefault();openContent(a.dataset.type,a.dataset.slug);};});}
+async function openContent(t,slug){CT=t;var d=await (await fetch(B+'/api/content/raw?type='+t+'&slug='+encodeURIComponent(slug))).json();
+  document.getElementById('cempty').style.display='none';document.getElementById('ceditor').style.display='';
+  document.getElementById('ctype').textContent=(t==='posts'?'post':'page');document.getElementById('cslug').value=slug;
+  document.getElementById('cbody').value=d.body||'';document.getElementById('cview').href=(t==='posts'?'/blog/':'/')+slug;document.getElementById('cmsg').textContent='';}
+function newContent(t){CT=t;document.getElementById('cempty').style.display='none';document.getElementById('ceditor').style.display='';
+  document.getElementById('ctype').textContent=(t==='posts'?'post':'page');document.getElementById('cslug').value='';
+  document.getElementById('cbody').value='---\ntitle: New '+(t==='posts'?'post':'page')+'\n---\n\nWrite here.\n';document.getElementById('cmsg').textContent='';document.getElementById('cslug').focus();}
+document.getElementById('newPage').onclick=function(){newContent('pages');};
+document.getElementById('newPost').onclick=function(){newContent('posts');};
+document.getElementById('csave').onclick=async function(){var m=document.getElementById('cmsg');m.textContent='saving…';
+  var r=await (await fetch(B+'/api/content/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:CT,slug:document.getElementById('cslug').value,body:document.getElementById('cbody').value})})).json();
+  m.textContent=r.ok?'✓ saved — live now':'error: '+(r.error||'');if(r.ok){document.getElementById('cview').href=(CT==='posts'?'/blog/':'/')+document.getElementById('cslug').value;loadContent();}};
+document.getElementById('cdel').onclick=async function(){if(!confirm('Delete this content?'))return;var m=document.getElementById('cmsg');
+  var r=await (await fetch(B+'/api/content/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:CT,slug:document.getElementById('cslug').value})})).json();
+  if(r.ok){document.getElementById('ceditor').style.display='none';document.getElementById('cempty').style.display='';loadContent();}else{m.textContent='error: '+(r.error||'');}};
+loadContent();
 </script>`
   );
