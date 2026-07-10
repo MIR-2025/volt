@@ -16,6 +16,22 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+// md→html for loading markdown into the WYSIWYG editor (setHTML). marked is a
+// pages/posts dep so it's present on any content site; lazy + guarded so a missing
+// marked degrades to raw text instead of crashing the whole admin.
+let _marked = null;
+const md2html = async (md) => {
+  if (!_marked) {
+    try {
+      _marked = (await import("marked")).marked;
+    } catch {
+      _marked = { parse: (s) => String(s) };
+    }
+  }
+  return _marked.parse(String(md || ""));
+};
 
 const NONCE_TTL = 15 * 60 * 1000; // 15 min
 const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 h
@@ -353,6 +369,21 @@ export function register({ app, express, mailer, env, log }) {
     res.json({ ok: true, home: val });
   });
 
+  // ── rich editor asset: serve the base RTE (rte-rich-text-editor — no AI, no key) if installed ──
+  // Fresh scaffolds get it via meta.json; existing sites pick it up on `create-volt update`.
+  // If it isn't installed the client detects a missing window.RTE and falls back to a textarea.
+  let rtePath = null;
+  try {
+    rtePath = require.resolve("rte-rich-text-editor");
+  } catch {
+    /* not installed → editor falls back to a plain markdown textarea */
+  }
+  app.get(base + "/rte.js", guard, (_req, res) =>
+    rtePath
+      ? res.type("application/javascript").sendFile(rtePath)
+      : res.status(503).type("application/javascript").send("/* rte-rich-text-editor not installed — run: npm i rte-rich-text-editor */"),
+  );
+
   // ── content: create / edit / delete pages + posts (the WordPress "edit my site" core) ──
   // Writes pages/<slug>.md · posts/<slug>.md; changes are live on the next page load (no restart).
   const cdir = (type) => path.join(process.cwd(), type === "posts" ? "posts" : "pages");
@@ -375,12 +406,17 @@ export function register({ app, express, mailer, env, log }) {
     };
     res.json({ ok: true, pages: list("pages"), posts: list("posts") });
   });
-  app.get(base + "/api/content/raw", guard, (req, res) => {
+  app.get(base + "/api/content/raw", guard, async (req, res) => {
     const type = req.query.type === "posts" ? "posts" : "pages";
     const slug = String(req.query.slug || "");
     if (!safeSlug(slug)) return res.status(400).json({ ok: false, error: "invalid slug" });
     const file = path.join(cdir(type), slug + ".md");
-    res.json({ ok: true, body: fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "" });
+    const src = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/); // split front-matter from body
+    const front = m ? m[1] : "";
+    const body = m ? src.slice(m[0].length) : src;
+    // body (raw markdown) for the textarea fallback; html (rendered) for the WYSIWYG setHTML
+    res.json({ ok: true, front, body, html: await md2html(body) });
   });
   app.post(base + "/api/content/save", guard, express.json({ limit: "25mb" }), (req, res) => {
     const type = req.body?.type === "posts" ? "posts" : "pages";
@@ -388,23 +424,30 @@ export function register({ app, express, mailer, env, log }) {
     if (!safeSlug(slug)) return res.status(400).json({ ok: false, error: "slug: lowercase letters, numbers, hyphens" });
     const dir = cdir(type);
     fs.mkdirSync(dir, { recursive: true });
-    // extract inline base64 media (pasted / data: URLs) to public/media so pages stay lean
+    // extract inline base64 media (pasted / data: URLs) to public/media so pages stay lean —
+    // both HTML <img src="data:…"> (setHTML round-trip) and markdown ![](data:…) (getMarkdown)
     const mediaDir = path.join(process.cwd(), "public", "media");
     const extFor = (mime) =>
       ({ "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/avif": "avif", "image/svg+xml": "svg", "video/mp4": "mp4", "video/webm": "webm", "audio/mpeg": "mp3" })[mime.toLowerCase()] || (mime.split("/")[1] || "bin").replace(/[^a-z0-9]+/gi, "").slice(0, 8) || "bin";
-    const body = String(req.body?.body ?? "").replace(/(<(?:img|video|audio|source)\b[^>]*?\ssrc=")data:([\w.+-]+\/[\w.+-]+);base64,([^"]+)(")/gi, (m, pre, mime, b64, post) => {
-      try {
-        const buf = Buffer.from(b64, "base64");
-        const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + "." + extFor(mime);
-        fs.mkdirSync(mediaDir, { recursive: true });
-        const dest = path.join(mediaDir, name);
-        if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
-        return pre + "/media/" + name + post;
-      } catch {
-        return m;
-      }
+    const saveMedia = (mime, b64) => {
+      const buf = Buffer.from(b64, "base64");
+      const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + "." + extFor(mime);
+      fs.mkdirSync(mediaDir, { recursive: true });
+      const dest = path.join(mediaDir, name);
+      if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
+      return "/media/" + name;
+    };
+    let body = String(req.body?.body ?? "");
+    body = body.replace(/(<(?:img|video|audio|source)\b[^>]*?\ssrc=")data:([\w.+-]+\/[\w.+-]+);base64,([^"]+)(")/gi, (m, pre, mime, b64, post) => {
+      try { return pre + saveMedia(mime, b64) + post; } catch { return m; }
     });
-    fs.writeFileSync(path.join(dir, slug + ".md"), body);
+    body = body.replace(/(!\[[^\]]*\]\()data:([\w.+-]+\/[\w.+-]+);base64,([^)\s]+)(\))/gi, (m, pre, mime, b64, post) => {
+      try { return pre + saveMedia(mime, b64) + post; } catch { return m; }
+    });
+    // reconstruct the file: front-matter (title/date/tags/permalink…) on top + the edited body
+    const front = String(req.body?.front ?? "").trim();
+    const out = front ? `---\n${front}\n---\n\n${body}\n` : `${body}\n`;
+    fs.writeFileSync(path.join(dir, slug + ".md"), out);
     res.json({ ok: true, file: type + "/" + slug + ".md" });
   });
   app.post(base + "/api/content/delete", guard, express.json(), (req, res) => {
@@ -509,7 +552,11 @@ const adminPage = (base, email) =>
         <span class="badge text-bg-secondary" id="ctype"></span>
         <input id="cslug" class="form-control form-control-sm" placeholder="slug (lowercase-hyphens)" style="max-width:240px" />
       </div>
-      <textarea id="cbody" rows="16" class="form-control" spellcheck="false" style="font:12px/1.5 ui-monospace,monospace" placeholder="---&#10;title: My Page&#10;---&#10;&#10;Your markdown here."></textarea>
+      <details class="mb-2"><summary class="small text-secondary" style="cursor:pointer">Front matter -- title, date, tags, permalink…</summary>
+        <textarea id="cfront" rows="3" class="form-control form-control-sm mt-1" spellcheck="false" style="font:12px/1.5 ui-monospace,monospace" placeholder="title: My Page"></textarea></details>
+      <div id="cbody" class="border rounded bg-white text-dark px-2" style="min-height:360px"></div>
+      <textarea id="cbodyRaw" rows="16" class="form-control d-none" spellcheck="false" style="font:12px/1.5 ui-monospace,monospace" placeholder="Your markdown here."></textarea>
+      <div id="cnorte" class="form-text text-warning d-none">Rich editor unavailable -- editing markdown as text. Run <code>npm i rte-rich-text-editor</code> for the WYSIWYG editor.</div>
       <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
         <button class="btn btn-sm btn-primary" id="csave">Save</button>
         <a class="btn btn-sm btn-outline-secondary" id="cview" target="_blank" rel="noopener">View →</a>
@@ -519,7 +566,8 @@ const adminPage = (base, email) =>
     </div>
   </div>
 </div></div></div>
-<p class="small text-secondary mt-3">Changes are live on the next page load — no restart needed.</p>
+<p class="small text-secondary mt-3">Changes are live on the next page load -- no restart needed.</p>
+<script src="${base}/rte.js"></script>
 <script>
 const B=${JSON.stringify(base)},grid=document.getElementById("grid");
 const kb=n=>n<1024?n+" B":n<1048576?Math.round(n/1024)+" KB":(n/1048576).toFixed(1)+" MB";
@@ -572,7 +620,11 @@ document.getElementById("homeApply").onclick=async()=>{const m=document.getEleme
 try{const r=await (await fetch(B+"/api/home",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({home:document.getElementById("homeSel").value})})).json();
 m.textContent=r.ok?"saved — click Restart to apply":"error: "+r.error;}catch(e){m.textContent="error: "+e.message;}};
 loadHome();
-var CT='pages';
+var CT='pages',ED=null,useRTE=!!window.RTE;
+function ensureEditor(){if(useRTE&&!ED){try{ED=RTE.init('#cbody',{height:'360px',placeholder:'Write your content…'});}catch(e){useRTE=false;}}
+  if(!useRTE){document.getElementById('cbody').classList.add('d-none');document.getElementById('cbodyRaw').classList.remove('d-none');document.getElementById('cnorte').classList.remove('d-none');}}
+function setBody(html,md){ensureEditor();if(useRTE&&ED){ED.setHTML(html||'');}else{document.getElementById('cbodyRaw').value=md||'';}}
+function getBody(){return (useRTE&&ED)?ED.getMarkdown():document.getElementById('cbodyRaw').value;}
 async function loadContent(){var d=await (await fetch(B+'/api/content')).json();
   var mk=function(t,items){return '<div class="fw-bold mt-2 mb-1 text-secondary">'+(t==='pages'?'Pages':'Posts')+'</div>'+((items&&items.length)?items.map(function(x){return '<a href="#" class="d-block text-truncate citem" data-type="'+t+'" data-slug="'+x.slug+'">'+(x.title||x.slug)+'</a>';}).join(''):'<div class="text-secondary">none</div>');};
   document.getElementById('clist').innerHTML=mk('pages',d.pages)+mk('posts',d.posts);
@@ -580,15 +632,16 @@ async function loadContent(){var d=await (await fetch(B+'/api/content')).json();
 async function openContent(t,slug){CT=t;var d=await (await fetch(B+'/api/content/raw?type='+t+'&slug='+encodeURIComponent(slug))).json();
   document.getElementById('cempty').style.display='none';document.getElementById('ceditor').style.display='';
   document.getElementById('ctype').textContent=(t==='posts'?'post':'page');document.getElementById('cslug').value=slug;
-  document.getElementById('cbody').value=d.body||'';document.getElementById('cview').href=(t==='posts'?'/blog/':'/')+slug;document.getElementById('cmsg').textContent='';}
+  document.getElementById('cfront').value=d.front||'';setBody(d.html,d.body);
+  document.getElementById('cview').href=(t==='posts'?'/blog/':'/')+slug;document.getElementById('cmsg').textContent='';}
 function newContent(t){CT=t;document.getElementById('cempty').style.display='none';document.getElementById('ceditor').style.display='';
   document.getElementById('ctype').textContent=(t==='posts'?'post':'page');document.getElementById('cslug').value='';
-  var nl=String.fromCharCode(10);document.getElementById('cbody').value='---'+nl+'title: New '+(t==='posts'?'post':'page')+nl+'---'+nl+nl+'Write here.'+nl;document.getElementById('cmsg').textContent='';document.getElementById('cslug').focus();}
+  document.getElementById('cfront').value='title: New '+(t==='posts'?'post':'page');setBody('','');document.getElementById('cmsg').textContent='';document.getElementById('cslug').focus();}
 document.getElementById('newPage').onclick=function(){newContent('pages');};
 document.getElementById('newPost').onclick=function(){newContent('posts');};
 document.getElementById('csave').onclick=async function(){var m=document.getElementById('cmsg');m.textContent='saving…';
-  var r=await (await fetch(B+'/api/content/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:CT,slug:document.getElementById('cslug').value,body:document.getElementById('cbody').value})})).json();
-  m.textContent=r.ok?'✓ saved — live now':'error: '+(r.error||'');if(r.ok){document.getElementById('cview').href=(CT==='posts'?'/blog/':'/')+document.getElementById('cslug').value;loadContent();}};
+  var r=await (await fetch(B+'/api/content/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:CT,slug:document.getElementById('cslug').value,front:document.getElementById('cfront').value,body:getBody()})})).json();
+  m.textContent=r.ok?'✓ saved -- live now':'error: '+(r.error||'');if(r.ok){document.getElementById('cview').href=(CT==='posts'?'/blog/':'/')+document.getElementById('cslug').value;loadContent();}};
 document.getElementById('cdel').onclick=async function(){if(!confirm('Delete this content?'))return;var m=document.getElementById('cmsg');
   var r=await (await fetch(B+'/api/content/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:CT,slug:document.getElementById('cslug').value})})).json();
   if(r.ok){document.getElementById('ceditor').style.display='none';document.getElementById('cempty').style.display='';loadContent();}else{m.textContent='error: '+(r.error||'');}};

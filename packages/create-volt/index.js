@@ -300,6 +300,44 @@ if (positionals[0] === "update") {
     }
   }
 
+  // Refreshed add-ons may declare NEW npm deps in meta.json "install" that the app doesn't
+  // have yet (e.g. the admin editor's rte-rich-text-editor). Merge them into package.json and
+  // install — so `create-volt update` (incl. the web-admin "Update" button) fully upgrades an
+  // add-on that gained a dependency, not just its code.
+  try {
+    const appPkgPath = path.join(cwd, "package.json");
+    if (fs.existsSync(appPkgPath)) {
+      const appPkg = JSON.parse(fs.readFileSync(appPkgPath, "utf8"));
+      appPkg.dependencies = appPkg.dependencies || {};
+      const envTxt = fs.existsSync(path.join(cwd, ".env")) ? fs.readFileSync(path.join(cwd, ".env"), "utf8") : "";
+      const enabled = (envTxt.match(/^\s*VOLT_ADDONS\s*=(.*)$/m)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const added = [];
+      for (const name of enabled) {
+        const metaPath = path.join(cwd, ".volt", "addons", name, "meta.json");
+        if (!fs.existsSync(metaPath)) continue;
+        const install = JSON.parse(fs.readFileSync(metaPath, "utf8")).install || {};
+        const deps = Array.isArray(install) ? Object.fromEntries(install.map((d) => [d, "latest"])) : install;
+        for (const [dep, ver] of Object.entries(deps)) {
+          if (!appPkg.dependencies[dep]) {
+            appPkg.dependencies[dep] = ver || "latest";
+            added.push(dep);
+          }
+        }
+      }
+      if (added.length) {
+        fs.writeFileSync(appPkgPath, JSON.stringify(appPkg, null, 2) + "\n");
+        done.push(`package.json (+${added.join(", ")})`);
+        if (!skipInstall) {
+          const pm = detectPM();
+          console.log(`\nInstalling new add-on dependencies with ${cyan(pm)}: ${added.join(", ")}…\n`);
+          spawnSync(pm, ["install"], { cwd, stdio: "inherit", shell: process.platform === "win32" });
+        }
+      }
+    }
+  } catch {
+    /* non-fatal — deps are declared in package.json; a later install picks them up */
+  }
+
   console.log(`\n${green("✔")} Updated to create-volt ${pkg.version}: ${done.join(", ")}.`);
   console.log(dim(`  server.js logic is untouched (re-scaffold to adopt entry-point changes). Restart the app.`));
   process.exit(0);

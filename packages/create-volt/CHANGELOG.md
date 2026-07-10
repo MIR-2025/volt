@@ -4,6 +4,19 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.80.0] - 2026-07-09
+
+### Added
+- **The web-admin content editor is now WYSIWYG.** The `admin` add-on’s Content panel edits pages + posts
+  in a rich editor (RTEPro’s no-AI, no-key base, `rte-rich-text-editor`) instead of a raw textarea: format with a
+  toolbar, paste images (extracted to `public/media/`), save. Content stays **markdown on disk** — the editor loads
+  it via `marked`→setHTML and saves via `getMarkdown()`. Front matter (title, date, tags, permalink…) is preserved
+  in a collapsible field, so WordPress-migrated metadata round-trips untouched. Ships automatically in new sites;
+  degrades gracefully to a markdown textarea if the editor package isn’t installed.
+- **`create-volt update` now installs new add-on dependencies.** When a refreshed add-on declares a new npm dep
+  in its `meta.json` (like this release’s editor), `update` merges it into `package.json` and installs it — so the
+  web-admin “Update” button fully upgrades add-ons, not just their code.
+
 ## [0.79.1] - 2026-07-09
 
 ### Fixed
@@ -1105,6 +1118,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.80.0]: https://github.com/MIR-2025/volt/releases/tag/v0.80.0
 [0.79.1]: https://github.com/MIR-2025/volt/releases/tag/v0.79.1
 [0.79.0]: https://github.com/MIR-2025/volt/releases/tag/v0.79.0
 [0.78.0]: https://github.com/MIR-2025/volt/releases/tag/v0.78.0
