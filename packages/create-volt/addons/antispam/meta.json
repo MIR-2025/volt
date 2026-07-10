@@ -1,6 +1,7 @@
 {
-  "description": "Built-in spam protection — no API key, no third-party service. Unlike hosted filters (Akismet et al.), nothing about your users' submissions ever leaves the app; every check runs locally. Layers a honeypot, a signed time-trap token, per-IP rate limiting, and content heuristics into one verdict. Any form opts in via app.locals.spam.fields() (embed) + app.locals.spam.check() (verify).",
+  "description": "Built-in spam protection — no API key, no third-party service. Unlike hosted filters (Akismet et al.), nothing about your users' submissions ever leaves the app; every check runs locally. Layers a honeypot, a signed time-trap token, per-IP rate limiting, content heuristics, and invisible proof-of-work (pow-captcha-js) into one verdict. Any form opts in via app.locals.spam.fields() (embed) + app.locals.spam.check() (verify).",
   "dependsOn": [],
-  "install": {},
-  "optional": {}
+  "install": { "pow-captcha-js": "^0.1.0" },
+  "optional": {},
+  "wiring": "Embed app.locals.spam.fields() inside a <form> and call app.locals.spam.check({ req, content }) on submit. Invisible proof-of-work is built in (pow-captcha-js): enable it per-form with spam.fields({ pow: true }), or on every form with ANTISPAM_POW=1. The /pow and /pow.js routes are mounted automatically; tune difficulty with POW_BITS (default 18, +1 bit doubles attacker cost) and the path with ANTISPAM_POW_PATH. Direct access to the instance via app.locals.spam.pow."
 }

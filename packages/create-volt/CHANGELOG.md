@@ -4,6 +4,19 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.82.0] - 2026-07-10
+
+### Added
+- **Invisible proof-of-work spam protection in the `antispam` add-on** (via the new zero-dep
+  [`pow-captcha-js`](https://www.npmjs.com/package/pow-captcha-js)). A stateless HMAC challenge the
+  visitor's browser solves in ~1s — no puzzle, no third party, no visitor tracking — so spam pays CPU
+  per submission while a human pays nothing they'll notice. It layers into the existing verdict
+  alongside the honeypot, time-trap, rate-limit, and content heuristics: a missing, tampered, or
+  replayed proof is treated as spam outright. The `/pow` and `/pow.js` routes mount automatically.
+  Enable per-form with `app.locals.spam.fields({ pow: true })`, or on every form with `ANTISPAM_POW=1`.
+  Tune difficulty with `POW_BITS` (default 18; +1 bit doubles an attacker's cost) and the endpoint with
+  `ANTISPAM_POW_PATH`. The instance is exposed as `app.locals.spam.pow` for direct use.
+
 ## [0.81.0] - 2026-07-10
 
 ### Added
