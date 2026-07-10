@@ -456,6 +456,46 @@ export async function pagesRouter({ dir }) {
   const redirects = loadRedirects(path.join(dir, "..")); // _redirects sits at the app root
   const r = express.Router();
   r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS + "\n" + fontsCss(process.env)));
+  // /sitemap.xml + /robots.txt — every page (+ post, when that add-on is on) at its REAL
+  // route, permalink-aware. Absolute URLs when SITE_URL is set, else relative. Search engines
+  // get discovery + crawl priority; the publish crawler already seeds from /sitemap.xml, so
+  // unlinked pages are captured too. Regenerated on every request (and every publish).
+  const siteRoutes = () => {
+    const routes = new Set(["/"]);
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith(".md") || f.startsWith("_") || f === "404.md" || f === "index.md") continue;
+        const { meta } = parseFrontMatter(fs.readFileSync(path.join(dir, f), "utf8"));
+        routes.add(meta.permalink ? normPath(meta.permalink) : "/" + f.slice(0, -3));
+      }
+    } catch {
+      /* no pages dir yet */
+    }
+    if ((process.env.VOLT_ADDONS || "").split(",").map((s) => s.trim()).includes("posts")) {
+      try {
+        const postsDir = path.join(dir, "..", "posts");
+        const files = fs.readdirSync(postsDir).filter((f) => f.endsWith(".md") && !f.startsWith("_"));
+        if (files.length) routes.add("/blog");
+        for (const f of files) {
+          const { meta } = parseFrontMatter(fs.readFileSync(path.join(postsDir, f), "utf8"));
+          routes.add(meta.permalink ? normPath(meta.permalink) : "/blog/" + f.slice(0, -3));
+        }
+      } catch {
+        /* no posts */
+      }
+    }
+    return [...routes];
+  };
+  const siteBase = () => (process.env.SITE_URL ? process.env.SITE_URL.replace(/\/+$/, "") : "");
+  r.get("/sitemap.xml", (_req, res) => {
+    const base = siteBase();
+    const urls = siteRoutes().map((p) => `  <url><loc>${esc(base + p)}</loc></url>`).join("\n");
+    res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  });
+  r.get("/robots.txt", (_req, res) => {
+    const base = siteBase();
+    res.type("text/plain").send(`User-agent: *\nAllow: /\n${base ? `Sitemap: ${base}/sitemap.xml\n` : ""}`);
+  });
   // 301 legacy WordPress URLs (feeds, archives, ?p= links) from the root _redirects file
   if (redirects.size) {
     r.use((req, res, next) => {
