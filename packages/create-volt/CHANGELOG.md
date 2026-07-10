@@ -4,6 +4,14 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.79.1] - 2026-07-09
+
+### Fixed
+- **Web admin threw `Uncaught SyntaxError` and the panel did nothing (0.79.0 regression).** The new-content
+  helper built its front-matter with `\n`, which the admin page’s own template literal collapsed into real
+  newlines *inside* a single-quoted JS string — an unterminated string that killed the entire inline script.
+  Now built with `String.fromCharCode(10)`. Verification now parses the actual rendered inline script.
+
 ## [0.79.0] - 2026-07-10
 
 ### Added
@@ -1097,6 +1105,7 @@ All notable changes to `create-volt` are documented here. The format follows
   watching and full-page hot reload. Supports `--skip-install` and `--force`,
   and auto-detects npm / pnpm / yarn / bun for the install step.
 
+[0.79.1]: https://github.com/MIR-2025/volt/releases/tag/v0.79.1
 [0.79.0]: https://github.com/MIR-2025/volt/releases/tag/v0.79.0
 [0.78.0]: https://github.com/MIR-2025/volt/releases/tag/v0.78.0
 [0.77.0]: https://github.com/MIR-2025/volt/releases/tag/v0.77.0

@@ -583,7 +583,7 @@ async function openContent(t,slug){CT=t;var d=await (await fetch(B+'/api/content
   document.getElementById('cbody').value=d.body||'';document.getElementById('cview').href=(t==='posts'?'/blog/':'/')+slug;document.getElementById('cmsg').textContent='';}
 function newContent(t){CT=t;document.getElementById('cempty').style.display='none';document.getElementById('ceditor').style.display='';
   document.getElementById('ctype').textContent=(t==='posts'?'post':'page');document.getElementById('cslug').value='';
-  document.getElementById('cbody').value='---\ntitle: New '+(t==='posts'?'post':'page')+'\n---\n\nWrite here.\n';document.getElementById('cmsg').textContent='';document.getElementById('cslug').focus();}
+  var nl=String.fromCharCode(10);document.getElementById('cbody').value='---'+nl+'title: New '+(t==='posts'?'post':'page')+nl+'---'+nl+nl+'Write here.'+nl;document.getElementById('cmsg').textContent='';document.getElementById('cslug').focus();}
 document.getElementById('newPage').onclick=function(){newContent('pages');};
 document.getElementById('newPost').onclick=function(){newContent('posts');};
 document.getElementById('csave').onclick=async function(){var m=document.getElementById('cmsg');m.textContent='saving…';
