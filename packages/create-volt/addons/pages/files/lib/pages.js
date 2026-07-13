@@ -101,9 +101,9 @@ export function metaHead(meta) {
 
 // Canonical color tokens with an automatic dark set (prefers-color-scheme), so the
 // bare default still adapts to the OS AND a SITE_SCHEME can override the palette.
-const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff; --font-body: system-ui, -apple-system, sans-serif; --font-heading: var(--font-body); --font-subhead: var(--font-heading); --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 } }
-:root[data-theme="dark"] { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116 }
+const DEFAULT_CSS = `:root { color-scheme: light dark; --bg:#ffffff; --surface:#f5f6f8; --ink:#1b1f24; --muted:#666e78; --line:#d9dde2; --brand:#0b67d6; --brand-ink:#ffffff; --accent:var(--brand); --ok:#1a7f37; --warn:#9a6700; --danger:#cf222e; --font-body: system-ui, -apple-system, sans-serif; --font-heading: var(--font-body); --font-subhead: var(--font-heading); --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116; --ok:#3fb950; --warn:#d29922; --danger:#f85149 } }
+:root[data-theme="dark"] { --bg:#0e1116; --surface:#171b21; --ink:#e6e8ee; --muted:#9aa4b2; --line:#2a313b; --brand:#6ea8ff; --brand-ink:#0e1116; --ok:#3fb950; --warn:#d29922; --danger:#f85149 }
 body { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem; font: 17px/1.7 var(--font-body); background: var(--bg); color: var(--ink) }
 h1, h2, h3, h4 { line-height: 1.25; margin: 1.6rem 0 .6rem }
 h1 { font-family: var(--font-heading) }
@@ -125,6 +125,13 @@ function navHeader(nav) {
   const menu = nav.length ? `<input type="checkbox" id="__navt" class="nav-toggle" hidden /><label for="__navt" class="nav-burger" aria-label="Menu">☰</label><nav class="nav-links">${navLinks(nav)}</nav>` : "";
   return `<header class="site-nav"><div class="nav-wrap"><a class="brand" href="/">${brandMark(name)}</a>${menu}</div></header>`;
 }
+// Default footer (© + site name). Shown unless the owner turned it off (SITE_FOOTER=off)
+// or dropped their own pages/_footer.html (which takes precedence).
+function siteFooter() {
+  if (String(process.env.SITE_FOOTER || "").toLowerCase() === "off") return "";
+  const name = process.env.SITE_NAME || "";
+  return `<footer class="site-footer">© ${new Date().getFullYear()}${name ? " " + esc(name) : ""}</footer>`;
+}
 function defaultLayout(dir) {
   const part = (f) => {
     const p = path.join(dir, f);
@@ -136,7 +143,7 @@ function defaultLayout(dir) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
 ${head}
-<link rel="stylesheet" href="/_theme.css" /></head><body>${part("_header.html") || navHeader(nav)}<main>${content}</main>${part("_footer.html")}</body></html>`;
+<link rel="stylesheet" href="/_theme.css" /></head><body>${part("_header.html") || navHeader(nav)}<main>${content}</main>${part("_footer.html") || siteFooter()}</body></html>`;
 }
 
 // The active theme's CSS — a `_theme.css` override in pages/, else the default.
@@ -193,10 +200,45 @@ export function schemesCss(schemes = SCHEMES) {
 // prefers-color-scheme); "light"/"dark" force it. A visitor switcher can override
 // data-scheme/data-theme client-side later.
 export function injectScheme(html, env) {
-  const id = String(env.SITE_SCHEME || "").replace(/[^a-z0-9-]/gi, "");
+  // SITE_BG (a custom picked color) becomes a synthetic scheme "custom" unless the owner
+  // also set a named SITE_SCHEME (explicit scheme wins).
+  const id = String(env.SITE_SCHEME || (env.SITE_BG ? "custom" : "")).replace(/[^a-z0-9-]/gi, "");
   const mode = String(env.SITE_MODE || "").toLowerCase();
   const attrs = [id ? `data-scheme="${id}"` : "", mode === "light" || mode === "dark" ? `data-theme="${mode}"` : ""].filter(Boolean).join(" ");
   return attrs && html.includes("<html") ? html.replace("<html", `<html ${attrs}`) : html;
+}
+
+// --- custom palette from SITE_BG (+ optional SITE_ACCENT) --------------------
+// Derive a full, WCAG-readable palette (light + dark) from ONE picked color so a tenant
+// can set their own background + a complementary accent without ever breaking contrast.
+// Emitted as data-scheme="custom" (see injectScheme). Contrast-safe: readable ink is
+// chosen by trying both polarities (luminance alone mispredicts on saturated mid-tones);
+// a too-vivid pick is promoted to the accent over a tinted, readable page.
+const _clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const _hex2rgb = (h) => { h = String(h).replace("#", "").trim(); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; };
+const _h2 = (x) => _clamp(Math.round(x), 0, 255).toString(16).padStart(2, "0");
+const _rgb2hex = ({ r, g, b }) => "#" + _h2(r) + _h2(g) + _h2(b);
+function _rgb2hsl({ r, g, b }) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); if (mx === r) h = (g - b) / d + (g < b ? 6 : 0); else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h /= 6; } return { h: h * 360, s: s * 100, l: l * 100 }; }
+function _hsl2rgb({ h, s, l }) { h = (((h % 360) + 360) % 360) / 360; s = _clamp(s, 0, 100) / 100; l = _clamp(l, 0, 100) / 100; if (s === 0) return { r: l * 255, g: l * 255, b: l * 255 }; const f = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }; const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q; return { r: f(p, q, h + 1 / 3) * 255, g: f(p, q, h) * 255, b: f(p, q, h - 1 / 3) * 255 }; }
+const _hex2hsl = (h) => _rgb2hsl(_hex2rgb(h));
+const _hsl2hex = (o) => _rgb2hex(_hsl2rgb(o));
+const _lum = ({ r, g, b }) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+const _contrast = (a, b) => { const L1 = _lum(_hex2rgb(a)), L2 = _lum(_hex2rgb(b)); return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05); };
+const _inkOn = (h) => (_contrast(h, "#ffffff") >= _contrast(h, "#141414") ? "#ffffff" : "#141414");
+function _readInk(bg, hue, sat, t = 7) { const s = _clamp(sat, 0, 18); const d = { h: hue, s, l: 16 }, li = { h: hue, s, l: 92 }; for (let i = 0; i < 32 && _contrast(_hsl2hex(d), bg) < t; i++) d.l = Math.max(0, d.l - 3); for (let i = 0; i < 32 && _contrast(_hsl2hex(li), bg) < t; i++) li.l = Math.min(100, li.l + 3); return _hsl2hex(_contrast(_hsl2hex(d), bg) >= _contrast(_hsl2hex(li), bg) ? d : li); }
+function _compAccent(bg) { const c = _hex2hsl(bg), light = c.l > 55; const a = { h: c.h + 180, s: _clamp(Math.max(c.s, 58), 45, 82), l: light ? 42 : 62 }; for (let i = 0; i < 20 && _contrast(_hsl2hex(a), bg) < 3.5; i++) a.l += light ? -4 : 4; return _hsl2hex(a); }
+function _side(bg, accent) { const c = _hex2hsl(bg), light = c.l > 55; const surface = light ? _hsl2hex({ h: c.h, s: _clamp(c.s * 0.6, 0, 20), l: _clamp(Math.max(c.l, 97), 0, 100) }) : _hsl2hex({ h: c.h, s: _clamp(c.s, 0, 30), l: _clamp(c.l + 6, 0, 100) }); const line = _hsl2hex({ h: c.h, s: _clamp(c.s * 0.7, 0, 24), l: light ? _clamp(c.l - 9, 0, 100) : _clamp(c.l + 15, 0, 100) }); const muted = _hsl2hex({ h: c.h, s: _clamp(c.s * 0.4, 0, 22), l: light ? 40 : 66 }); const ink = _readInk(bg, c.h, c.s); const a = _hex2hsl(accent); for (let i = 0; i < 20 && _contrast(_hsl2hex(a), bg) < 4.5; i++) a.l += light ? -3 : 3; const brand = _hsl2hex(a); return { bg, surface, ink, muted, line, brand, brandInk: _inkOn(brand), accent: brand, ok: light ? "#1a7f37" : "#3fb950", warn: light ? "#9a6700" : "#d29922", danger: light ? "#cf222e" : "#f85149" }; }
+export function derivePalette(bgHex, accentHex) { const raw = _hex2hsl(bgHex); const hostable = Math.max(_contrast(bgHex, "#ffffff"), _contrast(bgHex, "#141414")) >= 4.5; let accent = accentHex, base = bgHex; if (!hostable) { if (!accent) accent = bgHex; base = _hsl2hex({ h: raw.h, s: _clamp(raw.s * 0.35, 0, 16), l: 97 }); } if (!accent) accent = _compAccent(base); const c = _hex2hsl(base), pl = c.l > 55; const lightBg = pl ? base : _hsl2hex({ h: c.h, s: _clamp(c.s * 0.5, 0, 18), l: 97 }); const darkBg = pl ? _hsl2hex({ h: c.h, s: _clamp(c.s, 0, 26), l: 9 }) : base; const ah = _hex2hsl(accent); const darkAcc = accentHex || _hsl2hex({ h: ah.h, s: _clamp(ah.s, 40, 80), l: _clamp(Math.max(ah.l, 58), 55, 72) }); return { light: _side(lightBg, accent), dark: _side(darkBg, darkAcc) }; }
+const _isHex = (v) => /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(String(v || "").trim());
+const _norm = (v) => { v = String(v).trim(); return v[0] === "#" ? v : "#" + v; };
+const _vars = (p) => `--bg:${p.bg};--surface:${p.surface};--ink:${p.ink};--muted:${p.muted};--line:${p.line};--brand:${p.brand};--brand-ink:${p.brandInk};--accent:${p.accent};--ok:${p.ok};--warn:${p.warn};--danger:${p.danger}`;
+// Appended to /_theme.css: the "custom" scheme derived from SITE_BG (+ optional SITE_ACCENT).
+export function customSchemeCss(env) {
+  if (!_isHex(env.SITE_BG)) return "";
+  const p = derivePalette(_norm(env.SITE_BG), _isHex(env.SITE_ACCENT) ? _norm(env.SITE_ACCENT) : undefined);
+  return `[data-scheme="custom"]{${_vars(p.light)}}\n` +
+    `@media(prefers-color-scheme:dark){[data-scheme="custom"]:not([data-theme="light"]){${_vars(p.dark)}}}\n` +
+    `[data-scheme="custom"][data-theme="dark"]{${_vars(p.dark)}}`;
 }
 
 // Theme-side utility (appended to every theme's /_theme.css): mark a block
@@ -252,6 +294,8 @@ export function fontsCss(env = process.env) {
 export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
 .full-bleed>img,.full-bleed>video{width:100%;display:block}
 .site-nav{border-bottom:1px solid var(--line);margin-bottom:1.5rem;padding:.5rem 0}
+.site-footer{border-top:1px solid var(--line);margin:3rem auto 0;max-width:720px;padding:1.25rem 1.1rem 2.5rem;color:var(--muted);font-size:.9rem}
+.pay-btn{display:inline-block;background:var(--brand);color:var(--brand-ink);font-weight:600;padding:.7rem 1.4rem;border-radius:8px;text-decoration:none;margin:.3rem 0}.pay-btn:hover{filter:brightness(.94)}
 .nav-wrap{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
 .nav-wrap .brand{font-weight:800;color:var(--ink);text-decoration:none;font-size:1.15rem}
 .brand-logo{height:1.9em;width:auto;display:block}
@@ -274,6 +318,20 @@ export const UTIL_CSS = `.full-bleed{width:100vw;max-width:100vw;margin-left:cal
 
 // media role: hero. When SITE_HERO is set, fill every .volt-hero element on the page
 // with those image(s)/video(s). Multiple → a fading carousel. No dependency, no build.
+// Payment shortcode: [pay] / [donate] (optional label="" link="") -> a button that opens the tenant's
+// OWN processor-hosted checkout (PAY_LINK). No funds or customer data ever pass through Volt.
+export function renderPay(src, env) {
+  const defLink = String(env.PAY_LINK || "").trim();
+  const defLabel = String(env.PAY_LABEL || "").trim();
+  return String(src).replace(/\[(pay|donate)((?:\s+[a-z]+="[^"]*")*)\s*\]/gi, (m, kind, attrs) => {
+    const at = {};
+    for (const a of String(attrs).matchAll(/([a-z]+)="([^"]*)"/gi)) at[a[1].toLowerCase()] = a[2];
+    const link = String(at.link || defLink).trim();
+    if (!/^https?:\/\//i.test(link)) return ""; // no valid payment link set -> render nothing
+    const label = esc(at.label || defLabel || (String(kind).toLowerCase() === "donate" ? "Donate" : "Pay"));
+    return `<a class="pay-btn" href="${esc(link)}" target="_blank" rel="noopener nofollow">${label}</a>`;
+  });
+}
 export function injectHero(html, env) {
   const imgs = String(env.SITE_HERO || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (!imgs.length || !html.includes("</body>")) return html;
@@ -444,7 +502,7 @@ export async function pagesRouter({ dir }) {
   // WYSIWYG editor) are served verbatim; everything else is rendered with marked.
   const renderFile = async (file, fallbackTitle, res, activePath = "/") => {
     const { meta, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
-    const content = meta.format === "html" ? body : marked.parse(body);
+    const content = meta.format === "html" ? renderPay(body, process.env) : marked.parse(renderPay(body, process.env));
     // a page's own permalink is its canonical URL unless one is set explicitly
     const canonical = meta.canonical || (meta.permalink ? absUrl(normPath(meta.permalink)) : absUrl(activePath));
     const m = { ...meta, title: meta.title || fallbackTitle, canonical };
@@ -455,7 +513,7 @@ export async function pagesRouter({ dir }) {
   const permalinks = pagePermalinks(dir);
   const redirects = loadRedirects(path.join(dir, "..")); // _redirects sits at the app root
   const r = express.Router();
-  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + UTIL_CSS + "\n" + fontsCss(process.env)));
+  r.get("/_theme.css", async (_req, res) => res.type("css").send((await getTheme()).css + "\n" + schemesCss() + "\n" + customSchemeCss(process.env) + "\n" + UTIL_CSS + "\n" + fontsCss(process.env)));
   // /sitemap.xml + /robots.txt — every page (+ post, when that add-on is on) at its REAL
   // route, permalink-aware. Absolute URLs when SITE_URL is set, else relative. Search engines
   // get discovery + crawl priority; the publish crawler already seeds from /sitemap.xml, so

@@ -4,6 +4,19 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.83.0] - 2026-07-13
+
+### Added
+- **Custom color palette from one picked color.** Set `SITE_BG` (and optionally `SITE_ACCENT`) and the pages
+  add-on derives a full palette -- surface, text, muted, borders, a complementary accent, and text-on-accent --
+  for both light and dark, with contrast checked so text stays readable. Emitted as a `data-scheme="custom"`.
+  Adds named content tokens `--accent`, `--ok`, `--warn`, `--danger` for use in content.
+- **A default site footer.** Every page gets a `(c) <year> <site name>` footer. Set `SITE_FOOTER=off` to hide it,
+  or drop a `pages/_footer.html` to replace it.
+- **`[pay]` / `[donate]` payment shortcode.** Renders a button that opens a payment link you configure
+  (`PAY_LINK`, with `PAY_LABEL` for the text); `[pay label="..." link="..."]` overrides per button. The link
+  points at your own processor's hosted checkout -- no keys or customer data pass through Volt.
+
 ## [0.82.0] - 2026-07-10
 
 ### Added
