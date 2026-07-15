@@ -59,14 +59,19 @@ export function register({ app, express, env, requireAuth, log }) {
   if (!requireAuth) return log("auth add-on is required for the editor — disabled.");
   const base = "/" + raw.replace(/^\/+|\/+$/g, "");
   const allow = new Set(String(env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const isProd = String(env.NODE_ENV || "").toLowerCase() === "production";
   const provider = env.AI_PROVIDER || "anthropic";
   const pagesDir = path.join(process.cwd(), "pages");
 
-  // gate: signed in AND (if an allowlist is set) on it
+  // gate: signed in AND authorized. An ADMIN_EMAILS allowlist is enforced when set. When it's UNSET,
+  // fail CLOSED in production — otherwise anyone who completes the magic-link flow with any email could
+  // author. Local dev (non-production) stays open to any signed-in user for zero-config authoring.
   const gate = [
     requireAuth,
     (req, res, next) => {
-      if (allow.size && !allow.has(String(req.user?.email || "").toLowerCase())) return res.status(403).type("html").send("Not authorized.");
+      const email = String(req.user?.email || "").toLowerCase();
+      if (allow.size) { if (!allow.has(email)) return res.status(403).type("html").send("Not authorized."); }
+      else if (isProd) return res.status(403).type("html").send("Editor locked -- set ADMIN_EMAILS in your .env to enable authoring.");
       next();
     },
   ];
@@ -173,5 +178,7 @@ export function register({ app, express, env, requireAuth, log }) {
       .catch(() => res.json({ ok: false, error: "gateway unreachable" }));
   });
 
-  log(`editor ready at ${base} — allowlist: ${allow.size ? [...allow].join(", ") : "(any signed-in user — set ADMIN_EMAILS!)"}`);
+  if (allow.size) log(`editor ready at ${base} -- authors: ${[...allow].join(", ")}`);
+  else if (isProd) log(`⚠ editor at ${base} is LOCKED: ADMIN_EMAILS is unset in production, so no one can author. Set ADMIN_EMAILS in your .env to enable it.`);
+  else log(`editor ready at ${base} -- DEV: any signed-in user can author. Set ADMIN_EMAILS before deploying.`);
 }
