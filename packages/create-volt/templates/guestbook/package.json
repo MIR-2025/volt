@@ -19,7 +19,7 @@
   },
   "optionalDependencies": {
     "mongodb": "^6.21.0",
-    "mysql2": "^3.22.5",
+    "mysql2": "^3.22.6",
     "pg": "^8.22.0"
   }
 }

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 6, marked: 18, busboy: 1, "@aws-sdk/client-s3": 3, "rte-rich-text-editor-pro": 1 };
+const MAJOR = { express: 4, "socket.io": 4, mongodb: 6, mysql2: 3, pg: 8, nodemailer: 9, marked: 18, busboy: 1, "@aws-sdk/client-s3": 3, "rte-rich-text-editor-pro": 1 };
 
 const cmp = (a, b) => {
   const A = a.split(".").map(Number);
@@ -49,12 +49,17 @@ const edit = (rel, transform) => {
   }
 };
 
-// 1) PKG_VERSIONS maps (server-side packages added on demand) in template server.js
+// 1) PKG_VERSIONS maps (server-side packages added on demand) in EVERY template server.js.
+// Must cover ALL templates, not just default+starter: blog/docs/business reuse default's server.js
+// byte-for-byte (enforced by test/template-sync.test.mjs), so bumping only default drifts them and
+// fails CI. Glob the templates dir so new templates are covered automatically.
 const PKG_ORDER = ["mongodb", "mysql2", "pg", "nodemailer", "marked", "busboy", "@aws-sdk/client-s3"];
 const keyOf = (n) => (/^[a-z_$][\w$]*$/i.test(n) ? n : JSON.stringify(n)); // quote scoped/dotted names
 const pkgVersionsLine = `const PKG_VERSIONS = { ${PKG_ORDER.map((n) => `${keyOf(n)}: "^${want[n]}"`).join(", ")} };`;
-for (const t of ["default", "starter"]) {
-  edit(`packages/create-volt/templates/${t}/server.js`, (s) => s.replace(/const PKG_VERSIONS = \{[^}]*\};/, pkgVersionsLine));
+const PKG_VERSIONS_RE = /const PKG_VERSIONS = \{[^}]*\};/;
+const templatesRoot = path.join(root, "packages/create-volt/templates");
+for (const t of fs.readdirSync(templatesRoot)) {
+  edit(`packages/create-volt/templates/${t}/server.js`, (s) => (PKG_VERSIONS_RE.test(s) ? s.replace(PKG_VERSIONS_RE, pkgVersionsLine) : s));
 }
 
 // 2) deps / optionalDeps in template package.json + first-party packages/site
