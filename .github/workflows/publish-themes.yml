@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Upgrade npm (Trusted Publishing needs >= 11.5)
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
       # No token: npm exchanges the GitHub OIDC token. A trusted publisher for THIS
       # repo + this workflow file must be configured on npmjs.com for each package.
       - name: Publish paper
