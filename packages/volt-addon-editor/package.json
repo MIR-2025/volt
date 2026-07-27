@@ -23,8 +23,8 @@
     "public"
   ],
   "dependencies": {
-    "marked": "^18.0.5",
-    "rte-rich-text-editor-pro": "^1.0.31"
+    "marked": "^18.0.7",
+    "rte-rich-text-editor-pro": "^1.0.33"
   },
   "license": "MIT"
 }
