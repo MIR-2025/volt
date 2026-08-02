@@ -31,7 +31,7 @@ export function register({ app, env, log }) {
   // registered/able-to-resolve, but submitEvent is a no-op. Set in the config wizard.
   const emit = /^(1|true|on|yes)$/i.test(String(env.MIR_EMIT || ""));
   // Never emit for a localhost / private-network app — dev + test events must not pollute a
-  // partner's production reputation data. This is a hard gate, independent of MIR_EMIT.
+  // partner's production participation history. This is a hard gate, independent of MIR_EMIT.
   const host = String(env.SITE_URL || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
   const isLocal = !host || host === "localhost" || host.endsWith(".local") || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1)/.test(host);
 
@@ -91,7 +91,17 @@ export function register({ app, env, log }) {
       if (opts.purpose) q.set("purpose", opts.purpose);
       if (opts.signals) q.set("signals", Array.isArray(opts.signals) ? opts.signals.join(",") : String(opts.signals));
       const r = await call("/resolve?" + q.toString());
-      if (r.status === 404) return { found: false, unknown: true, provisional: false, status: 404, signals: null };
+      // A 404 means "no events for this participant" ONLY when MIR says so. A moved/renamed
+      // endpoint, a gateway, or a proxy also 404s — and reading that as "no history" would
+      // make this client LIE rather than break, which monitoring never catches. Prefer MIR's
+      // stable machine code; fall back to its current message until that ships. Anything
+      // else fails loud, because "we could not ask" must never look like "they have none".
+      if (r.status === 404) {
+        const d = r.data || {};
+        const noEvents = d.code === "no_events" || /no events have been submitted/i.test(String(d.error || ""));
+        if (noEvents) return { found: false, unknown: true, provisional: false, status: 404, signals: null };
+        throw new Error(`MIR resolve: unexpected 404 from ${base} — endpoint moved or unreachable, not an unknown participant`);
+      }
       if (r.status === 202) return { found: false, unknown: false, provisional: true, status: 202, signals: r.data };
       if (r.ok) return { found: true, unknown: false, provisional: false, status: r.status, signals: r.data };
       throw new Error(`MIR resolve ${r.status}: ${(r.data && (r.data.error || r.data.message)) || ""}`);

@@ -4,6 +4,22 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.83.1] - 2026-07-31
+
+### Fixed
+- **`mir` add-on: a failed lookup can no longer masquerade as "no history".** `resolveUser`
+  treated every 404 as "this participant has no events", so a moved endpoint, a gateway, or a
+  proxy would have been reported as an empty record -- lying rather than breaking, which
+  monitoring never catches. A 404 now counts as unknown only when MIR says so (the stable
+  `code: "no_events"` marker when present, otherwise the current message); anything else
+  throws. "We could not ask" must never render as "they have none".
+
+### Changed
+- **`mir` add-on wording: "reputation" -> "participation history".** MIR records what an entity
+  did and surfaces it as evidence; it does not score, rank or vouch, and the consuming app makes
+  the decision. The add-on description now says so explicitly, since that text is what every
+  scaffolded app sees.
+
 ## [0.83.0] - 2026-07-13
 
 ### Added
