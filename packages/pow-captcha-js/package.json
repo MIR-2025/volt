@@ -1,0 +1,43 @@
+{
+  "name": "pow-captcha-js",
+  "version": "0.1.0",
+  "description": "Invisible proof-of-work spam protection: a stateless HMAC challenge the browser solves in ~1s. No puzzle, no third party, no visitor tracking, zero dependencies. A drop-in captcha alternative for any Node app.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "captcha",
+    "proof-of-work",
+    "pow",
+    "hashcash",
+    "anti-spam",
+    "spam",
+    "bot",
+    "hmac",
+    "recaptcha-alternative",
+    "hcaptcha-alternative",
+    "invisible-captcha",
+    "rate-limit",
+    "honeypot"
+  ],
+  "author": "Richard Whitney",
+  "license": "MIT",
+  "homepage": "https://github.com/MIR-2025/volt/tree/main/packages/pow-captcha-js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MIR-2025/volt.git",
+    "directory": "packages/pow-captcha-js"
+  },
+  "bugs": {
+    "url": "https://github.com/MIR-2025/volt/issues"
+  }
+}
