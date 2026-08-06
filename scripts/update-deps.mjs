@@ -75,7 +75,15 @@ for (const rel of PKG_JSON) {
     const pkg = JSON.parse(s);
     for (const field of ["dependencies", "optionalDependencies"]) {
       if (!pkg[field]) continue;
-      for (const name of Object.keys(pkg[field])) if (want[name]) pkg[field][name] = `^${want[name]}`;
+      for (const name of Object.keys(pkg[field])) {
+        if (!want[name]) continue;
+        // Leave EXACT pins alone. This script maintains dependency *floors* (caret ranges);
+        // an exact version is a deliberate decision — e.g. volt-addon-editor pins rte-pro to
+        // a specific release because that release carries a security fix. Rewriting it to a
+        // caret would silently undo that choice on the next scheduled run.
+        if (/^\d+\.\d+\.\d+$/.test(pkg[field][name])) continue;
+        pkg[field][name] = `^${want[name]}`;
+      }
     }
     return JSON.stringify(pkg, null, 2) + "\n";
   });
