@@ -20,6 +20,6 @@
   "optionalDependencies": {
     "mongodb": "^6.21.0",
     "mysql2": "^3.23.2",
-    "pg": "^8.22.0"
+    "pg": "^8.23.0"
   }
 }
