@@ -42,11 +42,32 @@ export function parseFrontMatter(src) {
   if (!m) return { meta: {}, body: src };
   const meta = {};
   const unquote = (s) => s.replace(/^["']|["']$/g, "");
-  for (const line of m[1].split(/\r?\n/)) {
+  const lines = m[1].split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
     const i = line.indexOf(":");
     if (i <= 0) continue;
     const key = line.slice(0, i).trim();
     const raw = line.slice(i + 1).trim();
+    // YAML block scalar (`key: |` / `key: >`): take the following more-indented lines as
+    // the value. Without this a line parser truncates anything multi-line — which is most
+    // of what `css:` is for.
+    if (/^[|>][-+]?$/.test(raw)) {
+      const fold = raw[0] === ">";
+      const block = [];
+      let j = li + 1;
+      const indentOf = (l) => l.length - l.replace(/^\s+/, "").length;
+      const base = j < lines.length && lines[j].trim() ? indentOf(lines[j]) : 0;
+      for (; j < lines.length; j++) {
+        const l = lines[j];
+        if (l.trim() && indentOf(l) < base) break;   // dedented → block is over
+        block.push(l.slice(base));
+      }
+      while (block.length && !block[block.length - 1].trim()) block.pop();
+      meta[key] = block.join(fold ? " " : "\n");
+      li = j - 1;
+      continue;
+    }
     // YAML inline array (tags: [a, b, c]) → string[]; otherwise a scalar with quotes stripped.
     meta[key] =
       raw.startsWith("[") && raw.endsWith("]")
@@ -96,6 +117,25 @@ export function metaHead(meta) {
   for (const url of scripts.split(",").map((s) => s.trim()).filter(Boolean)) {
     t.push(`<script src="${esc(url)}" defer></script>`);
   }
+  // Linked stylesheets: per-page front-matter `stylesheet:` (comma-separated) and/or a
+  // site-wide SITE_STYLESHEETS. Same shape as `scripts:` above.
+  const sheets = [process.env.SITE_STYLESHEETS, meta.stylesheet, meta.stylesheets].filter(Boolean).join(",");
+  for (const url of sheets.split(",").map((s) => s.trim()).filter(Boolean)) {
+    t.push(`<link rel="stylesheet" href="${esc(url)}" />`);
+  }
+  // Page-level CSS: front-matter `css: |`, plus a site-wide SITE_CSS default.
+  //
+  // Why this exists: a sanitizing WYSIWYG strips <style> from the body, and it is RIGHT to
+  // do so — a page-wide sheet living inside editable content would leak into the editor's
+  // own chrome. So a designed page has nowhere legitimate to keep its stylesheet. This is
+  // that place: it lands in <head>, where the editor never touches it.
+  //
+  // Not an escalation: the author already controls the page body and can load arbitrary
+  // <script> via `scripts:`. CSS is strictly less powerful than what is already permitted.
+  // `</style` is stripped rather than escaped — no legitimate stylesheet contains it, and
+  // escaping inside a raw-text element is unreliable, whereas removal cannot break out.
+  const css = [process.env.SITE_CSS, meta.css].filter(Boolean).join("\n");
+  if (css.trim()) t.push(`<style>${css.replace(/<\/style/gi, "")}</style>`);
   return t.join("\n");
 }
 
@@ -142,8 +182,8 @@ function defaultLayout(dir) {
   return ({ title, head, content, nav = [] }) => `<!doctype html><html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
-${head}
-<link rel="stylesheet" href="/_theme.css" /></head><body>${part("_header.html") || navHeader(nav)}<main>${content}</main>${part("_footer.html") || siteFooter()}</body></html>`;
+<link rel="stylesheet" href="/_theme.css" />
+${head}</head><body>${part("_header.html") || navHeader(nav)}<main>${content}</main>${part("_footer.html") || siteFooter()}</body></html>`;
 }
 
 // The active theme's CSS — a `_theme.css` override in pages/, else the default.
