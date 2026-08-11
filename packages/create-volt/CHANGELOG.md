@@ -4,6 +4,23 @@ All notable changes to `create-volt` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.84.0] - 2026-08-11
+
+### Added
+- **Page-level CSS via front matter.** `css: |` puts a stylesheet in `<head>`; `stylesheet:`
+  links one or more URLs (comma-separated, mirroring `scripts:`). Site-wide defaults via
+  `SITE_CSS` / `SITE_STYLESHEETS`. This exists because a sanitizing WYSIWYG strips `<style>`
+  from the body -- correctly, since a page-wide sheet inside editable content would leak into
+  the editor's own chrome -- which left a designed page with nowhere to keep its stylesheet.
+- **Front matter understands YAML block scalars** (`key: |` and `key: >`). The parser was
+  line-based, so any multi-line value was silently truncated. Inline arrays and scalars are
+  unchanged.
+
+### Changed
+- The page shell emits front-matter head content **after** `/_theme.css` rather than before,
+  so page CSS can override the theme it is meant to override. Meta and og tags are
+  order-independent, so nothing else is affected.
+
 ## [0.83.1] - 2026-07-31
 
 ### Fixed
