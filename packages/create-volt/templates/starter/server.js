@@ -44,7 +44,7 @@ function configPort() {
   const env = readEnvFile(); // --edit runs before loadEnv(), so read the file too
   return cliPort() || Number(process.env.CONFIG_PORT) || Number(env.CONFIG_PORT) || CONFIG_DEFAULT_PORT;
 }
-const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.23.2", pg: "^8.23.0", nodemailer: "^9.0.5", marked: "^18.0.9", busboy: "^1.6.0", "@aws-sdk/client-s3": "^3.1106.0" };
+const PKG_VERSIONS = { mongodb: "^6.21.0", mysql2: "^3.23.3", pg: "^8.23.0", nodemailer: "^9.0.5", marked: "^18.0.9", busboy: "^1.6.0", "@aws-sdk/client-s3": "^3.1111.0" };
 const LIB_FILE = { db: "store.js", mailer: "mailer.js", auth: "auth.js", realtime: "realtime.js", pages: "pages.js", posts: "posts.js", media: "media.js" };
 
 // --- tiny .env loader (no dependency); never overrides an existing env var ---
