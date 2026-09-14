@@ -14,12 +14,12 @@
     "pm2:logs": "npx --yes pm2 logs"
   },
   "dependencies": {
-    "express": "^4.22.2",
+    "express": "^4.22.3",
     "socket.io": "^4.8.3"
   },
   "optionalDependencies": {
     "mongodb": "^6.21.0",
-    "mysql2": "^3.24.3",
+    "mysql2": "^3.24.4",
     "pg": "^8.23.0"
   }
 }

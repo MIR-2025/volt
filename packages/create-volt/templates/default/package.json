@@ -15,7 +15,7 @@
     "logs": "node server.js --logs"
   },
   "dependencies": {
-    "express": "^4.22.2",
+    "express": "^4.22.3",
     "socket.io": "^4.8.3"
   }
 }
