@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "express": "^4.22.3",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.4"
   },
   "optionalDependencies": {
     "mongodb": "^6.21.0",
