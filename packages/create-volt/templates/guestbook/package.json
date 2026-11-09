@@ -18,7 +18,7 @@
     "socket.io": "^4.8.4"
   },
   "optionalDependencies": {
-    "mongodb": "^6.21.0",
+    "mongodb": "^6.22.0",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1"
   }
